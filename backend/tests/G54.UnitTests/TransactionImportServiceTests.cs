@@ -140,14 +140,15 @@ public sealed class TransactionImportServiceTests
     }
 
     [Fact]
-    public async Task GB633_01_ListBatches_ReturnsNewestFirstWithCountsAndNoErrors()
+    public async Task GB633_01_ListBatches_ReturnsTransactionBatchesNewestFirstWithCountsAndNoErrors()
     {
         var (db, service) = Create();
         var importer = Guid.NewGuid();
         db.ImportBatches.AddRange(
             new ImportBatch { Id = Guid.NewGuid(), FileName = "old.xlsx", TotalRows = 3, ImportedRows = 2, DuplicateRows = 0, ErrorRows = 1, ImportedBy = importer, ImportedAt = Now.AddDays(-2) },
             new ImportBatch { Id = Guid.NewGuid(), FileName = "new.xlsx", TotalRows = 5, ImportedRows = 4, DuplicateRows = 1, ErrorRows = 0, ImportedBy = importer, ImportedAt = Now },
-            new ImportBatch { Id = Guid.NewGuid(), FileName = "mid.xlsx", TotalRows = 1, ImportedRows = 1, DuplicateRows = 0, ErrorRows = 0, ImportedBy = importer, ImportedAt = Now.AddDays(-1) });
+            new ImportBatch { Id = Guid.NewGuid(), FileName = "mid.xlsx", TotalRows = 1, ImportedRows = 1, DuplicateRows = 0, ErrorRows = 0, ImportedBy = importer, ImportedAt = Now.AddDays(-1) },
+            new ImportBatch { Id = Guid.NewGuid(), FileType = ImportFileType.ServiceRating, FileName = "ratings.xlsx", TotalRows = 1, ImportedRows = 1, ImportedBy = importer, ImportedAt = Now.AddDays(1) });
         await db.SaveChangesAsync();
 
         var result = await service.ListBatchesAsync(1, 20);

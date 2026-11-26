@@ -3,7 +3,11 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, UrlTree } from '@angular/router';
 import { AuthenticatedUser } from './auth.models';
 import { AuthService } from './auth.service';
-import { canManageTransactionImport, transactionImportGuard } from './transaction-import.guard';
+import {
+  canManageServiceRatingImport,
+  canManageTransactionImport,
+  transactionImportGuard,
+} from './transaction-import.guard';
 
 describe('transactionImportGuard', () => {
   const user = signal<AuthenticatedUser | null>(null);
@@ -49,5 +53,13 @@ describe('transactionImportGuard', () => {
     expect(run() instanceof UrlTree).toBeTrue();
     expect(canManageTransactionImport(null)).toBeFalse();
     expect(canManageTransactionImport(undefined)).toBeFalse();
+  });
+
+  it('allows the service rating import only with its own permission or full access', () => {
+    expect(canManageServiceRatingImport(['SERVICE_RATING_IMPORT_MANAGE'])).toBeTrue();
+    expect(canManageServiceRatingImport(['service_rating_import:manage'])).toBeTrue();
+    expect(canManageServiceRatingImport(['FULL_ACCESS'])).toBeTrue();
+    expect(canManageServiceRatingImport(['TRANSACTION_IMPORT_MANAGE'])).toBeFalse();
+    expect(canManageServiceRatingImport(null)).toBeFalse();
   });
 });

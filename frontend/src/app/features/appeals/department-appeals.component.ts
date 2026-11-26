@@ -184,7 +184,7 @@ export class DepartmentAppealsComponent extends LocalizedComponent implements On
   }
 
   protected viewDetail(item: AppealListItem): void {
-    void this.router.navigate(['/appeals/department', item.id], { state: { appealId: item.id } });
+    void this.router.navigate(['/appeals/department/detail'], { state: { appealId: item.id } });
   }
 
   protected statusLabel(status: AppealStatus): string {

@@ -65,7 +65,7 @@ export class NotificationBellComponent extends LocalizedComponent {
     this.open.set(false);
     if (!item.isRead) this.notifications.markRead(item).subscribe({ error: () => undefined });
     const link = notificationLink(item);
-    if (link) void this.router.navigate(link.commands, { queryParams: link.queryParams });
+    if (link) void this.router.navigate(link.commands, { state: link.state });
     else void this.router.navigate(['/notifications']);
   }
 }

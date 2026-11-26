@@ -69,11 +69,11 @@ Row error codes:
 
 ### GET /transaction-imports (implemented)
 
-Query `page` (default `1`), `pageSize` (default `20`, clamped to `1..200`). Returns `ApiResponse<PagedResult<ImportBatchDto>>` (without `errors`), sorted by `ImportedAt` descending (newest first).
+Query `page` (default `1`), `pageSize` (default `20`, clamped to `1..200`). Returns `ApiResponse<PagedResult<ImportBatchDto>>` of `TRANSACTION` batches only (without `errors`; service rating batches are listed by `GET /service-rating-imports`, see `SERVICE_RATING_IMPORT_CONTRACT.md`), sorted by `ImportedAt` descending (newest first).
 
 ### GET /transaction-imports/{id} (implemented)
 
-Returns `ApiResponse<ImportBatchDto>`; `404` if missing.
+Returns `ApiResponse<ImportBatchDto>`; `404` if missing or not a transaction batch (same for `/errors` and `/transactions`).
 
 ### GET /transaction-imports/{id}/transactions (implemented)
 

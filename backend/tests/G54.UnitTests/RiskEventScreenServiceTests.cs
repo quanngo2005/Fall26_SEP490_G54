@@ -313,7 +313,12 @@ public sealed class RiskEventScreenServiceTests : IDisposable
         Assert.Equal(Now, details.RecordedAt);
         Assert.Equal("bien_ban_0045.pdf", Assert.Single(details.Attachments).FileName);
         Assert.True(details.CanReverse);
+        Assert.False(details.IsOwnEvent);
         Assert.Null(details.ReversedAt);
+
+        var own = await Screens(QaGrants).GetDetailsAsync(employee.Id, recorded.Id);
+        Assert.True(own.IsOwnEvent);
+        Assert.False(own.CanReverse);
     }
 
     // ----- Reverse ----------------------------------------------------------------------------
@@ -344,7 +349,7 @@ public sealed class RiskEventScreenServiceTests : IDisposable
         await SeedAsync();
         var employee = await AddEmployeeAsync("NV1", _inBranch);
         var recorded = await RecordAsync(employee);
-        var open = await Events.CreateAsync(Request(employee, false), _qa.Id);
+        var open = await Events.CreateAsync(Request(employee, false) with { EventType = "OTHER_TYPE" }, _qa.Id);
         await Screens(QaGrants).ReverseAsync(_qa.Id, recorded.Id, new ReverseRiskEventDto(Reason));
 
         var again = await Assert.ThrowsAsync<ConflictException>(() => Screens(QaGrants).ReverseAsync(_qa.Id, recorded.Id, new ReverseRiskEventDto(Reason)));
@@ -445,6 +450,14 @@ public sealed class RiskEventScreenServiceTests : IDisposable
 
         public Task DeleteEvidenceFilesAsync(IEnumerable<StoredFileMetadata> files, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task<string> StoreCallRecordingAsync(IFormFile file, string relativePath, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<Stream> OpenCallRecordingReadAsync(string relativePath, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public void DeleteCallRecording(string relativePath) => throw new NotSupportedException();
     }
 
     [Fact]

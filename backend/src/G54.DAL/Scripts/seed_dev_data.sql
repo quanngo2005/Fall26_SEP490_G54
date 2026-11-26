@@ -14,7 +14,7 @@
 --   Chi nhánh Hà Nội
 --   ├─ Phòng Kinh doanh  -> Nhóm KD 1, Nhóm KD 2      (SALES)
 --   ├─ Phòng Giao dịch   -> Quầy 1, Quầy 2            (TELLER)
---   ├─ Phòng KHCN, Phòng KHDN                         (SALES, no teams; extra departments for the 2027 allocation)
+--   ├─ Phòng KHCN, Phòng KHDN                         (SALES, no teams)
 --   └─ Phòng Dịch vụ KH                               (TELLER, no teams)
 -- ---------------------------------------------------------------------------
 INSERT INTO department (id, code, name, description, parent_department_id, level_type) VALUES
@@ -104,7 +104,13 @@ INSERT INTO kpi_definition (id, kpi_group_id, code, name, description, unit, agg
  ('5eed0000-0000-0000-0005-000000000119', '5eed0000-0000-0000-0003-00000000000c', 'KPI_TXN_ERR_RATE',  'Tỷ lệ lỗi giao dịch',                    'GD phải điều chỉnh / tổng GD',                           '%',      'AVG',            'LOWER_BETTER'),
  ('5eed0000-0000-0000-0005-00000000011a', '5eed0000-0000-0000-0003-00000000000c', 'KPI_HANDOVER_SLA',  'Bàn giao được chấp nhận đúng SLA',        'Bàn giao nhận trong 4h / tổng bàn giao (BR-21)',        '%',      'AVG',            'HIGHER_BETTER'),
  ('5eed0000-0000-0000-0005-00000000011b', '5eed0000-0000-0000-0003-00000000000c', 'KPI_RISK_SEVERE',   'Sự kiện rủi ro nghiêm trọng',             'RiskEvent mức nghiêm trọng do QA ghi nhận',              'vụ',     'SUM',            'LOWER_BETTER'),
- ('5eed0000-0000-0000-0005-00000000011c', '5eed0000-0000-0000-0003-00000000000c', 'KPI_TRAINING',      'Hoàn thành đào tạo bắt buộc',             'Nhân viên hoàn thành khoá AML/tuân thủ (BR-44)',         '%',      'AVG',            'HIGHER_BETTER')
+ ('5eed0000-0000-0000-0005-00000000011c', '5eed0000-0000-0000-0003-00000000000c', 'KPI_TRAINING',      'Hoàn thành đào tạo bắt buộc',             'Nhân viên hoàn thành khoá AML/tuân thủ (BR-44)',         '%',      'AVG',            'HIGHER_BETTER'),
+ -- 2026 additions: three Sales KPIs and two Teller KPIs, each with 2025/2026 history and a split to every eligible employee.
+ ('5eed0000-0000-0000-0005-00000000011d', '5eed0000-0000-0000-0003-00000000000a', 'KPI_LOAN_DISB',     'Giải ngân tín dụng cá nhân',             'Dư nợ giải ngân mới cho khách hàng cá nhân',             'VND',    'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-00000000011e', '5eed0000-0000-0000-0003-00000000000a', 'KPI_FX_FEE',        'Thu phí kinh doanh ngoại hối',           'Phí mua bán và chuyển đổi ngoại tệ',                     'VND',    'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-00000000011f', '5eed0000-0000-0000-0003-00000000000a', 'KPI_PAYROLL_ACC',    'Tài khoản chi lương mở mới',             'Tài khoản nhận lương của doanh nghiệp mới ký',           'TK',     'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000120', '5eed0000-0000-0000-0003-00000000000c', 'KPI_DOC_PROCESSED', 'Hồ sơ xử lý tại quầy',                  'Hồ sơ giao dịch đã xử lý và hoàn tất',                   'HS',     'SUM',            'HIGHER_BETTER'),
+ ('5eed0000-0000-0000-0005-000000000121', '5eed0000-0000-0000-0003-00000000000c', 'KPI_CASH_TXN',      'Giao dịch tiền mặt',                     'Giao dịch nộp/rút tiền mặt thành công',                  'GD',     'SUM',            'HIGHER_BETTER')
 ON CONFLICT DO NOTHING;
 
 -- Only two job positions; managers hold one of them and get the DEPT_MANAGER role.
@@ -163,49 +169,57 @@ WHERE id IN ('5eed0000-0000-0000-0002-000000000001', '5eed0000-0000-0000-0002-00
 -- ACTIVE EvaluationProfile, used in phase 2 to find each department's headcount per KPI. These are separate,
 -- flat profiles (not the performance-evaluation profiles above) so they don't disturb their weight-100 tree;
 -- effective_from is offset by a day because (job_position_id, effective_from) is unique.
--- They apply from 2027 (the year after the sample): 2026 evaluations keep using EP-SALES / EP-TELLER, whose KPIs the
+-- They apply from 2025: 2026 evaluations keep using EP-SALES / EP-TELLER, whose KPIs the
 -- 2026 targets and progress are seeded for.
 -- Sales (file groups A-D) -> SALES; Service/Operations (file groups E-F) -> TELLER.
 INSERT INTO evaluation_profile (id, job_position_id, code, name, description, version, effective_from, status) VALUES
- ('5eed0000-0000-0000-0002-000000000003', '5eed0000-0000-0000-0006-000000000001', 'EP-SALES-YEARKPI',  'Hồ sơ KPI năm - Kinh doanh', 'Liên kết KPI_* nhóm A-D cho Phân bổ chỉ tiêu năm (phase 2).',             1, '2027-01-01', 'ACTIVE'),
- ('5eed0000-0000-0000-0002-000000000004', '5eed0000-0000-0000-0006-000000000002', 'EP-TELLER-YEARKPI', 'Hồ sơ KPI năm - Dịch vụ & Vận hành', 'Liên kết KPI_* nhóm E-F cho Phân bổ chỉ tiêu năm (phase 2).', 1, '2027-01-01', 'ACTIVE')
-ON CONFLICT DO NOTHING;
+ ('5eed0000-0000-0000-0002-000000000003', '5eed0000-0000-0000-0006-000000000001', 'EP-SALES-YEARKPI',  'Hồ sơ KPI năm - Kinh doanh', 'Liên kết KPI_* nhóm A-D cho Phân bổ chỉ tiêu năm (phase 2).',             1, '2025-01-01', 'ACTIVE'),
+ ('5eed0000-0000-0000-0002-000000000004', '5eed0000-0000-0000-0006-000000000002', 'EP-TELLER-YEARKPI', 'Hồ sơ KPI năm - Dịch vụ & Vận hành', 'Liên kết KPI_* nhóm E-F cho Phân bổ chỉ tiêu năm (phase 2).', 1, '2025-01-01', 'ACTIVE')
+ON CONFLICT (id) DO UPDATE SET effective_from = EXCLUDED.effective_from, status = 'ACTIVE';
 -- Databases seeded earlier carry the profiles with the old date.
-UPDATE evaluation_profile SET effective_from = '2027-01-01'
-WHERE id IN ('5eed0000-0000-0000-0002-000000000003', '5eed0000-0000-0000-0002-000000000004')
-  AND effective_from = '2026-06-01';
+UPDATE evaluation_profile SET effective_from = '2025-01-01'
+WHERE id IN ('5eed0000-0000-0000-0002-000000000003', '5eed0000-0000-0000-0002-000000000004');
 
 
 INSERT INTO evaluation_profile_item (id, evaluation_profile_id, parent_item_id, kpi_definition_id, name, weight_percent, display_order) VALUES
- ('5eed0000-0000-0000-0004-000000000301', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000101', NULL, 5.2632, 1),
- ('5eed0000-0000-0000-0004-000000000302', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000102', NULL, 5.2632, 2),
- ('5eed0000-0000-0000-0004-000000000303', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000103', NULL, 5.2632, 3),
- ('5eed0000-0000-0000-0004-000000000304', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000104', NULL, 5.2632, 4),
- ('5eed0000-0000-0000-0004-000000000305', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000105', NULL, 5.2632, 5),
- ('5eed0000-0000-0000-0004-000000000306', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000106', NULL, 5.2632, 6),
- ('5eed0000-0000-0000-0004-000000000307', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000107', NULL, 5.2632, 7),
- ('5eed0000-0000-0000-0004-000000000308', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000108', NULL, 5.2632, 8),
- ('5eed0000-0000-0000-0004-000000000309', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000109', NULL, 5.2632, 9),
- ('5eed0000-0000-0000-0004-00000000030a', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010a', NULL, 5.2632, 10),
- ('5eed0000-0000-0000-0004-00000000030b', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010b', NULL, 5.2632, 11),
- ('5eed0000-0000-0000-0004-00000000030c', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010c', NULL, 5.2632, 12),
- ('5eed0000-0000-0000-0004-00000000030d', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010d', NULL, 5.2632, 13),
- ('5eed0000-0000-0000-0004-00000000030e', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010e', NULL, 5.2632, 14),
- ('5eed0000-0000-0000-0004-00000000030f', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010f', NULL, 5.2632, 15),
- ('5eed0000-0000-0000-0004-000000000310', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000110', NULL, 5.2632, 16),
- ('5eed0000-0000-0000-0004-000000000311', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000111', NULL, 5.2632, 17),
- ('5eed0000-0000-0000-0004-000000000312', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000112', NULL, 5.2632, 18),
- ('5eed0000-0000-0000-0004-000000000313', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000113', NULL, 5.2624, 19),
- ('5eed0000-0000-0000-0004-000000000401', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000114', NULL, 11.1111, 1),
- ('5eed0000-0000-0000-0004-000000000402', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000115', NULL, 11.1111, 2),
- ('5eed0000-0000-0000-0004-000000000403', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000116', NULL, 11.1111, 3),
- ('5eed0000-0000-0000-0004-000000000404', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000117', NULL, 11.1111, 4),
- ('5eed0000-0000-0000-0004-000000000405', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000118', NULL, 11.1111, 5),
- ('5eed0000-0000-0000-0004-000000000406', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000119', NULL, 11.1111, 6),
- ('5eed0000-0000-0000-0004-000000000407', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-00000000011a', NULL, 11.1111, 7),
- ('5eed0000-0000-0000-0004-000000000408', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-00000000011b', NULL, 11.1111, 8),
- ('5eed0000-0000-0000-0004-000000000409', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-00000000011c', NULL, 11.1112, 9)
+ ('5eed0000-0000-0000-0004-000000000301', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000101', NULL, 4.5455, 1),
+ ('5eed0000-0000-0000-0004-000000000302', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000102', NULL, 4.5455, 2),
+ ('5eed0000-0000-0000-0004-000000000303', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000103', NULL, 4.5455, 3),
+ ('5eed0000-0000-0000-0004-000000000304', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000104', NULL, 4.5455, 4),
+ ('5eed0000-0000-0000-0004-000000000305', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000105', NULL, 4.5455, 5),
+ ('5eed0000-0000-0000-0004-000000000306', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000106', NULL, 4.5455, 6),
+ ('5eed0000-0000-0000-0004-000000000307', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000107', NULL, 4.5455, 7),
+ ('5eed0000-0000-0000-0004-000000000308', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000108', NULL, 4.5455, 8),
+ ('5eed0000-0000-0000-0004-000000000309', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000109', NULL, 4.5455, 9),
+ ('5eed0000-0000-0000-0004-00000000030a', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010a', NULL, 4.5455, 10),
+ ('5eed0000-0000-0000-0004-00000000030b', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010b', NULL, 4.5455, 11),
+ ('5eed0000-0000-0000-0004-00000000030c', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010c', NULL, 4.5455, 12),
+ ('5eed0000-0000-0000-0004-00000000030d', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010d', NULL, 4.5455, 13),
+ ('5eed0000-0000-0000-0004-00000000030e', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010e', NULL, 4.5455, 14),
+ ('5eed0000-0000-0000-0004-00000000030f', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000010f', NULL, 4.5455, 15),
+ ('5eed0000-0000-0000-0004-000000000310', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000110', NULL, 4.5455, 16),
+ ('5eed0000-0000-0000-0004-000000000311', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000111', NULL, 4.5455, 17),
+ ('5eed0000-0000-0000-0004-000000000312', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000112', NULL, 4.5455, 18),
+ ('5eed0000-0000-0000-0004-000000000313', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-000000000113', NULL, 4.5455, 19),
+ ('5eed0000-0000-0000-0004-000000000314', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000011d', NULL, 4.5455, 20),
+ ('5eed0000-0000-0000-0004-000000000315', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000011e', NULL, 4.5455, 21),
+ ('5eed0000-0000-0000-0004-000000000316', '5eed0000-0000-0000-0002-000000000003', NULL, '5eed0000-0000-0000-0005-00000000011f', NULL, 4.5445, 22),
+ ('5eed0000-0000-0000-0004-000000000401', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000114', NULL, 9.0909, 1),
+ ('5eed0000-0000-0000-0004-000000000402', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000115', NULL, 9.0909, 2),
+ ('5eed0000-0000-0000-0004-000000000403', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000116', NULL, 9.0909, 3),
+ ('5eed0000-0000-0000-0004-000000000404', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000117', NULL, 9.0909, 4),
+ ('5eed0000-0000-0000-0004-000000000405', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000118', NULL, 9.0909, 5),
+ ('5eed0000-0000-0000-0004-000000000406', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000119', NULL, 9.0909, 6),
+ ('5eed0000-0000-0000-0004-000000000407', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-00000000011a', NULL, 9.0909, 7),
+ ('5eed0000-0000-0000-0004-000000000408', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-00000000011b', NULL, 9.0909, 8),
+ ('5eed0000-0000-0000-0004-000000000409', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-00000000011c', NULL, 9.0909, 9),
+ ('5eed0000-0000-0000-0004-00000000040a', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000120', NULL, 9.0909, 10),
+ ('5eed0000-0000-0000-0004-00000000040b', '5eed0000-0000-0000-0002-000000000004', NULL, '5eed0000-0000-0000-0005-000000000121', NULL, 9.0910, 11)
 ON CONFLICT DO NOTHING;
+-- Databases seeded earlier carry the 19/9-item weights: rebalance so each flat profile still totals 100.
+UPDATE evaluation_profile_item SET weight_percent = 4.5455 WHERE evaluation_profile_id = '5eed0000-0000-0000-0002-000000000003' AND id <> '5eed0000-0000-0000-0004-000000000316';
+UPDATE evaluation_profile_item SET weight_percent = 9.0909 WHERE evaluation_profile_id = '5eed0000-0000-0000-0002-000000000004' AND id <> '5eed0000-0000-0000-0004-00000000040b';
+
 
 -- NV001 giám đốc CN, NV002 trưởng nhóm KD 1, NV003 trưởng phòng GD, NV011 trưởng phòng KD; managers first.
 INSERT INTO employee (id, employee_code, full_name, email, phone, department_id, job_position_id, manager_id) VALUES
@@ -228,7 +242,7 @@ INSERT INTO employee (id, employee_code, full_name, email, phone, department_id,
 ON CONFLICT DO NOTHING;
 
 -- NV015-NV021: staff of the extra departments (KHCN, KHDN: SALES; DVKH: TELLER), so each has headcount in the
--- 2027 allocation grid. The first of each department is its head.
+-- Allocation grid. The first of each department is its head.
 INSERT INTO employee (id, employee_code, full_name, email, phone, department_id, job_position_id, manager_id) VALUES
  ('5eed0000-0000-0000-0007-00000000000f', 'NV015', 'Trịnh Hoài Nam',   'nam.trinh@progest.local',   '0901000015', '5eed0000-0000-0000-0001-000000000008', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-000000000001'),
  ('5eed0000-0000-0000-0007-000000000010', 'NV016', 'Lương Thị Hạnh',   'hanh.luong@progest.local',  '0901000016', '5eed0000-0000-0000-0001-000000000008', '5eed0000-0000-0000-0006-000000000001', '5eed0000-0000-0000-0007-00000000000f'),
@@ -301,7 +315,11 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-00000000002e', 'SYSTEM_PARAMETER_UPDATE', 'Cập nhật tham số hệ thống', 'system_parameter', 'update'),
  ('5eed0000-0000-0000-0009-000000000030', 'RECONCILIATION_READ', 'Xem đối soát giao dịch', 'reconciliation', 'read'),
  ('5eed0000-0000-0000-0009-000000000031', 'ROLE_UPDATE', 'Quản lý tài khoản và vai trò', 'role', 'update'),
- ('5eed0000-0000-0000-0009-000000000032', 'WORK_TYPE_MANAGE', 'Quản lý loại công việc', 'work-type', 'manage')
+ ('5eed0000-0000-0000-0009-000000000032', 'WORK_TYPE_MANAGE', 'Quản lý loại công việc', 'work-type', 'manage'),
+ ('5eed0000-0000-0000-0009-000000000033', 'AI_REVIEW_FLAG_READ', 'Xem đoạn ghi âm cần nghe lại', 'ai_review_flag', 'read'),
+ ('5eed0000-0000-0000-0009-000000000034', 'AI_REVIEW_FLAG_REVIEW', 'Xác nhận hoặc bỏ qua đoạn ghi âm cần nghe lại', 'ai_review_flag', 'review'),
+ ('5eed0000-0000-0000-0009-000000000035', 'CALL_RECORDING_PLAY', 'Nghe ghi âm cuộc gọi', 'call_recording', 'play'),
+ ('5eed0000-0000-0000-0009-000000000036', 'SERVICE_RATING_IMPORT_MANAGE', 'Import đánh giá dịch vụ', 'service_rating_import', 'manage')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
@@ -340,12 +358,19 @@ FROM (VALUES
     ('SYSTEM_ADMIN', 'NOTIFICATION_SEND', 'All'), ('SYSTEM_ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'),
     ('SYSTEM_ADMIN', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('DEPT_MANAGER', 'TRANSACTION_IMPORT_MANAGE', 'All'),
     ('BRANCH_MANAGER', 'TRANSACTION_IMPORT_MANAGE', 'All'), ('VERIFIER', 'TRANSACTION_IMPORT_MANAGE', 'All'),
+    -- Service rating import (docs/api/SERVICE_RATING_IMPORT_CONTRACT.md); the migration AddServiceRatingImport grants the same on an existing database.
+    ('SYSTEM_ADMIN', 'SERVICE_RATING_IMPORT_MANAGE', 'All'), ('DEPT_MANAGER', 'SERVICE_RATING_IMPORT_MANAGE', 'All'),
+    ('BRANCH_MANAGER', 'SERVICE_RATING_IMPORT_MANAGE', 'All'), ('VERIFIER', 'SERVICE_RATING_IMPORT_MANAGE', 'All'),
     ('DEPT_MANAGER', 'NOTIFICATION_SEND', 'Dept'),
+    ('DEPT_MANAGER', 'QUALITY_FLAG_CREATE', 'Dept'), ('DEPT_MANAGER', 'QUALITY_FLAG_REWORK', 'Dept'),
+    ('BRANCH_MANAGER', 'QUALITY_FLAG_CREATE', 'Branch'), ('BRANCH_MANAGER', 'QUALITY_FLAG_REWORK', 'Branch'),
     -- QA quality control (docs/api/QUALITY_ASSURANCE_CONTRACT.md); the migration AddQualityAssurance grants the same on an existing database.
     ('SYSTEM_ADMIN', 'QUALITY_FLAG_CREATE', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_READ', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_REWORK', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_DISMISS', 'All'), ('SYSTEM_ADMIN', 'QA_SAMPLE_READ', 'All'), ('SYSTEM_ADMIN', 'QA_SAMPLE_DECIDE', 'All'), ('VERIFIER', 'QUALITY_FLAG_CREATE', 'All'), ('VERIFIER', 'QUALITY_FLAG_READ', 'All'), ('VERIFIER', 'QUALITY_FLAG_REWORK', 'All'), ('VERIFIER', 'QUALITY_FLAG_DISMISS', 'All'), ('VERIFIER', 'QA_SAMPLE_READ', 'All'), ('VERIFIER', 'QA_SAMPLE_DECIDE', 'All'),
     -- Risk events (docs/api/RISK_EVENT_CONTRACT.md §9): QA and administrators record and reverse; managers read within their scope.
     ('SYSTEM_ADMIN', 'RISK_EVENT_CREATE', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_READ', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_CONFIRM', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_DISMISS', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_RESOLVE', 'All'), ('SYSTEM_ADMIN', 'RISK_EVENT_REVERSE', 'All'), ('VERIFIER', 'RISK_EVENT_CREATE', 'All'), ('VERIFIER', 'RISK_EVENT_READ', 'All'), ('VERIFIER', 'RISK_EVENT_CONFIRM', 'All'), ('VERIFIER', 'RISK_EVENT_DISMISS', 'All'), ('VERIFIER', 'RISK_EVENT_RESOLVE', 'All'), ('VERIFIER', 'RISK_EVENT_REVERSE', 'All'),
     ('DEPT_MANAGER', 'RISK_EVENT_READ', 'Dept'),
+    -- AI call triage (docs/api/CALL_RECORDING_AI_TRIAGE_CONTRACT.md §2); the migration AddCallRecordingAiTriage grants the same on an existing database.
+    ('SYSTEM_ADMIN', 'AI_REVIEW_FLAG_READ', 'All'), ('SYSTEM_ADMIN', 'AI_REVIEW_FLAG_REVIEW', 'All'), ('SYSTEM_ADMIN', 'CALL_RECORDING_PLAY', 'All'), ('VERIFIER', 'AI_REVIEW_FLAG_READ', 'All'), ('VERIFIER', 'AI_REVIEW_FLAG_REVIEW', 'All'), ('VERIFIER', 'CALL_RECORDING_PLAY', 'All'),
     -- Data Import (docs/api/DATA_IMPORT_CONTRACT.md): Admin-only, per BPMS_AI_Agent_Context.md.
     ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All'), ('SYSTEM_ADMIN', 'DATA_IMPORT', 'All'),
     -- System parameters (SCR-ADM-04, docs/api/SYSTEM_PARAMETER_CONTRACT.md).
@@ -429,6 +454,21 @@ FROM (VALUES
 JOIN job_position jp ON jp.code = m.position_code
 JOIN work_type wt ON wt.code = m.work_type_code
 ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Safety purge: clear any lingering >= 2027 test data
+-- ---------------------------------------------------------------------------
+DELETE FROM employee_target_ack WHERE year >= 2027;
+DELETE FROM target_change_log WHERE year >= 2027;
+DELETE FROM target_assignment_feedback WHERE target_assignment_id IN (
+    SELECT id FROM target_assignment WHERE evaluation_period_id IN (
+        SELECT id FROM evaluation_period WHERE code LIKE '2027%'
+    )
+);
+DELETE FROM target_assignment WHERE evaluation_period_id IN (
+    SELECT id FROM evaluation_period WHERE code LIKE '2027%'
+);
+DELETE FROM evaluation_period WHERE code LIKE '2027%';
 
 -- ---------------------------------------------------------------------------
 -- Evaluation periods: 2026 -> H1/H2 -> Q1..Q4 -> Oct/Nov/Dec -> every day of Q4
@@ -800,13 +840,14 @@ ON CONFLICT DO NOTHING;
 
 -- The rows seeded earlier join the same tree: the HDV Q4 chain hangs under the HDV year, the DU_NO and KH_MOI
 -- years are drafts, and the DU_NO quarters and departments get uneven values.
+-- DU_NO is authored in tỷ VND; the scale keeps these values right when the seed re-runs after convert_ty_vnd_kpis_to_vnd.sql.
 UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000001', split_dimension = 'PERIOD' WHERE id = '5eed0000-0000-0000-0015-000000000001';
 UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000031', split_dimension = 'PERIOD' WHERE id = '5eed0000-0000-0000-0015-000000000002';
 UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000032', split_dimension = 'PERIOD' WHERE id = '5eed0000-0000-0000-0015-000000000003';
 UPDATE target_assignment SET status = 'DRAFT', approved_at = NULL WHERE id IN ('5eed0000-0000-0000-0015-000000000010', '5eed0000-0000-0000-0015-000000000020');
-UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000033', split_dimension = 'PERIOD', target_value = 190 WHERE id = '5eed0000-0000-0000-0015-000000000015';
-UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000034', split_dimension = 'PERIOD', target_value = 60 WHERE id = '5eed0000-0000-0000-0015-000000000016';
-UPDATE target_assignment SET target_value = v.value
+UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000033', split_dimension = 'PERIOD', target_value = 190 * (SELECT CASE unit WHEN 'tỷ VND' THEN 1::numeric ELSE 1000000000::numeric END FROM kpi_definition WHERE code = 'DU_NO') WHERE id = '5eed0000-0000-0000-0015-000000000015';
+UPDATE target_assignment SET parent_assignment_id = '5eed0000-0000-0000-0035-000000000034', split_dimension = 'PERIOD', target_value = 60 * (SELECT CASE unit WHEN 'tỷ VND' THEN 1::numeric ELSE 1000000000::numeric END FROM kpi_definition WHERE code = 'DU_NO') WHERE id = '5eed0000-0000-0000-0015-000000000016';
+UPDATE target_assignment SET target_value = v.value * (SELECT CASE unit WHEN 'tỷ VND' THEN 1::numeric ELSE 1000000000::numeric END FROM kpi_definition WHERE code = 'DU_NO')
 FROM (VALUES ('5eed0000-0000-0000-0015-000000000011'::uuid, 250), ('5eed0000-0000-0000-0015-000000000012'::uuid, 300), ('5eed0000-0000-0000-0015-000000000013'::uuid, 350), ('5eed0000-0000-0000-0015-000000000014'::uuid, 300)) AS v(id, value)
 WHERE target_assignment.id = v.id;
 
@@ -1235,59 +1276,312 @@ FROM (VALUES
 JOIN target_assignment ta ON ta.id = f.target_id::uuid AND ta.employee_id = f.employee_id::uuid
 ON CONFLICT DO NOTHING;
 
--- ---------------------------------------------------------------------------
--- Year Target Import 2027, step 3 (/target-setup): department allocation of the branch-year rows the import creates.
--- A KPI goes to every department that holds its position (profiles EP-SALES-YEARKPI / EP-TELLER-YEARKPI): SALES ->
--- Kinh doanh 40 / KHCN 35 / KHDN 25, TELLER -> Giao dịch 60 / Dịch vụ KH 40. Each department quarter takes its share of the
--- branch quarter (the last department takes the remainder, so "Còn lại" is 0), and the department year is the sum of its
--- quarters. Ratio KPIs (no aggregation) are not allocated. Everything is DRAFT: ORG year rows, PERIOD quarter rows.
--- Nothing is inserted until the branch year and its quarters exist, so a database without the import is unchanged.
--- ---------------------------------------------------------------------------
-CREATE TEMP TABLE seed_2027_dept_quarter ON COMMIT DROP AS
-SELECT s.branch_year_id, s.business_objective_id, s.kpi_definition_id, s.department_id, s.period_id,
-       CASE WHEN s.ord = max(s.ord) OVER (PARTITION BY s.branch_year_id, s.period_id)
-            THEN s.branch_value - (sum(s.share) OVER (PARTITION BY s.branch_year_id, s.period_id) - s.share)
-            ELSE s.share END AS target_value
-FROM (
-    SELECT byr.id AS branch_year_id, byr.business_objective_id, byr.kpi_definition_id, d.id AS department_id,
-           bq.evaluation_period_id AS period_id, bq.target_value AS branch_value, w.ord,
-           round(bq.target_value * w.weight / 100,
-                 CASE WHEN bq.target_value = trunc(bq.target_value) THEN 0 ELSE 4 END) AS share
-    FROM target_assignment byr
-    JOIN evaluation_period yp ON yp.id = byr.evaluation_period_id AND yp.code = '2027'
-    JOIN department branch ON branch.id = byr.department_id AND branch.level_type = 'BRANCH'
-    JOIN kpi_definition k ON k.id = byr.kpi_definition_id AND k.aggregation_type <> 'NO_AGGREGATION'
-    JOIN evaluation_profile ep ON ep.code IN ('EP-SALES-YEARKPI', 'EP-TELLER-YEARKPI')
-    JOIN evaluation_profile_item epi ON epi.evaluation_profile_id = ep.id AND epi.kpi_definition_id = byr.kpi_definition_id
-    JOIN (VALUES ('EP-SALES-YEARKPI', 'CN-HN-KD', 40, 1), ('EP-SALES-YEARKPI', 'CN-HN-KHCN', 35, 2),
-                 ('EP-SALES-YEARKPI', 'CN-HN-KHDN', 25, 3), ('EP-TELLER-YEARKPI', 'CN-HN-GD', 60, 1),
-                 ('EP-TELLER-YEARKPI', 'CN-HN-DVKH', 40, 2)) AS w(profile_code, dept_code, weight, ord)
-         ON w.profile_code = ep.code
-    JOIN department d ON d.code = w.dept_code AND d.parent_department_id = branch.id
-    JOIN target_assignment bq ON bq.parent_assignment_id = byr.id AND bq.split_dimension = 'PERIOD' AND bq.status = 'DRAFT'
-    WHERE byr.parent_assignment_id IS NULL AND byr.split_dimension IS NULL AND byr.status = 'DRAFT'
-) s;
 
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, evaluation_period_id,
-    parent_assignment_id, split_dimension, target_value, status, effective_from)
-SELECT md5('seed-2027-dept-year-' || q.kpi_definition_id::text || '-' || q.department_id::text)::uuid,
-       q.business_objective_id, q.kpi_definition_id, q.department_id, yp.id, q.branch_year_id,
-       'ORG'::target_split_dimension, sum(q.target_value), 'DRAFT'::target_assignment_status, yp.start_date
-FROM seed_2027_dept_quarter q
-JOIN evaluation_period yp ON yp.code = '2027'
-GROUP BY q.business_objective_id, q.kpi_definition_id, q.department_id, q.branch_year_id, yp.id, yp.start_date
+
+-- ---------------------------------------------------------------------------
+-- 2026 branch targets and quarters for KPI_* allocation (docs/api/TARGET_ALLOCATION_CONTRACT.md quarter-split):
+-- GetQuartersAsync's previousYear / previousYearActual read 2026 ACTIVE branch target_assignment rows (root +
+-- PERIOD quarter children) and VALID actual_progress summed over the 2026-root's descendant tree. Only SUM
+-- KPI_* are period-additive (IsPeriodAdditive), so only SUM KPI_* get 2026 history here; AVG/NO_AGGREGATION
+-- KPI_* (KPI_CASA_RATIO, KPI_ACTIVE_CUST, KPI_CROSS_SELL, KPI_CHURN, KPI_CSAT, KPI_1STAR_RATE, KPI_SERVE_TIME,
+-- KPI_COMPLAINT_SLA, KPI_TXN_ERR_RATE, KPI_HANDOVER_SLA, KPI_TRAINING) are untouched.
+-- The 2026 root value is a standard branch-year value scaled down ~15%, split into 4
+-- quarters with a seasonal shape (20/23/25/32%, Q4 takes the remainder) that sums exactly to the root, as the
+-- deferred trg_validate_target_children_sum constraint requires for an ACTIVE SUM KPI.
+-- Of the 16 SUM KPI_* codes (KPI_RISK_SEVERE's value is 0, so it is skipped):
+--   - 12 get targets AND VALID actual_progress on the quarter children, with a different per-month shape
+--     (weights 30/33/37 scaled by a per-row 0.85-1.25 factor, deterministic via hashtext) so actual-vs-target
+--     is visibly different: KPI_NFI, KPI_FEE_CARD, KPI_FEE_EBANK, KPI_INSURANCE, KPI_DEP_NET, KPI_CASA,
+--     KPI_TERM_DEP, KPI_ACC_OPEN, KPI_NEW_CUST, KPI_REFERRAL, KPI_CARD_DEBIT, KPI_CARD_CREDIT.
+--   - 3 get targets only (no actual_progress), so quarter-split falls back to "last year's targets" with no
+--     actual: KPI_EBANK_ACTIVE, KPI_INSURANCE_CNT, KPI_AUTO_SAVING.
+--   - 1 gets nothing at all, so quarter-split falls back to an even split: KPI_TXN_VOL.
+-- Nothing here touches the 2026 evaluation sample: KPI_* is not in EP-SALES/EP-TELLER (the 2026 profiles), only
+-- in EP-SALES-YEARKPI/EP-TELLER-YEARKPI.
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE seed_2026_kpi_hist (kpi_code, year_value, with_actuals) ON COMMIT DROP AS
+SELECT * FROM (VALUES
+    ('KPI_NFI',           5100000000::numeric, true),
+    ('KPI_FEE_CARD',      1530000000::numeric, true),
+    ('KPI_FEE_EBANK',     1275000000::numeric, true),
+    ('KPI_INSURANCE',     1020000000::numeric, true),
+    ('KPI_DEP_NET',     255000000000::numeric, true),
+    ('KPI_CASA',        102000000000::numeric, true),
+    ('KPI_TERM_DEP',    212500000000::numeric, true),
+    ('KPI_ACC_OPEN',            2040::numeric, true),
+    ('KPI_NEW_CUST',            1700::numeric, true),
+    ('KPI_REFERRAL',             510::numeric, true),
+    ('KPI_CARD_DEBIT',          1020::numeric, true),
+    ('KPI_CARD_CREDIT',          255::numeric, true),
+    ('KPI_EBANK_ACTIVE',        1054::numeric, true),
+    ('KPI_INSURANCE_CNT',        130::numeric, true),
+    ('KPI_AUTO_SAVING',          680::numeric, true),
+    ('KPI_LOAN_DISB',      85000000000::numeric, true),
+    ('KPI_FX_FEE',           765000000::numeric, true),
+    ('KPI_PAYROLL_ACC',            340::numeric, true),
+    ('KPI_DOC_PROCESSED',          4250::numeric, true),
+    ('KPI_CASH_TXN',              18700::numeric, true)
+) AS v(kpi_code, year_value, with_actuals);
+-- KPI_TXN_VOL (SUM) and KPI_RISK_SEVERE (SUM, sample value 0) intentionally get no row here, so quarter-split
+-- falls back to an even split for them.
+
+-- Root: 2026 branch-year ACTIVE row per KPI above (DepartmentId = branch, no parent, SplitDimension = NULL).
+INSERT INTO target_assignment (id, kpi_definition_id, department_id, evaluation_period_id, parent_assignment_id,
+    split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
+SELECT md5('seed-2026-kpi-hist-year-' || h.kpi_code)::uuid,
+       k.id, '5eed0000-0000-0000-0001-000000000001'::uuid, yp.id, NULL::uuid,
+       NULL::target_split_dimension, h.year_value, 'ACTIVE'::target_assignment_status,
+       make_timestamp(2026, 1, 1, 8, 0, 0), make_timestamp(2026, 1, 15, 17, 0, 0), make_timestamp(2026, 1, 1, 8, 0, 0), yp.start_date
+FROM seed_2026_kpi_hist h
+JOIN kpi_definition k ON k.code = h.kpi_code
+JOIN evaluation_period yp ON yp.code = '2026'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, department_id, evaluation_period_id,
-    parent_assignment_id, split_dimension, target_value, status, effective_from)
-SELECT md5('seed-2027-dept-quarter-' || dy.id::text || '-' || q.period_id::text)::uuid,
-       q.business_objective_id, q.kpi_definition_id, q.department_id, q.period_id, dy.id,
-       'PERIOD'::target_split_dimension, q.target_value, 'DRAFT'::target_assignment_status, qp.start_date
-FROM seed_2027_dept_quarter q
-JOIN target_assignment dy
-  ON dy.id = md5('seed-2027-dept-year-' || q.kpi_definition_id::text || '-' || q.department_id::text)::uuid
-JOIN evaluation_period qp ON qp.id = q.period_id
+-- Quarters: seasonal shape 20/23/25/32%, split_dimension PERIOD, parent = the root above. Q4 takes the
+-- remainder so the 4 quarters sum exactly to the root (required for an ACTIVE SUM KPI).
+INSERT INTO target_assignment (id, kpi_definition_id, department_id, evaluation_period_id, parent_assignment_id,
+    split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
+SELECT md5('seed-2026-kpi-hist-q' || q.quarter_no || '-' || h.kpi_code)::uuid,
+       k.id, '5eed0000-0000-0000-0001-000000000001'::uuid, qp.id, root.id,
+       'PERIOD'::target_split_dimension,
+       CASE q.quarter_no
+           WHEN 1 THEN round(h.year_value * 0.20)
+           WHEN 2 THEN round(h.year_value * 0.23)
+           WHEN 3 THEN round(h.year_value * 0.25)
+           ELSE h.year_value - round(h.year_value * 0.20) - round(h.year_value * 0.23) - round(h.year_value * 0.25)
+       END,
+       'ACTIVE'::target_assignment_status,
+       make_timestamp(2026, 1, 1, 8, 0, 0), make_timestamp(2026, 1, 15, 17, 0, 0), make_timestamp(2026, 1, 1, 8, 0, 0), qp.start_date
+FROM seed_2026_kpi_hist h
+JOIN kpi_definition k ON k.code = h.kpi_code
+JOIN target_assignment root ON root.id = md5('seed-2026-kpi-hist-year-' || h.kpi_code)::uuid
+CROSS JOIN (VALUES (1, '2026-Q1'), (2, '2026-Q2'), (3, '2026-Q3'), (4, '2026-Q4')) AS q(quarter_no, period_code)
+JOIN evaluation_period qp ON qp.code = q.period_code
 ON CONFLICT DO NOTHING;
+
+
+-- ---------------------------------------------------------------------------
+-- 2025 history for 2026 KPI_* allocation (GetQuartersAsync previousYear / previousYearActual):
+-- 2025 root is 2026 root scaled down ~15%, split into 4 quarters (20/23/25/32%), with VALID actual_progress.
+-- ---------------------------------------------------------------------------
+-- 2025 Root: branch-year ACTIVE row per KPI
+INSERT INTO target_assignment (id, kpi_definition_id, department_id, evaluation_period_id, parent_assignment_id,
+    split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
+SELECT md5('seed-2025-kpi-hist-year-' || h.kpi_code)::uuid,
+       k.id, '5eed0000-0000-0000-0001-000000000001'::uuid, yp.id, NULL::uuid,
+       NULL::target_split_dimension, round(h.year_value * 0.85), 'ACTIVE'::target_assignment_status,
+       make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0), yp.start_date
+FROM seed_2026_kpi_hist h
+JOIN kpi_definition k ON k.code = h.kpi_code
+JOIN evaluation_period yp ON yp.code = '2025'
+ON CONFLICT DO NOTHING;
+
+-- 2025 Quarters: seasonal shape 20/23/25/32%
+INSERT INTO target_assignment (id, kpi_definition_id, department_id, evaluation_period_id, parent_assignment_id,
+    split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
+SELECT md5('seed-2025-kpi-hist-q' || q.quarter_no || '-' || h.kpi_code)::uuid,
+       k.id, '5eed0000-0000-0000-0001-000000000001'::uuid, qp.id, root.id,
+       'PERIOD'::target_split_dimension,
+       CASE q.quarter_no
+           WHEN 1 THEN round(root.target_value * 0.20)
+           WHEN 2 THEN round(root.target_value * 0.23)
+           WHEN 3 THEN round(root.target_value * 0.25)
+           ELSE root.target_value - round(root.target_value * 0.20) - round(root.target_value * 0.23) - round(root.target_value * 0.25)
+       END,
+       'ACTIVE'::target_assignment_status,
+       make_timestamp(2025, 1, 1, 8, 0, 0), make_timestamp(2025, 1, 15, 17, 0, 0), make_timestamp(2025, 1, 1, 8, 0, 0), qp.start_date
+FROM seed_2026_kpi_hist h
+JOIN kpi_definition k ON k.code = h.kpi_code
+JOIN target_assignment root ON root.id = md5('seed-2025-kpi-hist-year-' || h.kpi_code)::uuid
+CROSS JOIN (VALUES (1, '2025-Q1'), (2, '2025-Q2'), (3, '2025-Q3'), (4, '2025-Q4')) AS q(quarter_no, period_code)
+JOIN evaluation_period qp ON qp.code = q.period_code
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- 2025 + 2026 department / employee split and ACTUALs for every KPI_* history row above.
+-- A published year is split all the way down: each root -> every department with an eligible employee (ORG) ->
+-- every eligible active employee of that department (ORG) -> that employee's four quarters (PERIOD). Every level
+-- sums exactly to its parent (the remainder goes to the last unit). Eligibility = the position's ACTIVE
+-- EP-*-YEARKPI profile item, the same rule the allocation services use (employees directly in the department).
+-- ACTUAL progress lives only on the employee year rows (one VALID row per month-end), so the branch, department and
+-- employee suggestion all read the same total when they walk the tree; quarters come from the progress date.
+-- ---------------------------------------------------------------------------
+-- Earlier seeds put actuals on the branch quarter rows and two TERM_DEP department rows: drop them so nothing is counted twice.
+DELETE FROM actual_progress
+WHERE target_assignment_id IN (
+    SELECT q.id FROM target_assignment q
+    WHERE q.parent_assignment_id IN (SELECT md5('seed-' || y.n || '-kpi-hist-year-' || h.kpi_code)::uuid
+                                     FROM seed_2026_kpi_hist h CROSS JOIN (VALUES (2025), (2026)) AS y(n)))
+   OR target_assignment_id IN (SELECT md5('seed-' || y.n || '-kpi-hist-dept-' || d.c)::uuid
+                               FROM (VALUES (2025), (2026)) AS y(n) CROSS JOIN (VALUES ('CN-HN-KD'), ('CN-HN-KHCN')) AS d(c));
+DELETE FROM target_assignment
+WHERE id IN (SELECT md5('seed-' || y.n || '-kpi-hist-dept-' || d.c)::uuid
+             FROM (VALUES (2025), (2026)) AS y(n) CROSS JOIN (VALUES ('CN-HN-KD'), ('CN-HN-KHCN')) AS d(c));
+
+CREATE TEMP TABLE seed_hist_year (year_no, period_code) ON COMMIT DROP AS
+SELECT * FROM (VALUES (2025, '2025'), (2026, '2026')) AS v(year_no, period_code);
+
+CREATE TEMP TABLE seed_hist_elig ON COMMIT DROP AS
+SELECT DISTINCT h.kpi_code, k.id AS kpi_id, d.id AS dept_id, d.code AS dept_code, e.id AS emp_id, e.employee_code
+FROM seed_2026_kpi_hist h
+JOIN kpi_definition k ON k.code = h.kpi_code
+JOIN evaluation_profile_item i ON i.kpi_definition_id = k.id
+JOIN evaluation_profile p ON p.id = i.evaluation_profile_id AND p.status = 'ACTIVE' AND p.code LIKE 'EP-%-YEARKPI'
+JOIN employee e ON e.job_position_id = p.job_position_id AND e.status = 'ACTIVE'
+JOIN department d ON d.id = e.department_id AND d.level_type = 'DEPARTMENT'
+                 AND d.parent_department_id = '5eed0000-0000-0000-0001-000000000001';
+
+CREATE TEMP TABLE seed_hist_dept ON COMMIT DROP AS
+WITH w AS (
+    SELECT y.year_no, el.kpi_code, el.kpi_id, el.dept_id, el.dept_code,
+           root.id AS root_id, root.target_value AS root_value, root.evaluation_period_id, root.effective_from,
+           count(*) * (0.8 + (abs(hashtext(el.kpi_code || el.dept_code || y.year_no::text)) % 41) / 100.0) AS weight
+    FROM seed_hist_elig el
+    CROSS JOIN seed_hist_year y
+    JOIN target_assignment root ON root.id = md5('seed-' || y.year_no || '-kpi-hist-year-' || el.kpi_code)::uuid
+    GROUP BY y.year_no, el.kpi_code, el.kpi_id, el.dept_id, el.dept_code, root.id, root.target_value, root.evaluation_period_id, root.effective_from
+), r AS (
+    SELECT w.*,
+           row_number() OVER (PARTITION BY year_no, kpi_code ORDER BY dept_code) AS rn,
+           count(*) OVER (PARTITION BY year_no, kpi_code) AS cnt,
+           round(root_value * weight / sum(weight) OVER (PARTITION BY year_no, kpi_code)) AS part
+    FROM w
+)
+SELECT year_no, kpi_code, kpi_id, dept_id, dept_code, root_id, evaluation_period_id, effective_from,
+       md5('seed-' || year_no || '-kpi-hist-dept-' || kpi_code || '-' || dept_code)::uuid AS id,
+       CASE WHEN rn = cnt
+            THEN root_value - coalesce(sum(part) OVER (PARTITION BY year_no, kpi_code ORDER BY rn ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0)
+            ELSE part END AS value
+FROM r;
+
+INSERT INTO target_assignment (id, kpi_definition_id, department_id, evaluation_period_id, parent_assignment_id,
+    split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
+SELECT d.id, d.kpi_id, d.dept_id, d.evaluation_period_id, d.root_id, 'ORG'::target_split_dimension, d.value,
+       'ACTIVE'::target_assignment_status,
+       make_timestamp(d.year_no, 1, 1, 8, 0, 0), make_timestamp(d.year_no, 1, 15, 17, 0, 0), make_timestamp(d.year_no, 1, 1, 8, 0, 0), d.effective_from
+FROM seed_hist_dept d
+ON CONFLICT DO NOTHING;
+
+CREATE TEMP TABLE seed_hist_emp ON COMMIT DROP AS
+WITH w AS (
+    SELECT d.year_no, d.kpi_code, d.kpi_id, d.dept_code, d.id AS dept_row_id, d.value AS dept_value,
+           d.evaluation_period_id, d.effective_from, el.emp_id, el.employee_code,
+           0.8 + (abs(hashtext(d.kpi_code || el.employee_code || d.year_no::text)) % 41) / 100.0 AS weight
+    FROM seed_hist_dept d
+    JOIN seed_hist_elig el ON el.kpi_code = d.kpi_code AND el.dept_code = d.dept_code
+), r AS (
+    SELECT w.*,
+           row_number() OVER (PARTITION BY year_no, kpi_code, dept_code ORDER BY employee_code) AS rn,
+           count(*) OVER (PARTITION BY year_no, kpi_code, dept_code) AS cnt,
+           round(dept_value * weight / sum(weight) OVER (PARTITION BY year_no, kpi_code, dept_code)) AS part
+    FROM w
+)
+SELECT year_no, kpi_code, kpi_id, emp_id, dept_row_id, evaluation_period_id, effective_from,
+       md5('seed-' || year_no || '-kpi-hist-emp-' || kpi_code || '-' || employee_code)::uuid AS id,
+       CASE WHEN rn = cnt
+            THEN dept_value - coalesce(sum(part) OVER (PARTITION BY year_no, kpi_code, dept_code ORDER BY rn ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0)
+            ELSE part END AS value
+FROM r;
+
+INSERT INTO target_assignment (id, kpi_definition_id, employee_id, evaluation_period_id, parent_assignment_id,
+    split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
+SELECT e.id, e.kpi_id, e.emp_id, e.evaluation_period_id, e.dept_row_id, 'ORG'::target_split_dimension, e.value,
+       'ACTIVE'::target_assignment_status,
+       make_timestamp(e.year_no, 1, 1, 8, 0, 0), make_timestamp(e.year_no, 1, 15, 17, 0, 0), make_timestamp(e.year_no, 1, 1, 8, 0, 0), e.effective_from
+FROM seed_hist_emp e
+ON CONFLICT DO NOTHING;
+
+-- Quarters below the year rows. The branch quarters (20/23/25/32%) are the anchor: for Q1-Q3 each department takes
+-- its share of the branch quarter and the last department takes the rest, so the department quarters add up to the
+-- branch quarter ("Còn lại 0"); Q4 is the department year minus Q1-Q3. Employees repeat this inside their department.
+DELETE FROM target_assignment
+WHERE split_dimension = 'PERIOD'
+  AND parent_assignment_id IN (SELECT id FROM seed_hist_emp UNION SELECT id FROM seed_hist_dept);
+
+CREATE TEMP TABLE seed_hist_dept_q ON COMMIT DROP AS
+WITH base AS (
+    SELECT d.year_no, d.kpi_code, d.kpi_id, d.dept_code, d.id AS dept_row_id, d.value AS dept_value, q.n,
+           bq.target_value AS branch_q, root.target_value AS root_value, qp.id AS period_id, qp.start_date,
+           row_number() OVER (PARTITION BY d.year_no, d.kpi_code, q.n ORDER BY d.dept_code) AS rn,
+           count(*) OVER (PARTITION BY d.year_no, d.kpi_code, q.n) AS cnt
+    FROM seed_hist_dept d
+    CROSS JOIN (VALUES (1), (2), (3)) AS q(n)
+    JOIN target_assignment root ON root.id = d.root_id
+    JOIN evaluation_period qp ON qp.code = d.year_no || '-Q' || q.n
+    JOIN target_assignment bq ON bq.parent_assignment_id = d.root_id AND bq.evaluation_period_id = qp.id AND bq.split_dimension = 'PERIOD'
+), part AS (
+    SELECT base.*, round(dept_value * branch_q / root_value) AS ideal FROM base
+), q13 AS (
+    SELECT year_no, kpi_code, kpi_id, dept_row_id, dept_value, n, period_id, start_date,
+           CASE WHEN rn = cnt
+                THEN branch_q - coalesce(sum(ideal) OVER (PARTITION BY year_no, kpi_code, n ORDER BY rn ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0)
+                ELSE ideal END AS qvalue
+    FROM part
+)
+SELECT year_no, kpi_code, kpi_id, dept_row_id, n, period_id, start_date, qvalue FROM q13
+UNION ALL
+SELECT s.year_no, s.kpi_code, s.kpi_id, s.dept_row_id, 4, qp.id, qp.start_date, s.dept_value - s.used
+FROM (SELECT year_no, kpi_code, kpi_id, dept_row_id, max(dept_value) AS dept_value, sum(qvalue) AS used FROM q13 GROUP BY year_no, kpi_code, kpi_id, dept_row_id) s
+JOIN evaluation_period qp ON qp.code = s.year_no || '-Q4';
+
+INSERT INTO target_assignment (id, kpi_definition_id, department_id, evaluation_period_id, parent_assignment_id,
+    split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
+SELECT md5('seed-' || q.year_no || '-kpi-hist-dept-q' || q.n || '-' || q.dept_row_id::text)::uuid,
+       q.kpi_id, d.dept_id, q.period_id, q.dept_row_id, 'PERIOD'::target_split_dimension, q.qvalue,
+       'ACTIVE'::target_assignment_status,
+       make_timestamp(q.year_no, 1, 1, 8, 0, 0), make_timestamp(q.year_no, 1, 15, 17, 0, 0), make_timestamp(q.year_no, 1, 1, 8, 0, 0), q.start_date
+FROM seed_hist_dept_q q
+JOIN seed_hist_dept d ON d.id = q.dept_row_id
+ON CONFLICT DO NOTHING;
+
+CREATE TEMP TABLE seed_hist_emp_q ON COMMIT DROP AS
+WITH base AS (
+    SELECT e.year_no, e.kpi_code, e.kpi_id, e.emp_id, e.id AS emp_row_id, e.value AS emp_value, e.dept_row_id,
+           dq.n, dq.qvalue AS dept_q, dq.period_id, dq.start_date, d.value AS dept_value,
+           row_number() OVER (PARTITION BY e.dept_row_id, dq.n ORDER BY e.id) AS rn,
+           count(*) OVER (PARTITION BY e.dept_row_id, dq.n) AS cnt
+    FROM seed_hist_emp e
+    JOIN seed_hist_dept d ON d.id = e.dept_row_id
+    JOIN seed_hist_dept_q dq ON dq.dept_row_id = e.dept_row_id AND dq.n <= 3
+), part AS (
+    SELECT base.*, round(emp_value * dept_q / nullif(dept_value, 0)) AS ideal FROM base
+), q13 AS (
+    SELECT year_no, kpi_code, kpi_id, emp_id, emp_row_id, emp_value, n, period_id, start_date,
+           CASE WHEN rn = cnt
+                THEN dept_q - coalesce(sum(ideal) OVER (PARTITION BY dept_row_id, n ORDER BY rn ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0)
+                ELSE ideal END AS qvalue
+    FROM part
+)
+SELECT year_no, kpi_code, kpi_id, emp_id, emp_row_id, n, period_id, start_date, qvalue FROM q13
+UNION ALL
+SELECT s.year_no, s.kpi_code, s.kpi_id, s.emp_id, s.emp_row_id, 4, qp.id, qp.start_date, s.emp_value - s.used
+FROM (SELECT year_no, kpi_code, kpi_id, emp_id, emp_row_id, max(emp_value) AS emp_value, sum(qvalue) AS used FROM q13 GROUP BY year_no, kpi_code, kpi_id, emp_id, emp_row_id) s
+JOIN evaluation_period qp ON qp.code = s.year_no || '-Q4';
+
+INSERT INTO target_assignment (id, kpi_definition_id, employee_id, evaluation_period_id, parent_assignment_id,
+    split_dimension, target_value, status, assigned_at, approved_at, created_at, effective_from)
+SELECT md5('seed-' || q.year_no || '-kpi-hist-emp-q' || q.n || '-' || q.emp_row_id::text)::uuid,
+       q.kpi_id, q.emp_id, q.period_id, q.emp_row_id, 'PERIOD'::target_split_dimension, q.qvalue,
+       'ACTIVE'::target_assignment_status,
+       make_timestamp(q.year_no, 1, 1, 8, 0, 0), make_timestamp(q.year_no, 1, 15, 17, 0, 0), make_timestamp(q.year_no, 1, 1, 8, 0, 0), q.start_date
+FROM seed_hist_emp_q q
+ON CONFLICT DO NOTHING;
+
+-- Actuals: one VALID row per month-end on each employee year row, a different shape than the targets
+-- (per-row factor 0.85-1.25 via hashtext, deterministic) so actual-vs-target is visibly different.
+INSERT INTO actual_progress (id, target_assignment_id, progress_date, value, status)
+SELECT md5('seed-' || e.year_no || '-kpi-hist-actual-' || e.id::text || '-' || m.n::text)::uuid,
+       e.id,
+       (make_date(e.year_no, m.n, 1) + interval '1 month' - interval '1 day')::date,
+       round(e.value
+             * (ARRAY[0.20, 0.23, 0.25, 0.32])[(m.n - 1) / 3 + 1]
+             * (ARRAY[0.30, 0.33, 0.37])[(m.n - 1) % 3 + 1]
+             * (0.85 + (abs(hashtext(e.id::text || m.n::text)) % 41) / 100.0), 0),
+       'VALID'::actual_progress_status
+FROM seed_hist_emp e
+CROSS JOIN generate_series(1, 12) AS m(n)
+ON CONFLICT DO NOTHING;
+
 
 -- ---------------------------------------------------------------------------
 -- Work items (open, ready for submission / verification flows)
@@ -1997,6 +2291,31 @@ WHERE ta.evaluation_period_id = CASE m.month_no
 END
 ON CONFLICT DO NOTHING;
 
+-- ---------------------------------------------------------------------------
+-- 2025 Employee Year Targets (for MyTargets previousYear overview & comparison)
+-- ---------------------------------------------------------------------------
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, employee_id, evaluation_period_id,
+    target_value, status, assigned_at, approved_at, created_at, effective_from)
+SELECT md5('seed-2025-emp-year-' || q.employee_id::text || '-' || q.kpi_definition_id::text)::uuid,
+       NULL::uuid,
+       q.kpi_definition_id,
+       q.employee_id,
+       yp.id,
+       CASE WHEN k.aggregation_type = 'SUM' THEN sum(q.target_value) ELSE round(avg(q.target_value), 4) END,
+       'ACTIVE'::target_assignment_status,
+       make_timestamp(2025, 1, 1, 8, 0, 0),
+       make_timestamp(2025, 1, 15, 17, 0, 0),
+       make_timestamp(2025, 1, 1, 8, 0, 0),
+       yp.start_date
+FROM target_assignment q
+JOIN evaluation_period qp ON qp.id = q.evaluation_period_id AND qp.period_type = 'QUARTER' AND qp.code LIKE '2025%'
+JOIN evaluation_period yp ON yp.code = '2025'
+JOIN kpi_definition k ON k.id = q.kpi_definition_id
+WHERE q.employee_id IS NOT NULL AND q.status = 'ACTIVE'
+GROUP BY q.employee_id, q.kpi_definition_id, yp.id, yp.start_date, k.aggregation_type
+ON CONFLICT (kpi_definition_id, employee_id, evaluation_period_id) WHERE employee_id IS NOT NULL AND status = 'ACTIVE'
+DO UPDATE SET target_value = EXCLUDED.target_value;
+
 -- ============================================================================
 -- Evaluation / performance manual-test dataset. Fixed identities, no updates to
 -- existing evaluations: running the seed again preserves changes made in the UI.
@@ -2122,6 +2441,31 @@ FROM evaluation_period mp, target_assignment p
 WHERE mp.id = m.evaluation_period_id AND mp.period_type = 'MONTH'
   AND m.employee_id IS NOT NULL AND m.parent_assignment_id IS NULL AND m.status = 'ACTIVE'
   AND p.id = md5('seed-quarter-target-' || m.employee_id::text || '-' || m.kpi_definition_id::text || '-' || mp.parent_period_id::text)::uuid;
+
+-- ---------------------------------------------------------------------------
+-- 2026 Employee Year Targets (for MyTargets year overview & quarter resolution)
+-- ---------------------------------------------------------------------------
+INSERT INTO target_assignment (id, business_objective_id, kpi_definition_id, employee_id, evaluation_period_id,
+    target_value, status, assigned_at, approved_at, created_at, effective_from)
+SELECT md5('seed-2026-emp-year-' || q.employee_id::text || '-' || q.kpi_definition_id::text)::uuid,
+       '5eed0000-0000-0000-0010-000000000001'::uuid,
+       q.kpi_definition_id,
+       q.employee_id,
+       yp.id,
+       CASE WHEN k.aggregation_type = 'SUM' THEN sum(q.target_value) ELSE round(avg(q.target_value), 4) END,
+       'ACTIVE'::target_assignment_status,
+       make_timestamp(2026, 1, 1, 8, 0, 0),
+       make_timestamp(2026, 1, 15, 17, 0, 0),
+       make_timestamp(2026, 1, 1, 8, 0, 0),
+       yp.start_date
+FROM target_assignment q
+JOIN evaluation_period qp ON qp.id = q.evaluation_period_id AND qp.period_type = 'QUARTER' AND qp.code LIKE '2026%'
+JOIN evaluation_period yp ON yp.code = '2026'
+JOIN kpi_definition k ON k.id = q.kpi_definition_id
+WHERE q.employee_id IS NOT NULL AND q.status = 'ACTIVE'
+GROUP BY q.employee_id, q.kpi_definition_id, yp.id, yp.start_date, k.aggregation_type
+ON CONFLICT (kpi_definition_id, employee_id, evaluation_period_id) WHERE employee_id IS NOT NULL AND status = 'ACTIVE'
+DO UPDATE SET target_value = EXCLUDED.target_value;
 
 INSERT INTO work (id, work_type_id, assignee_employee_id, created_by, code, title,
     description, planned_start_date, planned_end_date, status, target_value)
@@ -2379,6 +2723,47 @@ FROM verified_work_result vr
 WHERE vr.work_transaction_id IN ('5eed0000-0000-0000-0043-000000000001', '5eed0000-0000-0000-0043-000000000002')
   AND EXISTS (SELECT 1 FROM actual_progress WHERE id = '5eed0000-0000-0000-0045-000000000001')
 ON CONFLICT DO NOTHING;
+
+-- ============================================================================
+-- Target Allocation v3: employee "my-targets" flow (D10, D20, BR-36)
+-- EmployeeTargetAck (year-level ack) + TargetChangeLog (D10 structured log) + a feedback/reply example.
+-- NV008 = PENDING (tier-3 just published), NV009 = CONFIRMED, NV010 = RECONFIRM (a change-log row below
+-- explains which KPI changed). Feedback is attached to NV008's existing ACTIVE 2026 employee target row.
+-- =====================================================================
+-- ============================================================================
+INSERT INTO employee_target_ack (id, employee_id, year, status, confirmed_at)
+SELECT md5('seed-2026-ack-' || e.employee_code)::uuid, e.id, 2026, v.status,
+       CASE WHEN v.status = 'CONFIRMED' THEN make_timestamptz(2026, 1, 10, 9, 0, 0) END
+FROM employee e
+JOIN (VALUES ('NV008', 'PENDING'), ('NV009', 'CONFIRMED'), ('NV010', 'RECONFIRM')) AS v(employee_code, status)
+  ON v.employee_code = e.employee_code
+ON CONFLICT (employee_id, year) DO UPDATE
+SET status = EXCLUDED.status, confirmed_at = EXCLUDED.confirmed_at;
+
+-- RECONFIRM reason: a mid-term adjustment raised NV010's HDV year target (D12/D13).
+INSERT INTO target_change_log (id, actor_id, action, tier, kpi_definition_id, unit, period, old_value, new_value,
+    basis, employee_id, department_id, year, occurred_at)
+SELECT md5('seed-2026-changelog-nv010-hdv')::uuid, mgr.id, 'ADJUST', 3, k.id, k.unit, 'YEAR', 400, 440,
+       'MANUAL', emp.id, emp.department_id, 2026, make_timestamptz(2026, 6, 15, 10, 30, 0)
+FROM employee emp
+JOIN employee mgr ON mgr.employee_code = 'NV011'
+JOIN kpi_definition k ON k.code = 'HDV'
+WHERE emp.employee_code = 'NV010'
+ON CONFLICT (id) DO UPDATE
+SET old_value = EXCLUDED.old_value, new_value = EXCLUDED.new_value, year = EXCLUDED.year;
+
+-- Employee feedback with a proposed quarter value + DM reply, attached to NV008's existing ACTIVE 2026
+-- employee target row.
+INSERT INTO target_assignment_feedback (id, target_assignment_id, employee_id, type, comment, proposed_q4, reply,
+    replied_by, replied_at, created_at)
+SELECT md5('seed-2026-feedback-nv008')::uuid, ta.id, ta.employee_id, 'COMMENT'::target_assignment_feedback_type,
+       'Đề xuất tăng chỉ tiêu quý 4 do nhu cầu khách hàng tăng.', 90, 'Đã ghi nhận, sẽ xem xét ở kỳ điều chỉnh giữa năm.',
+       mgr.id, make_timestamptz(2026, 1, 12, 14, 0, 0), make_timestamptz(2026, 1, 11, 10, 0, 0)
+FROM target_assignment ta
+JOIN employee mgr ON mgr.employee_code = 'NV011'
+WHERE ta.id = '5eed0000-0000-0000-0035-000000000084'
+ON CONFLICT (id) DO UPDATE
+SET comment = EXCLUDED.comment, reply = EXCLUDED.reply;
 
 -- ============================================================================
 -- Demo notifications (GB-914: inbox, bell dropdown, filters, deep links)

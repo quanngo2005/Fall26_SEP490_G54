@@ -9,7 +9,7 @@ import { WorkListItem } from '../../core/work.models';
 import { HandoverDialogComponent } from './handover-dialog.component';
 
 const work = (id: string): WorkListItem =>
-  ({ id, code: `WK-${id}`, title: `Việc ${id}`, status: 'New' }) as WorkListItem;
+  ({ id, code: `WK-${id}`, title: `Việc ${id}`, status: 'NEW' }) as WorkListItem;
 
 const recipient: HandoverRecipient = {
   id: 'e2',

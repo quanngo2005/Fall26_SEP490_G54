@@ -116,6 +116,14 @@ Body:
 
 201: `data` = `{ id, code, name, periodType, parentPeriodId, startDate, endDate, status: "OPEN" }`.
 
+## 5b. `POST /evaluation-periods/years`
+
+Tạo trọn bộ kỳ của một năm trong một lần (năm, 2 nửa năm, 4 quý, đều `OPEN`) để import chỉ tiêu năm mới. Quyền: `target:manage`, `Branch` (kỳ dùng chung toàn hệ thống nên chỉ cấp chi nhánh trở lên).
+
+Body: `{ "year": 2027 }` (2000 - 2100, sai là 400 `VALIDATION_ERROR`). Mã kỳ: `2027`, `2027-H1`, `2027-H2`, `2027-Q1..Q4`. Năm đã tồn tại: 409 `CONFLICT`.
+
+201: `data` = `{ "yearPeriodId": "…", "year": 2027, "createdCount": 7 }`.
+
 ## 6. `POST /evaluation-periods/{id}/close`
 
 Không có body. Chuyển `OPEN` → `IN_REVIEW` và trả kết quả pre-close check:

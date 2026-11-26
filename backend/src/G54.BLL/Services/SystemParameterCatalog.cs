@@ -273,6 +273,10 @@ public static class SystemParameterCatalog
             o => o.AuthLockoutMinutes, (o, v) => o.AuthLockoutMinutes = v),
         Int("loginRateLimitPerMinute", SystemParameterGroups.DashboardSecurity, 3, 120,
             o => o.LoginRateLimitPerMinute, (o, v) => o.LoginRateLimitPerMinute = v),
+
+        // Group 7: TARGET_ALLOCATION
+        Pct("targetSuggestionCeilingPercent", SystemParameterGroups.TargetAllocation, 1, 500,
+            o => o.TargetSuggestionCeilingPercent, (o, v) => o.TargetSuggestionCeilingPercent = v),
     ];
 
     public static SystemParameterDefinition? Find(string? key)

@@ -547,7 +547,8 @@ public sealed partial class EvaluationService(
 
         var period = await db.EvaluationPeriods
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken);
+            .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
+            ?? throw new NotFoundException("Kỳ đánh giá", periodId);
         var risksByEmployee = await LoadRiskEventsByEmployeeAsync(employeeIds, period, cancellationToken);
         var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
 
@@ -1080,6 +1081,20 @@ public sealed partial class EvaluationService(
             .Where(a => !disputedEmployeeIds.Contains(a.EmployeeId))
             .GroupBy(a => a.EmployeeId)
             .ToDictionary(g => g.Key, g => g.Last());
+
+        // A tier outside the active scale would be stored as is and later read back as a ranking tier.
+        var knownTiers = (await TryLoadActiveRankingPolicyAsync(period, cancellationToken))?.Tiers.Select(t => t.TierCode).ToList()
+            ?? (await LoadDowngradeConfigurationAsync(cancellationToken)).Tiers.Select(t => t.TierCode).ToList();
+        var unknownTiers = adjustmentMap.Values
+            .Select(a => a.CalibratedTier)
+            .Where(t => !knownTiers.Contains(t ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+        if (unknownTiers.Count > 0)
+        {
+            throw new ValidationException(
+                $"Tier không hợp lệ: {string.Join(", ", unknownTiers.Select(t => t ?? "(trống)"))}. Tier hợp lệ: {string.Join(", ", knownTiers)}.");
+        }
 
         var tierACount = adjustmentMap.Values.Count(a => a.CalibratedTier is "A1" or "A2" or "A3");
 
@@ -2752,9 +2767,12 @@ public sealed partial class EvaluationService(
         }
         else
         {
+            // Default to the latest evaluation of a period that has already started (UTC+7 business day),
+            // so a future period with pre-created data is never opened by default.
+            var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().ToOffset(TimeSpan.FromHours(7)).DateTime);
             var latestEvalPeriodId = await db.PerformanceEvaluations
                 .AsNoTracking()
-                .Where(pe => pe.EmployeeId == employee.Id)
+                .Where(pe => pe.EmployeeId == employee.Id && pe.EvaluationPeriod.StartDate <= today)
                 .OrderByDescending(pe => pe.EvaluationPeriod.StartDate)
                 .Select(pe => (Guid?)pe.EvaluationPeriodId)
                 .FirstOrDefaultAsync(cancellationToken);
@@ -2768,7 +2786,7 @@ public sealed partial class EvaluationService(
 
             period ??= await db.EvaluationPeriods
                 .AsNoTracking()
-                .Where(p => p.PeriodType != PeriodType.Day)
+                .Where(p => p.PeriodType != PeriodType.Day && p.StartDate <= today)
                 .OrderByDescending(p => p.StartDate)
                 .FirstOrDefaultAsync(cancellationToken);
 

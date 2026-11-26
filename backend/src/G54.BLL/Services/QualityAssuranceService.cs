@@ -17,7 +17,8 @@ public sealed class QualityAssuranceService(
     AppDbContext db,
     TimeProvider time,
     INotifier notifier,
-    ILogger<QualityAssuranceService> logger) : IQualityAssuranceService
+    ILogger<QualityAssuranceService> logger,
+    IPermissionService? permissions = null) : IQualityAssuranceService
 {
     private const int MinTextLength = 10;
     private const int MaxTextLength = 2000;
@@ -45,6 +46,7 @@ public sealed class QualityAssuranceService(
             ?? throw new NotFoundException("Hồ sơ nộp kết quả", submissionId);
         EnsureApproved(submission);
         EnsureNotSelf(submission.SubmitterEmployeeId, caller);
+        await EnsureInScopeAsync(caller, submission.SubmitterEmployeeId, "create", cancellationToken);
 
         if (await db.QualityFlags.AnyAsync(
                 f => f.ResultSubmissionId == submissionId && f.Status == QualityFlagStatus.Open, cancellationToken))
@@ -106,10 +108,10 @@ public sealed class QualityAssuranceService(
                 .FirstOrDefaultAsync(f => f.Id == flagId, cancellationToken)
                 ?? throw new NotFoundException("Cờ chất lượng", flagId);
             EnsureNotSelf(flag.EmployeeId, caller);
+            await EnsureInScopeAsync(caller, flag.EmployeeId, "rework", cancellationToken);
             EnsureOpen(flag);
 
-            var now = time.GetUtcNow();
-            await ApplyReworkAsync(flag, comment, now, cancellationToken);
+            await ApplyReworkAsync(flag, caller, comment, time.GetUtcNow(), cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
         });
 
@@ -118,16 +120,26 @@ public sealed class QualityAssuranceService(
         return await LoadFlagDtoAsync(flagId, cancellationToken);
     }
 
-    public async Task<QualityFlagDto> DismissFlagAsync(Guid flagId, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<QualityFlagDto> DismissFlagAsync(
+        Guid flagId,
+        Guid userId,
+        DismissQualityFlagDto dto,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(dto);
+        var reason = RequireText(dto.Reason, "Lý do bỏ cờ");
         var caller = await ResolveCallerAsync(userId, cancellationToken);
         var flag = await db.QualityFlags.FirstOrDefaultAsync(f => f.Id == flagId, cancellationToken)
             ?? throw new NotFoundException("Cờ chất lượng", flagId);
         EnsureNotSelf(flag.EmployeeId, caller);
         EnsureOpen(flag);
 
+        var now = time.GetUtcNow();
         flag.Status = QualityFlagStatus.Dismissed;
-        flag.UpdatedAt = time.GetUtcNow();
+        flag.DismissReason = reason;
+        flag.ReviewedByEmployeeId = caller.Id;
+        flag.ReviewedAt = now;
+        flag.UpdatedAt = now;
         await db.SaveChangesAsync(cancellationToken);
 
         LogAction(logger, "DISMISS", flag.Id, caller.Id, null);
@@ -204,7 +216,7 @@ public sealed class QualityAssuranceService(
                 db.QualityFlags.Add(flag);
                 if (dto.RequestRework)
                 {
-                    await ApplyReworkAsync(flag, comment!, now, cancellationToken);
+                    await ApplyReworkAsync(flag, caller, comment!, now, cancellationToken);
                 }
 
                 flagId = flag.Id;
@@ -238,7 +250,12 @@ public sealed class QualityAssuranceService(
     /// <c>invalidate_source_actual_progress</c>) and the work returns to IN_PROGRESS so the employee can submit it again.
     /// Refused with 409 <c>PERIOD_LOCKED</c> when any of its progress belongs to a locked period.
     /// </summary>
-    private async Task ApplyReworkAsync(QualityFlag flag, string comment, DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task ApplyReworkAsync(
+        QualityFlag flag,
+        Employee caller,
+        string comment,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         var submission = flag.ResultSubmission;
         EnsureApproved(submission);
@@ -278,6 +295,8 @@ public sealed class QualityAssuranceService(
         flag.Status = QualityFlagStatus.ReworkRequested;
         flag.ReworkComment = comment;
         flag.ReworkRequestedAt = now;
+        flag.ReviewedByEmployeeId = caller.Id;
+        flag.ReviewedAt = now;
         flag.UpdatedAt = now;
     }
 
@@ -350,7 +369,8 @@ public sealed class QualityAssuranceService(
     private IQueryable<QualityFlag> FlagQuery() => db.QualityFlags.AsNoTracking()
         .Include(f => f.ResultSubmission).ThenInclude(s => s.Work)
         .Include(f => f.Employee)
-        .Include(f => f.FlaggedByEmployee);
+        .Include(f => f.FlaggedByEmployee)
+        .Include(f => f.ReviewedByEmployee);
 
     private IQueryable<QaSample> SampleQuery() => db.QaSamples.AsNoTracking()
         .Include(x => x.ResultSubmission).ThenInclude(s => s.Work)
@@ -373,6 +393,37 @@ public sealed class QualityAssuranceService(
         }
 
         return caller;
+    }
+
+    /// <summary>
+    /// UC89/UC90: QA (scope All) handles every result; a department manager (scope Dept) only the results of the staff of
+    /// their department subtree, a branch scope the branch subtree. Without a permission service (unit tests) the
+    /// endpoint policy is the only check.
+    /// </summary>
+    private async Task EnsureInScopeAsync(Employee caller, Guid subjectEmployeeId, string action, CancellationToken cancellationToken)
+    {
+        if (permissions is null || caller.Account is null)
+        {
+            return;
+        }
+
+        var granted = await permissions.GetEffectivePermissionsAsync(caller.Account.Id, cancellationToken);
+        var level = AccessScope.LevelFor(granted, "quality_flag", action);
+        if (level >= AccessScope.AllLevel)
+        {
+            return;
+        }
+
+        var subjectDepartmentId = await db.Employees.AsNoTracking()
+            .Where(e => e.Id == subjectEmployeeId)
+            .Select(e => (Guid?)e.DepartmentId)
+            .FirstOrDefaultAsync(cancellationToken);
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var covered = AccessScope.DepartmentsInScope(level, caller.DepartmentId, hierarchy);
+        if (subjectDepartmentId is not { } departmentId || covered is null || !covered.Contains(departmentId))
+        {
+            throw new ForbiddenException("Bạn chỉ được kiểm tra chất lượng kết quả của nhân sự thuộc phòng ban mình quản lý.");
+        }
     }
 
     private static void EnsureApproved(ResultSubmission submission)
@@ -438,6 +489,9 @@ public sealed class QualityAssuranceService(
         f.Status.ToEnumString(),
         f.ReworkComment,
         f.ReworkRequestedAt,
+        f.DismissReason,
+        f.ReviewedByEmployee?.FullName,
+        f.ReviewedAt,
         f.CreatedAt);
 
     private static QaSampleDto ToDto(QaSample x) => new(

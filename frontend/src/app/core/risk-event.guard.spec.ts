@@ -4,7 +4,12 @@ import { provideRouter, Router } from '@angular/router';
 import { routes } from '../app.routes';
 import { AuthenticatedUser } from './auth.models';
 import { AuthService } from './auth.service';
-import { canCreateRiskEvents, canViewRiskEvents, riskEventGuard } from './risk-event.guard';
+import {
+  canCreateRiskEvents,
+  canTransitionRiskEvents,
+  canViewRiskEvents,
+  riskEventGuard,
+} from './risk-event.guard';
 
 describe('riskEventGuard', () => {
   const user = signal<AuthenticatedUser | null>(null);
@@ -55,6 +60,14 @@ describe('riskEventGuard', () => {
     expect(canCreateRiskEvents(['FULL_ACCESS'])).toBeTrue();
     expect(canCreateRiskEvents(['RISK_EVENT_READ'])).toBeFalse();
     expect(canCreateRiskEvents(null)).toBeFalse();
+  });
+
+  it('tells who may confirm, dismiss or resolve an event', () => {
+    expect(canTransitionRiskEvents(['risk_event:confirm'], 'confirm')).toBeTrue();
+    expect(canTransitionRiskEvents(['RISK_EVENT_DISMISS'], 'dismiss')).toBeTrue();
+    expect(canTransitionRiskEvents(['FULL_ACCESS'], 'resolve')).toBeTrue();
+    expect(canTransitionRiskEvents(['risk_event:confirm'], 'resolve')).toBeFalse();
+    expect(canTransitionRiskEvents(undefined, 'confirm')).toBeFalse();
   });
 
   it('guards the risk event route', () => {

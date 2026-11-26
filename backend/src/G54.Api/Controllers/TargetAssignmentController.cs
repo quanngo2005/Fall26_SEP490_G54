@@ -12,9 +12,8 @@ namespace G54.Api.Controllers;
 
 [ApiController]
 [Route("target-assignments")]
-[HasPermission("target", "manage", "Department")]
+[HasPermission("target", "manage", PermissionScopes.Dept)]
 public sealed class TargetAssignmentController(
-    ITargetAllocationService service,
     ITargetImportService importService,
     ITargetSetupService setupService,
     IOptions<SystemParametersOptions>? parameters = null) : ControllerBase
@@ -126,6 +125,17 @@ public sealed class TargetAssignmentController(
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{branchYearId:guid}/allocations")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<KpiAllocationDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<KpiAllocationDto>>>> GetAllAllocations(
+        Guid branchYearId,
+        CancellationToken cancellationToken)
+    {
+        var result = await setupService.GetAllAllocationsAsync(branchYearId, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
     [HttpPut("{branchYearId:guid}/kpis/{kpiId:guid}/allocation")]
     [ProducesResponseType<ApiResponse<KpiAllocationDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
@@ -156,6 +166,136 @@ public sealed class TargetAssignmentController(
     }
 
     // =========================================================================
+    // Phase 3: Tier 3 employee allocation and publish (docs/api/TARGET_ALLOCATION_CONTRACT.md, Phase 3)
+    // deptYearId already pins department + KPI + year (one dept-year row per KPI per department), so there is
+    // no separate kpiId route segment here (unlike the branch-year anchor, which covers several KPI rows).
+    // =========================================================================
+
+    [HttpGet("{deptYearId:guid}/employee-allocation")]
+    [ProducesResponseType<ApiResponse<EmployeeAllocationDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<EmployeeAllocationDto>>> GetEmployeeAllocation(
+        Guid deptYearId,
+        CancellationToken cancellationToken)
+    {
+        var result = await setupService.GetEmployeeAllocationAsync(deptYearId, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{deptYearId:guid}/employee-allocations")]
+    [ProducesResponseType<ApiResponse<IReadOnlyList<EmployeeAllocationDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<EmployeeAllocationDto>>>> GetAllEmployeeAllocations(
+        Guid deptYearId,
+        CancellationToken cancellationToken)
+    {
+        var result = await setupService.GetAllEmployeeAllocationsAsync(deptYearId, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{deptYearId:guid}/employee-allocation")]
+    [ProducesResponseType<ApiResponse<EmployeeAllocationDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<ApiResponse<EmployeeAllocationDto>>> SaveEmployeeAllocation(
+        Guid deptYearId,
+        [FromBody] SaveEmployeeAllocationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await setupService.SaveEmployeeAllocationAsync(deptYearId, request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{deptYearId:guid}/publish-employees")]
+    [ProducesResponseType<ApiResponse<PublishEmployeesResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<ApiResponse<PublishEmployeesResultDto>>> PublishEmployees(
+        Guid deptYearId,
+        CancellationToken cancellationToken)
+    {
+        var result = await setupService.PublishEmployeesAsync(deptYearId, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Published successfully.", HttpContext.TraceIdentifier));
+    }
+
+    // =========================================================================
+    // Mid-term adjustment (Target Allocation v3, D12/D13): the only way to change a published target.
+    // =========================================================================
+
+    [HttpPut("{branchYearId:guid}/quarter-split/adjust")]
+    [ProducesResponseType<ApiResponse<QuarterSplitDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<ApiResponse<QuarterSplitDto>>> AdjustQuarters(
+        Guid branchYearId,
+        [FromBody] AdjustQuarterSplitRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await setupService.AdjustQuartersAsync(branchYearId, request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Đã điều chỉnh chỉ tiêu theo quý.", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{branchYearId:guid}/kpis/{kpiId:guid}/allocation/adjust")]
+    [ProducesResponseType<ApiResponse<KpiAllocationDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<ApiResponse<KpiAllocationDto>>> AdjustAllocation(
+        Guid branchYearId,
+        Guid kpiId,
+        [FromBody] AdjustKpiAllocationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await setupService.AdjustAllocationAsync(branchYearId, kpiId, request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Đã điều chỉnh chỉ tiêu phòng ban.", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{deptYearId:guid}/employee-allocation/adjust")]
+    [ProducesResponseType<ApiResponse<EmployeeAllocationDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<ApiResponse<EmployeeAllocationDto>>> AdjustEmployeeAllocation(
+        Guid deptYearId,
+        [FromBody] AdjustEmployeeAllocationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await setupService.AdjustEmployeeAllocationAsync(deptYearId, request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Đã điều chỉnh chỉ tiêu nhân viên.", HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{branchYearId:guid}/departments/{departmentId:guid}/remind")]
+    [ProducesResponseType<ApiResponse<RemindDepartmentManagerResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<RemindDepartmentManagerResultDto>>> RemindDepartmentManager(
+        Guid branchYearId,
+        Guid departmentId,
+        CancellationToken cancellationToken)
+    {
+        var result = await setupService.RemindDepartmentManagerAsync(branchYearId, departmentId, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Đã gửi nhắc nhở.", HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{branchYearId:guid}/progress")]
+    [ProducesResponseType<ApiResponse<ProgressRollupDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<ProgressRollupDto>>> GetProgressRollup(
+        Guid branchYearId,
+        CancellationToken cancellationToken)
+    {
+        var result = await setupService.GetProgressRollupAsync(branchYearId, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    // =========================================================================
     // Deprecated endpoints (Phase 2.1+) - marked for future removal
     // These are kept for backward compatibility but replaced by Phase 2 endpoints above
     // =========================================================================
@@ -166,7 +306,7 @@ public sealed class TargetAssignmentController(
         [FromBody] AllocateDepartmentsDto dto,
         CancellationToken cancellationToken)
     {
-        var result = await service.AllocateDepartmentsAsync(branchYearId, dto, User.GetRequiredUserId(), cancellationToken);
+        var result = await setupService.AllocateDepartmentsAsync(branchYearId, dto, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
@@ -176,14 +316,14 @@ public sealed class TargetAssignmentController(
         [FromBody] AllocateQuartersDto dto,
         CancellationToken cancellationToken)
     {
-        var result = await service.AllocateQuartersAsync(deptYearId, dto, User.GetRequiredUserId(), cancellationToken);
+        var result = await setupService.AllocateQuartersAsync(deptYearId, dto, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
     [HttpPost("{deptYearId:guid}/confirm")]
     public async Task<ActionResult<ApiResponse<TargetNodeDto>>> Confirm(Guid deptYearId, CancellationToken cancellationToken)
     {
-        var result = await service.ConfirmAsync(deptYearId, User.GetRequiredUserId(), cancellationToken);
+        var result = await setupService.ConfirmAsync(deptYearId, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
@@ -194,7 +334,7 @@ public sealed class TargetAssignmentController(
         [FromQuery] int? compareYear,
         CancellationToken cancellationToken)
     {
-        var result = await service.GetTreeAsync(branchId, year, compareYear, User.GetRequiredUserId(), cancellationToken);
+        var result = await setupService.GetTreeAsync(branchId, year, compareYear, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 

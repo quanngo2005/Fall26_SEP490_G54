@@ -2,7 +2,7 @@ import { Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentChildUnit, PerformanceCompareMode } from '../../core/department.models';
-import { barWidth, formatArrow, formatValue, toneOf } from './performance-display';
+import { barWidth, formatSigned, formatValue, toneOf } from './performance-display';
 
 /** Visual only: room right of the longest bar for its value label. */
 const LABEL_HEADROOM = 1.25;
@@ -38,7 +38,8 @@ const LABEL_HEADROOM = 1.25;
     <a
       class="unit row-link"
       routerLink="/department-performance"
-      [queryParams]="{ department: unit.code, periodId: periodId(), compare: compare() }"
+      [queryParams]="{ department: unit.code, compare: compare() }"
+      [state]="{ periodId: periodId() }"
     >
       <span class="name"
         ><b>{{unit.name}}</b
@@ -155,7 +156,7 @@ export class PerfChildUnitsComponent extends LocalizedComponent {
   }
 
   protected arrow(value: number | null): string {
-    return formatArrow(this.i18n.currentLanguage(), value);
+    return formatSigned(this.i18n.currentLanguage(), value);
   }
 
   protected tone(value: number | null): string {

@@ -15,6 +15,7 @@ public sealed class QualityAssuranceServiceTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 5, 3, 0, 0, TimeSpan.Zero);
     private const string LongReason = "Số liệu trên chứng từ không khớp với báo cáo.";
+    private const string DismissReason = "Đã đối chiếu lại, chứng từ khớp với báo cáo.";
 
     private readonly AppDbContext _db = new(new DbContextOptionsBuilder<AppDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -109,6 +110,77 @@ public sealed class QualityAssuranceServiceTests : IDisposable
         return (maker, qa, work, submission, result);
     }
 
+    /// <summary>Places the employee in a department; a Dept-scoped manager sits in <paramref name="managerDept"/>.</summary>
+    private async Task<(Guid ManagerDept, Guid OtherDept)> SeedDepartmentsAsync()
+    {
+        var branch = Guid.NewGuid();
+        var managerDept = Guid.NewGuid();
+        var otherDept = Guid.NewGuid();
+        _db.Departments.AddRange(
+            new Department { Id = branch, Code = $"B{branch:N}"[..8], Name = "Branch", LevelType = DepartmentLevelType.Branch, Status = RecordStatus.Active, UpdatedAt = Now },
+            new Department { Id = managerDept, Code = $"D{managerDept:N}"[..8], Name = "Sales", ParentDepartmentId = branch, LevelType = DepartmentLevelType.Department, Status = RecordStatus.Active, UpdatedAt = Now },
+            new Department { Id = otherDept, Code = $"O{otherDept:N}"[..8], Name = "Teller", ParentDepartmentId = branch, LevelType = DepartmentLevelType.Department, Status = RecordStatus.Active, UpdatedAt = Now });
+        await _db.SaveChangesAsync();
+        return (managerDept, otherDept);
+    }
+
+    private QualityAssuranceService ServiceWith(params (string Resource, string Action, string Scope)[] grants) =>
+        new(_db, new FixedTime(Now), _notifier, NullLogger<QualityAssuranceService>.Instance, new GrantedPermissions(grants));
+
+    [Fact]
+    public async Task DeptManager_FlagsAndRequestsRework_ForTheStaffOfTheirDepartment()
+    {
+        var (managerDept, _) = await SeedDepartmentsAsync();
+        var (maker, manager, work, submission, result) = await SeedApprovedAsync();
+        maker.DepartmentId = managerDept;
+        manager.DepartmentId = managerDept;
+        await _db.SaveChangesAsync();
+        var service = ServiceWith(("quality_flag", "create", "Dept"), ("quality_flag", "rework", "Dept"));
+
+        var flag = await service.CreateFlagAsync(submission.Id, manager.Id, new CreateQualityFlagDto(LongReason, null));
+        var reworked = await service.RequestReworkAsync(flag.Id, manager.Id, new RequestReworkDto("Làm lại báo cáo và đính kèm chứng từ."));
+
+        Assert.Equal("REWORK_REQUESTED", reworked.Status);
+        Assert.Equal(WorkStatus.InProgress, (await _db.Works.AsNoTracking().SingleAsync(w => w.Id == work.Id)).Status);
+        Assert.Equal(VerifiedResultStatus.Invalid, (await _db.VerifiedWorkResults.AsNoTracking().SingleAsync(r => r.Id == result.Id)).Status);
+    }
+
+    [Fact]
+    public async Task DeptManager_CannotFlagOrReworkTheStaffOfAnotherDepartment()
+    {
+        var (managerDept, otherDept) = await SeedDepartmentsAsync();
+        var (maker, manager, _, submission, _) = await SeedApprovedAsync();
+        var (_, qa, _, _, _) = await SeedApprovedAsync();
+        maker.DepartmentId = otherDept;
+        manager.DepartmentId = managerDept;
+        await _db.SaveChangesAsync();
+        var managerService = ServiceWith(("quality_flag", "create", "Dept"), ("quality_flag", "rework", "Dept"));
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            managerService.CreateFlagAsync(submission.Id, manager.Id, new CreateQualityFlagDto(LongReason, null)));
+
+        var qaFlag = await ServiceWith(("quality_flag", "create", "All")).CreateFlagAsync(submission.Id, qa.Id, new CreateQualityFlagDto(LongReason, null));
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            managerService.RequestReworkAsync(qaFlag.Id, manager.Id, new RequestReworkDto("Làm lại báo cáo và đính kèm chứng từ.")));
+        Assert.Equal(QualityFlagStatus.Open, (await _db.QualityFlags.AsNoTracking().SingleAsync(f => f.Id == qaFlag.Id)).Status);
+    }
+
+    private sealed class GrantedPermissions((string Resource, string Action, string Scope)[] grants) : IPermissionService
+    {
+        public Task<UserPermissionsResponseDto?> GetUserPermissionsAsync(Guid accountId, CancellationToken cancellationToken) =>
+            Task.FromResult<UserPermissionsResponseDto?>(null);
+
+        public Task<IReadOnlyList<UserPermissionDto>> GetEffectivePermissionsAsync(Guid accountId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<UserPermissionDto>>(grants.Select(g => new UserPermissionDto(g.Resource, g.Action, g.Scope)).ToList());
+
+        public Task<bool> HasPermissionAsync(Guid accountId, string resource, string action, string requiredScope, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
+        public Task InvalidateUserPermissionsAsync(Guid accountId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task InvalidateRolePermissionsAsync(Guid roleId, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
     [Fact]
     public async Task CreateFlag_OnAnApprovedResult_FlagsTheSubmitter()
     {
@@ -184,6 +256,8 @@ public sealed class QualityAssuranceServiceTests : IDisposable
 
         Assert.Equal("REWORK_REQUESTED", reworked.Status);
         Assert.Equal(Now, reworked.ReworkRequestedAt);
+        Assert.Equal(qa.FullName, reworked.ReviewedByName);
+        Assert.Equal(Now, reworked.ReviewedAt);
         var storedResult = await _db.VerifiedWorkResults.AsNoTracking().SingleAsync(r => r.Id == result.Id);
         Assert.Equal(VerifiedResultStatus.Invalid, storedResult.Status);
         Assert.Equal(Now, storedResult.InvalidatedAt);
@@ -231,17 +305,33 @@ public sealed class QualityAssuranceServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Dismiss_ClosesAnOpenFlagWithoutTouchingTheResult()
+    public async Task Dismiss_ClosesAnOpenFlagWithItsReasonAndReviewer_WithoutTouchingTheResult()
     {
         var (_, qa, work, submission, result) = await SeedApprovedAsync();
         var flag = await Service.CreateFlagAsync(submission.Id, qa.Id, new CreateQualityFlagDto(LongReason, null));
 
-        var dismissed = await Service.DismissFlagAsync(flag.Id, qa.Id);
+        var dismissed = await Service.DismissFlagAsync(flag.Id, qa.Id, new DismissQualityFlagDto($"  {DismissReason}  "));
 
         Assert.Equal("DISMISSED", dismissed.Status);
+        Assert.Equal(DismissReason, dismissed.DismissReason);
+        Assert.Equal(qa.FullName, dismissed.ReviewedByName);
+        Assert.Equal(Now, dismissed.ReviewedAt);
         Assert.Equal(VerifiedResultStatus.Valid, (await _db.VerifiedWorkResults.AsNoTracking().SingleAsync(r => r.Id == result.Id)).Status);
         Assert.Equal(WorkStatus.Verified, (await _db.Works.AsNoTracking().SingleAsync(w => w.Id == work.Id)).Status);
-        await Assert.ThrowsAsync<ConflictException>(() => Service.DismissFlagAsync(flag.Id, qa.Id));
+        await Assert.ThrowsAsync<ConflictException>(() => Service.DismissFlagAsync(flag.Id, qa.Id, new DismissQualityFlagDto(DismissReason)));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("quá ngắn")]
+    public async Task Dismiss_RequiresAReason_AndLeavesTheFlagOpen(string? reason)
+    {
+        var (_, qa, _, submission, _) = await SeedApprovedAsync();
+        var flag = await Service.CreateFlagAsync(submission.Id, qa.Id, new CreateQualityFlagDto(LongReason, null));
+
+        await Assert.ThrowsAsync<ValidationException>(() => Service.DismissFlagAsync(flag.Id, qa.Id, new DismissQualityFlagDto(reason)));
+
+        Assert.Equal(QualityFlagStatus.Open, (await _db.QualityFlags.AsNoTracking().SingleAsync(f => f.Id == flag.Id)).Status);
     }
 
     [Fact]
@@ -251,7 +341,7 @@ public sealed class QualityAssuranceServiceTests : IDisposable
         var (_, _, _, second, _) = await SeedApprovedAsync();
         var firstFlag = await Service.CreateFlagAsync(first.Id, qa.Id, new CreateQualityFlagDto(LongReason, null));
         await Service.CreateFlagAsync(second.Id, qa.Id, new CreateQualityFlagDto(LongReason, null));
-        await Service.DismissFlagAsync(firstFlag.Id, qa.Id);
+        await Service.DismissFlagAsync(firstFlag.Id, qa.Id, new DismissQualityFlagDto(DismissReason));
 
         var open = await Service.GetFlagsAsync(new QualityFlagFilterDto { Status = "OPEN" });
         var ofMaker = await Service.GetFlagsAsync(new QualityFlagFilterDto { EmployeeId = maker.Id });

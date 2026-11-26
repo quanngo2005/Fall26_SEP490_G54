@@ -1,6 +1,7 @@
 using G54.BLL.Common;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.Permission;
+using G54.BLL.Dtos.TargetAllocation;
 using G54.BLL.Dtos.TargetAssignment;
 using G54.BLL.Services;
 using G54.DAL;
@@ -208,7 +209,7 @@ public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
-        var service = new TargetSetupService(new UnitOfWork(db), db, new AdminPermissions());
+        var service = new TargetSetupService(new UnitOfWork(db), new AdminPermissions(), new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
         var result = await service.PublishAsync(branchYear.Id, _adminAccount, CancellationToken.None);
 
         Assert.Equal((1, 4, 1, 4), (result.BranchYearCount, result.QuarterCount, result.DepartmentYearCount, result.DepartmentQuarterCount));
@@ -218,6 +219,146 @@ public sealed class TargetAssignmentPostgresTests : IAsyncLifetime
             .ToListAsync();
         Assert.Equal(10, statuses.Count);
         Assert.All(statuses, s => Assert.Equal(TargetAssignmentStatus.Active, s));
+    }
+
+    /// <summary>
+    /// D12/D13 end-to-end against the real schema: BM mid-term adjustment moves value from deptA to deptB after
+    /// both tiers are published. The DB's deferred <c>trg_validate_target_children_sum</c> trigger requires every
+    /// ACTIVE child of an ACTIVE SUM-KPI parent to sum exactly to it — this verifies the adjustment transaction
+    /// commits cleanly (demoting deptA's now-mismatched tier-3 rows to DRAFT rather than leaving them ACTIVE), and
+    /// that the DM can then rebalance tier 3 back to ACTIVE via AdjustEmployeeAllocationAsync.
+    /// </summary>
+    [PostgresFact]
+    public async Task AdjustAllocation_ReopensTier3AsDraft_AndDmRebalanceRepublishes()
+    {
+        await using var scope = _provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var now = DateTimeOffset.UtcNow;
+
+        var year = new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2028", Name = "2028", PeriodType = PeriodType.Year, Status = PeriodStatus.Open, StartDate = new(2028, 1, 1), EndDate = new(2028, 12, 31), UpdatedAt = now };
+        var h1 = new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2028-H1", Name = "H1", PeriodType = PeriodType.HalfYear, ParentPeriodId = year.Id, Status = PeriodStatus.Open, StartDate = new(2028, 1, 1), EndDate = new(2028, 6, 30), UpdatedAt = now };
+        var h2 = new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2028-H2", Name = "H2", PeriodType = PeriodType.HalfYear, ParentPeriodId = year.Id, Status = PeriodStatus.Open, StartDate = new(2028, 7, 1), EndDate = new(2028, 12, 31), UpdatedAt = now };
+        var quarters = new[]
+        {
+            new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2028-Q1", Name = "Q1", PeriodType = PeriodType.Quarter, ParentPeriodId = h1.Id, Status = PeriodStatus.Open, StartDate = new(2028, 1, 1), EndDate = new(2028, 3, 31), UpdatedAt = now },
+            new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2028-Q2", Name = "Q2", PeriodType = PeriodType.Quarter, ParentPeriodId = h1.Id, Status = PeriodStatus.Open, StartDate = new(2028, 4, 1), EndDate = new(2028, 6, 30), UpdatedAt = now },
+            new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2028-Q3", Name = "Q3", PeriodType = PeriodType.Quarter, ParentPeriodId = h2.Id, Status = PeriodStatus.Open, StartDate = new(2028, 7, 1), EndDate = new(2028, 9, 30), UpdatedAt = now },
+            new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2028-Q4", Name = "Q4", PeriodType = PeriodType.Quarter, ParentPeriodId = h2.Id, Status = PeriodStatus.Open, StartDate = new(2028, 10, 1), EndDate = new(2028, 12, 31), UpdatedAt = now },
+        };
+        db.EvaluationPeriods.Add(year);
+        await db.SaveChangesAsync();
+        db.EvaluationPeriods.AddRange(h1, h2);
+        await db.SaveChangesAsync();
+        db.EvaluationPeriods.AddRange(quarters);
+
+        var memberA = await db.Employees.SingleAsync(e => e.Id == _memberId);
+        var memberB = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "PG-MEM-B",
+            FullName = "PG-MEM-B",
+            Email = "pg-mem-b@test.local",
+            DepartmentId = _deptB,
+            JobPositionId = memberA.JobPositionId,
+            Status = EmployeeStatus.Active,
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        db.Employees.Add(memberB);
+
+        var workType = new WorkType { Id = Guid.NewGuid(), Code = "PG-WT2", Name = "Work", Status = RecordStatus.Active, UpdatedAt = now };
+        db.WorkTypes.Add(workType);
+        db.JobPositionWorkTypes.Add(new JobPositionWorkType { Id = Guid.NewGuid(), JobPositionId = memberA.JobPositionId, WorkTypeId = workType.Id, UpdatedAt = now });
+        db.WorkTypeKpis.Add(new WorkTypeKpi { Id = Guid.NewGuid(), WorkTypeId = workType.Id, KpiDefinitionId = _kpiId, EffectiveFrom = year.StartDate, UpdatedAt = now });
+        await db.SaveChangesAsync();
+
+        TargetAssignment Row(Guid? departmentId, Guid? employeeId, Guid periodId, decimal value, Guid? parentId, TargetSplitDimension? split) => new()
+        {
+            Id = Guid.NewGuid(),
+            DepartmentId = departmentId,
+            EmployeeId = employeeId,
+            KpiDefinitionId = _kpiId,
+            EvaluationPeriodId = periodId,
+            ParentAssignmentId = parentId,
+            SplitDimension = split,
+            TargetValue = value,
+            Version = 1,
+            Status = TargetAssignmentStatus.Draft,
+            CreatedAt = now,
+            AssignedAt = now,
+        };
+
+        var branchYear = Row(_branchId, null, year.Id, 1000m, null, null);
+        var deptYearA = Row(_deptA, null, year.Id, 600m, branchYear.Id, TargetSplitDimension.Org);
+        var deptYearB = Row(_deptB, null, year.Id, 400m, branchYear.Id, TargetSplitDimension.Org);
+        db.TargetAssignments.AddRange(branchYear, deptYearA, deptYearB);
+        foreach (var quarter in quarters)
+        {
+            db.TargetAssignments.Add(Row(_branchId, null, quarter.Id, 250m, branchYear.Id, TargetSplitDimension.Period));
+            db.TargetAssignments.Add(Row(_deptA, null, quarter.Id, 150m, deptYearA.Id, TargetSplitDimension.Period));
+            db.TargetAssignments.Add(Row(_deptB, null, quarter.Id, 100m, deptYearB.Id, TargetSplitDimension.Period));
+        }
+
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var service = new TargetSetupService(new UnitOfWork(db), new AdminPermissions(), new NoOpTargetChangeLogService(), new RecordingNotifier(), new NoOpDepartmentService());
+        await service.PublishAsync(branchYear.Id, _adminAccount, CancellationToken.None);
+
+        var deptYearAActive = await db.TargetAssignments.AsNoTracking().SingleAsync(
+            t => t.DepartmentId == _deptA && t.KpiDefinitionId == _kpiId && t.ParentAssignmentId == branchYear.Id
+                && t.SplitDimension == TargetSplitDimension.Org && t.Status == TargetAssignmentStatus.Active);
+
+        var saveResult = await service.SaveEmployeeAllocationAsync(
+            deptYearAActive.Id,
+            new SaveEmployeeAllocationRequest([new SaveEmployeeAllocationEmployeeRequest(memberA.Id, 600m, 150m, 150m, 150m, 150m)]),
+            _adminAccount,
+            CancellationToken.None);
+        Assert.True(saveResult.Employees.Single().Matched);
+
+        await service.PublishEmployeesAsync(deptYearAActive.Id, _adminAccount, CancellationToken.None);
+
+        // BM moves 100 from deptA to deptB (600/400 -> 500/500). This must not trip the deferred children-sum
+        // trigger: deptA's now-mismatched employee-year/quarter rows get demoted to DRAFT instead of staying ACTIVE.
+        var adjustRequest = new AdjustKpiAllocationRequest(
+            [
+                new SaveKpiAllocationDepartmentRequest(_deptA, 500m, 125m, 125m, 125m, 125m),
+                new SaveKpiAllocationDepartmentRequest(_deptB, 500m, 125m, 125m, 125m, 125m),
+            ],
+            "BM giữa kỳ: chuyển 100 từ A sang B");
+
+        var adjustResult = await service.AdjustAllocationAsync(branchYear.Id, _kpiId, adjustRequest, _adminAccount, CancellationToken.None);
+        Assert.Equal(500m, adjustResult.Departments.Single(d => d.DepartmentId == _deptA).Year);
+
+        var newDeptYearA = await db.TargetAssignments.AsNoTracking().SingleAsync(
+            t => t.DepartmentId == _deptA && t.KpiDefinitionId == _kpiId && t.ParentAssignmentId == branchYear.Id
+                && t.SplitDimension == TargetSplitDimension.Org && t.Status == TargetAssignmentStatus.Active);
+
+        // Employee row is reopened as DRAFT (still 600, now mismatched against the new 500 department year) and
+        // re-parented onto the new dept-year row — never left ACTIVE with a mismatched sum (the trigger would have
+        // rejected the whole adjustment transaction at commit if it had).
+        var employeeAllocationA = await service.GetEmployeeAllocationAsync(newDeptYearA.Id, _adminAccount, CancellationToken.None);
+        var employeeRow = employeeAllocationA.Employees.Single();
+        Assert.Equal(600m, employeeRow.Year);
+        // Matched only checks the employee's own quarters vs. their own year (still consistent at 600); the
+        // mismatch against the department is reflected in Remaining, not Matched.
+        Assert.Equal(-100m, employeeAllocationA.Remaining.Year);
+
+        var memberAYearRow = await db.TargetAssignments.AsNoTracking().SingleAsync(
+            t => t.EmployeeId == memberA.Id && t.KpiDefinitionId == _kpiId && t.SplitDimension == TargetSplitDimension.Org);
+        Assert.Equal(TargetAssignmentStatus.Draft, memberAYearRow.Status);
+        Assert.Equal(newDeptYearA.Id, memberAYearRow.ParentAssignmentId);
+
+        // DM rebalances and republishes via AdjustEmployeeAllocationAsync: no separate publish call needed.
+        var dmRequest = new AdjustEmployeeAllocationRequest(
+            [new SaveEmployeeAllocationEmployeeRequest(memberA.Id, 500m, 125m, 125m, 125m, 125m)], "DM cân đối lại");
+        var dmResult = await service.AdjustEmployeeAllocationAsync(newDeptYearA.Id, dmRequest, _adminAccount, CancellationToken.None);
+
+        Assert.True(dmResult.Employees.Single().Matched);
+        var rebalanced = await db.TargetAssignments.AsNoTracking().SingleAsync(
+            t => t.EmployeeId == memberA.Id && t.KpiDefinitionId == _kpiId && t.SplitDimension == TargetSplitDimension.Org
+                && t.Status == TargetAssignmentStatus.Active);
+        Assert.Equal(500m, rebalanced.TargetValue);
     }
 
     private static Department Department(string code, DepartmentLevelType level, Guid? parent, DateTimeOffset now) => new()

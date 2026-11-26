@@ -54,15 +54,6 @@
           <div class="segmented" role="group" [attr.aria-label]="localization.work.viewSwitch">
             <button
               type="button"
-              id="work-view-board"
-              [class.is-active]="view() === 'board'"
-              [attr.aria-pressed]="view() === 'board'"
-              (click)="setView('board')"
-            >
-              {{localization.work.viewBoard}}
-            </button>
-            <button
-              type="button"
               id="work-view-list"
               [class.is-active]="view() === 'list'"
               [attr.aria-pressed]="view() === 'list'"
@@ -312,238 +303,157 @@
           </span>
         </div>
 
-        @if (view() === 'board') {
-          <div class="board" cdkDropListGroup>
-            @for (col of boardView(); track col.def.key) {
-              <section
-                class="column"
-                [class.column-danger]="col.def.key === 'overdue'"
-                [attr.aria-label]="localization.work.columns[col.def.key]"
-              >
-                <header class="column-head">
-                  <h2>{{localization.work.columns[col.def.key]}}</h2>
-                  <span class="column-count num">{{col.count}}</span>
-                </header>
-
-                <div
-                  class="column-body"
-                  cdkDropList
-                  [cdkDropListData]="col.def.key"
-                  [cdkDropListSortingDisabled]="true"
-                  [cdkDropListEnterPredicate]="canEnter"
-                  (cdkDropListDropped)="onDrop($event)"
-                >
-                  @if (col.state.loading && col.state.items.length === 0) {
-                    <div class="skeleton" aria-hidden="true"></div>
-                    <div class="skeleton" aria-hidden="true"></div>
-                  } @else if (col.state.failed) {
-                    <div class="column-note column-note-error" role="alert">
-                      <span>{{localization.work.card.columnError}}</span>
-                      <button type="button" class="link-button" (click)="retry()">
-                        {{localization.work.state.retry}}
-                      </button>
-                    </div>
-                  } @else {
-                    @for (item of col.shown; track item.id) {
-                      @let badge = badgeOf(item);
-                      @let chip = chipOf(item);
-                      <article
-                        class="work-card"
-                        cdkDrag
-                        [cdkDragData]="item"
-                        [cdkDragDisabled]="!canAct(item)"
-                        [class.is-draggable]="canAct(item)"
-                        [class.is-selected]="selectedId() === item.id"
-                        [class.is-overdue]="badge.kind === 'overdue'"
-                        (cdkDragStarted)="onDragStarted()"
-                        (cdkDragEnded)="onDragEnded()"
-                      >
-                        <button type="button" class="card-open" (click)="openDetail(item)">
-                          <span class="card-top">
-                            <span class="card-code mono">{{item.code}}</span>
-                            @if (badge.kind === 'overdue') {
-                              <span class="badge badge-overdue num">
-                                {{i18n.translate('work.card.overdueDays', { days: badge.days })}}
-                              </span>
-                            } @else if (badge.kind === 'today') {
-                              <span class="badge badge-today">{{localization.work.card.today}}</span>
-                            } @else {
-                              <span
-                                class="badge badge-priority"
-                                [attr.data-priority]="badge.priority"
-                              >
-                                {{localization.work.priority[badge.priority]}}
-                              </span>
-                            }
-                          </span>
-                          <span class="card-title">{{item.title}}</span>
-                          @if (isTeam()) {
-                            <span class="card-assignee">
-                              <span class="avatar-circle">{{initialsOf(item.assigneeEmployeeName)}}</span>
-                              <span class="assignee-name">{{item.assigneeEmployeeName}}</span>
-                            </span>
-                          } @else if (item.workTypeName) {
-                            <span class="card-meta">{{item.workTypeName}}</span>
-                          }
-                          <span
-                            class="card-meta num"
-                            [class.text-danger]="isTeam() && col.def.key === 'overdue'"
-                          >
-                            {{dueText(item)}}
-                          </span>
-                        </button>
-                        @if (chip || (!isTeam() && canAct(item))) {
-                          <div class="card-foot">
-                            @if (chip) {
-                              <span class="chip" [attr.data-tone]="chip.tone">{{chip.text}}</span>
-                            }
-                            @if (!isTeam() && canAct(item)) {
-                              <button
-                                type="button"
-                                class="start-button"
-                                (click)="changeStatus(item)"
-                                [attr.aria-label]="
-                                  i18n.translate('work.card.startLabel', { code: item.code })
-                                "
-                              >
-                                {{localization.work.card.start}}
-                              </button>
-                            }
-                          </div>
-                        }
-                      </article>
-                    } @empty {
-                      <p class="column-note">{{localization.work.card.empty}}</p>
-                    }
-
-                    @if (col.collapsed) {
-                      <button
-                        type="button"
-                        class="link-button more-button"
-                        (click)="expand(col.def.key)"
-                      >
-                        {{i18n.translate('work.card.viewMore', { count: col.hiddenCount })}}
-                      </button>
-                    } @else if (col.canLoadMore) {
-                      <button
-                        type="button"
-                        class="link-button more-button"
-                        [disabled]="col.state.loadingMore"
-                        (click)="loadMore(col.def.key)"
-                      >
-                        {{col.state.loadingMore
-                            ? localization.work.card.loadingMore
-                            : localization.work.card.loadMore}}
-                      </button>
-                    }
-                  }
-                </div>
-              </section>
-            }
+        @if (list().failed) {
+          <div class="state-card state-error" role="alert">
+            <p>{{localization.work.state.error}}</p>
+            <button type="button" class="button button-secondary" (click)="retry()">
+              {{localization.work.state.retry}}
+            </button>
+          </div>
+        } @else if (list().loading && list().items.length === 0) {
+          <div class="state-card" role="status">
+            <span class="spinner" aria-hidden="true"></span>
+            <p>{{localization.work.state.loading}}</p>
           </div>
         } @else {
-          @if (list().failed) {
-            <div class="state-card state-error" role="alert">
-              <p>{{localization.work.state.error}}</p>
-              <button type="button" class="button button-secondary" (click)="retry()">
-                {{localization.work.state.retry}}
-              </button>
-            </div>
-          } @else if (list().loading && list().items.length === 0) {
-            <div class="state-card" role="status">
-              <span class="spinner" aria-hidden="true"></span>
-              <p>{{localization.work.state.loading}}</p>
-            </div>
-          } @else {
-            <div class="table-card">
-              <div class="table-wrap">
-                <table class="work-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">{{localization.work.list.code}}</th>
-                      <th scope="col">{{localization.work.list.title}}</th>
-                      @if (isTeam()) {
-                        <th scope="col">{{localization.work.list.assignee}}</th>
-                      }
-                      <th scope="col">{{localization.work.list.workType}}</th>
-                      <th scope="col">{{localization.work.list.priority}}</th>
-                      <th scope="col">{{localization.common.status}}</th>
-                      <th scope="col" class="col-date">{{localization.work.list.due}}</th>
-                      <th scope="col" class="col-date">{{localization.work.list.updated}}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (item of listItems(); track item.id) {
-                      <tr
-                        class="work-row"
-                        tabindex="0"
-                        [class.is-selected]="selectedId() === item.id"
-                        [attr.aria-selected]="selectedId() === item.id"
-                        (click)="openDetail(item)"
-                        (keydown.enter)="openDetail(item)"
-                        (keydown.space)="openDetail(item); $event.preventDefault()"
-                      >
-                        <td class="mono strong">{{item.code}}</td>
-                        <td class="cell-title">{{item.title}}</td>
-                        @if (isTeam()) {
-                          <td>
-                            <span class="assignee-cell">
-                              <span class="avatar-circle avatar-circle-sm">
-                                {{initialsOf(item.assigneeEmployeeName)}}
-                              </span>
-                              {{item.assigneeEmployeeName}}
-                            </span>
-                          </td>
-                        }
-                        <td>{{item.workTypeName ?? localization.department.notAvailable}}</td>
-                        <td>
-                          <span class="badge badge-priority" [attr.data-priority]="item.priority">
-                            {{localization.work.priority[item.priority]}}
-                          </span>
-                        </td>
-                        <td>
+          <div class="table-card">
+            <div class="table-wrap">
+              <table class="work-table jira-list">
+                <thead>
+                  <tr>
+                    <th scope="col">{{localization.work.list.code}}</th>
+                    <th scope="col">{{localization.work.list.title}}</th>
+                    <th scope="col">{{localization.common.status}}</th>
+                    <th scope="col" class="col-date">{{localization.work.list.due}}</th>
+                    <th scope="col">{{localization.work.list.priority}}</th>
+                    <th scope="col">{{localization.work.list.assignee}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of listItems(); track item.id) {
+                    @let badge = badgeOf(item);
+                    <tr
+                      class="work-row"
+                      tabindex="0"
+                      [class.is-selected]="selectedId() === item.id"
+                      [attr.aria-selected]="selectedId() === item.id"
+                      (click)="openDetail(item)"
+                      (keydown.enter)="openDetail(item)"
+                      (keydown.space)="openDetail(item); $event.preventDefault()"
+                    >
+                      <td class="col-code">
+                        <span
+                          class="jira-check"
+                          [class.is-done]="item.status === 'DONE' || item.status === 'VERIFIED'"
+                          aria-hidden="true"
+                        >
+                          ✓
+                        </span>
+                        <span class="mono jira-code">{{item.code}}</span>
+                      </td>
+                      <td class="cell-title">
+                        <div class="jira-title-wrap">
+                          <span class="jira-summary" [attr.title]="item.title">{{item.title}}</span>
+                          @if (item.workTypeName) {
+                            <span class="jira-type-tag">{{item.workTypeName}}</span>
+                          }
+                        </div>
+                      </td>
+                      <td class="col-status">
+                        <div class="jira-status-cell">
                           <span class="chip" [attr.data-status]="item.status">
                             {{localization.work.status[item.status]}}
                           </span>
-                        </td>
-                        <td class="col-date num">{{day(item.plannedEndDate)}}</td>
-                        <td class="col-date num">
-                          {{i18n.formatDate(item.updatedAt, 'DD/MM/YYYY HH:mm')}}
-                        </td>
-                      </tr>
-                    } @empty {
-                      <tr>
-                        <td [attr.colspan]="isTeam() ? 8 : 7" class="empty-cell">
-                          {{localization.work.list.empty}}
-                        </td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-              <div class="pager">
-                <button
-                  type="button"
-                  class="button button-secondary"
-                  [disabled]="list().page <= 1 || list().loading"
-                  (click)="changeListPage(-1)"
-                >
-                  {{localization.work.list.prev}}
-                </button>
-                <span class="page-indicator">
-                  {{i18n.translate('work.list.page', { page: list().page, pages: listPages() })}}
-                </span>
-                <button
-                  type="button"
-                  class="button button-secondary"
-                  [disabled]="list().page >= listPages() || list().loading"
-                  (click)="changeListPage(1)"
-                >
-                  {{localization.work.list.next}}
-                </button>
-              </div>
+                          @if (canAct(item)) {
+                            <button
+                              type="button"
+                              class="jira-quick-btn"
+                              (click)="changeStatus(item, $event)"
+                              [attr.aria-label]="
+                                i18n.translate('work.card.startLabel', { code: item.code })
+                              "
+                            >
+                              {{isTeam()
+                                  ? localization.work.columns.done
+                                  : localization.work.card.start}}
+                            </button>
+                          }
+                        </div>
+                      </td>
+                      <td class="col-date num">
+                        <span
+                          class="jira-due"
+                          [class.is-overdue]="badge.kind === 'overdue'"
+                          [class.is-today]="badge.kind === 'today'"
+                        >
+                          {{day(item.plannedEndDate)}}
+                          @if (badge.kind === 'overdue') {
+                            <span
+                              class="sla-icon sla-overdue"
+                              [attr.title]="
+                                i18n.translate('work.card.overdueDays', { days: badge.days })
+                              "
+                              aria-hidden="true"
+                            >
+                              !
+                            </span>
+                          } @else if (badge.kind === 'today') {
+                            <span
+                              class="sla-icon sla-today"
+                              [attr.title]="localization.work.card.today"
+                              aria-hidden="true"
+                            >
+                              ◷
+                            </span>
+                          }
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-priority" [attr.data-priority]="item.priority">
+                          {{localization.work.priority[item.priority]}}
+                        </span>
+                      </td>
+                      <td>
+                        <span class="assignee-cell" [attr.title]="item.assigneeEmployeeName">
+                          <span class="avatar-circle avatar-circle-sm">
+                            {{initialsOf(item.assigneeEmployeeName)}}
+                          </span>
+                          <span class="assignee-name">{{item.assigneeEmployeeName}}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="6" class="empty-cell">
+                        {{localization.work.list.empty}}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
             </div>
-          }
+            <div class="pager">
+              <button
+                type="button"
+                class="button button-secondary"
+                [disabled]="list().page <= 1 || list().loading"
+                (click)="changeListPage(-1)"
+              >
+                {{localization.work.list.prev}}
+              </button>
+              <span class="page-indicator">
+                {{i18n.translate('work.list.page', { page: list().page, pages: listPages() })}}
+              </span>
+              <button
+                type="button"
+                class="button button-secondary"
+                [disabled]="list().page >= listPages() || list().loading"
+                (click)="changeListPage(1)"
+              >
+                {{localization.work.list.next}}
+              </button>
+            </div>
+          </div>
         }
 
         @if (!isTeam()) {

@@ -1,10 +1,13 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../../environments/environment';
+import { AuthenticatedUser } from '../../core/auth.models';
+import { AuthService } from '../../core/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { RiskEventDetails, RiskEventListItem } from '../../core/risk-event.models';
-import { RiskEventDrawerComponent } from './risk-event-drawer.component';
+import { RiskEventChange, RiskEventDrawerComponent } from './risk-event-drawer.component';
 
 const api = environment.apiUrl;
 const envelope = <T>(data: T) => ({ success: true, status: 200, data });
@@ -42,11 +45,16 @@ const details = (over: Partial<RiskEventDetails> = {}): RiskEventDetails => ({
     { id: 'ev1', fileName: 'bien_ban_0045.pdf', fileSize: 184320, mimeType: 'application/pdf' },
   ],
   canReverse: true,
+  isOwnEvent: false,
   ...over,
 });
 
 describe('RiskEventDrawerComponent', () => {
   let http: HttpTestingController;
+  const user = signal<AuthenticatedUser | null>(null);
+
+  const as = (permissions: string[]) =>
+    user.set({ id: 'u1', email: 'qa@test.local', fullName: 'QA', roles: [], permissions });
 
   const open = (body: RiskEventDetails | null = details(), id = 'r1') => {
     const fixture = TestBed.createComponent(RiskEventDrawerComponent);
@@ -62,6 +70,14 @@ describe('RiskEventDrawerComponent', () => {
     (fixture.nativeElement.textContent ?? '').replace(/\s+/g, ' ');
   const click = (fixture: { nativeElement: HTMLElement }, selector: string) =>
     (fixture.nativeElement.querySelector(selector) as HTMLElement).click();
+  const buttons = (fixture: { nativeElement: HTMLElement }) =>
+    Array.from(
+      fixture.nativeElement.querySelectorAll<HTMLButtonElement>('.footer-actions button'),
+    ).map((button) => button.textContent?.trim());
+  const press = (fixture: { nativeElement: HTMLElement }, label: string) =>
+    Array.from(fixture.nativeElement.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent?.trim() === label)
+      ?.click();
   const type = (fixture: { nativeElement: HTMLElement }, value: string) => {
     const box = fixture.nativeElement.querySelector('#risk-reverse-reason') as HTMLTextAreaElement;
     box.value = value;
@@ -71,8 +87,13 @@ describe('RiskEventDrawerComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [RiskEventDrawerComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: { currentUser: user.asReadonly() } },
+      ],
     }).compileComponents();
+    as(['risk_event:read', 'risk_event:confirm', 'risk_event:dismiss', 'risk_event:resolve']);
     http = TestBed.inject(HttpTestingController);
     TestBed.inject(I18nService).setLanguage('vi');
   });
@@ -140,6 +161,79 @@ describe('RiskEventDrawerComponent', () => {
     expect(denied.nativeElement.querySelector('.reverse-btn')).toBeNull();
   });
 
+  it('shows the status path and offers the lifecycle moves the status and permissions allow', () => {
+    const pending = open(details({ item: item({ status: 'OPEN' }), canReverse: false }));
+    expect(text(pending)).toContain('Chờ xác nhận Đã xác nhận Đã giải quyết');
+    expect(pending.nativeElement.querySelector('[aria-current="step"]').textContent).toContain(
+      'Chờ xác nhận',
+    );
+    expect(buttons(pending)).toEqual(['Xác nhận', 'Bác bỏ']);
+
+    const confirmed = open(details(), 'r2');
+    expect(confirmed.nativeElement.querySelectorAll('.status-steps .reached').length).toBe(2);
+    expect(buttons(confirmed)).toEqual(['Giải quyết', 'Gỡ điểm phạt…']);
+
+    const dismissed = open(
+      details({ item: item({ status: 'DISMISSED', state: 'REVERSED' }), canReverse: false }),
+      'r3',
+    );
+    expect(text(dismissed)).toContain('Chờ xác nhận Đã bác bỏ');
+    expect(buttons(dismissed)).toEqual([]);
+
+    as(['risk_event:read', 'risk_event:resolve']);
+    const readOnly = open(details({ item: item({ status: 'OPEN' }), canReverse: false }), 'r4');
+    expect(buttons(readOnly)).toEqual([]);
+  });
+
+  it('offers no action on an event recorded against the caller', () => {
+    const own = open(
+      details({ item: item({ status: 'OPEN' }), canReverse: false, isOwnEvent: true }),
+    );
+
+    expect(text(own)).toContain('Chờ xác nhận');
+    expect(buttons(own)).toEqual([]);
+  });
+
+  it('confirms after the dialog, tells the list and reloads the event', () => {
+    const fixture = open(details({ item: item({ status: 'OPEN' }), canReverse: false }));
+    const changes: RiskEventChange[] = [];
+    fixture.componentInstance.changed.subscribe((change) => changes.push(change));
+    press(fixture, 'Xác nhận');
+    fixture.detectChanges();
+    expect(text(fixture)).toContain('Xác nhận sự kiện RSK-0045');
+    http.expectNone(`${api}/risk-events/r1/confirm`);
+
+    fixture.nativeElement.querySelector('.reverse-actions .btn-primary').click();
+    const request = http.expectOne(`${api}/risk-events/r1/confirm`);
+    expect(request.request.method).toBe('POST');
+    request.flush(envelope({ id: 'r1', status: 'CONFIRMED', componentScore: -5 }));
+    http.expectOne(`${api}/risk-events/r1/details`).flush(envelope(details()));
+    fixture.detectChanges();
+
+    expect(changes).toEqual([{ code: 'RSK-0045', action: 'confirm' }]);
+    expect(fixture.nativeElement.querySelector('.reverse-dialog')).toBeNull();
+    expect(buttons(fixture)).toEqual(['Giải quyết', 'Gỡ điểm phạt…']);
+  });
+
+  it('keeps the lifecycle dialog open and says why when the API refuses the move', () => {
+    const cases: [object, number, string][] = [
+      [{ errorCode: 'RISK_EVENT_INVALID_STATE' }, 409, 'Sự kiện đã đổi trạng thái'],
+      [{ errorCode: 'RISK_EVENT_PERIOD_UNAVAILABLE' }, 409, 'Không có kỳ đánh giá đang mở'],
+      [{ errorCode: 'FORBIDDEN' }, 403, 'Bạn không có quyền thực hiện thao tác này.'],
+    ];
+    for (const [body, status, expected] of cases) {
+      const fixture = open(details({ item: item({ status: 'OPEN' }), canReverse: false }));
+      press(fixture, 'Bác bỏ');
+      fixture.detectChanges();
+      fixture.nativeElement.querySelector('.reverse-actions .btn-danger').click();
+      http.expectOne(`${api}/risk-events/r1/dismiss`).flush(body, { status, statusText: 'Error' });
+      fixture.detectChanges();
+
+      expect(text(fixture)).toContain(expected);
+      expect(fixture.nativeElement.querySelector('.reverse-dialog')).not.toBeNull();
+    }
+  });
+
   it('refuses a reversal reason shorter than ten characters', () => {
     const fixture = open();
     click(fixture, '.reverse-btn');
@@ -154,8 +248,8 @@ describe('RiskEventDrawerComponent', () => {
 
   it('reverses the event with the reason and tells the list', () => {
     const fixture = open();
-    const reversed: string[] = [];
-    fixture.componentInstance.reversed.subscribe((code) => reversed.push(code));
+    const changes: RiskEventChange[] = [];
+    fixture.componentInstance.changed.subscribe((change) => changes.push(change));
     click(fixture, '.reverse-btn');
     fixture.detectChanges();
     expect(text(fixture)).toContain('Gỡ điểm phạt sự kiện RSK-0045');
@@ -177,7 +271,7 @@ describe('RiskEventDrawerComponent', () => {
     );
     fixture.detectChanges();
 
-    expect(reversed).toEqual(['RSK-0045']);
+    expect(changes).toEqual([{ code: 'RSK-0045', action: 'reverse' }]);
     expect(fixture.nativeElement.querySelector('.reverse-dialog')).toBeNull();
     expect(text(fixture)).toContain('Nguyễn Admin đã gỡ điểm phạt');
     expect(text(fixture)).toContain('Lý do: Ghi nhầm nhân viên, cần đảo.');

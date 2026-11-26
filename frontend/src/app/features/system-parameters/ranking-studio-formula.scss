@@ -1,0 +1,18 @@
+// Section 1: plain-language reading of the Effective Score formula (GB-910).
+.formula-explain {
+  margin: 0;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #2563eb;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 14px;
+  line-height: 22px;
+  padding: 10px 12px;
+}
+.formula-explain.is-warning {
+  border-color: #fde68a;
+  border-left-color: #d97706;
+  background: #fffbeb;
+  color: #92400e;
+}

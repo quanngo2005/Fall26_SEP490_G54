@@ -240,7 +240,7 @@ export class RoleListComponent extends LocalizedComponent {
 
   protected setupPermissions(): void {
     const roleId = this.selectedId();
-    if (roleId) this.router.navigate(['/role-permissions'], { queryParams: { roleId } });
+    if (roleId) this.router.navigate(['/role-permissions'], { state: { roleId } });
   }
 
   protected statusTone(role: RoleSummary): StatusBadgeTone {

@@ -1,9 +1,13 @@
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { ImportBatchSummary } from '../../core/import-history.models';
+import { AuthService } from '../../core/auth.service';
+import { ImportBatchSummary, ImportFileType } from '../../core/import-history.models';
 import { ImportHistoryService } from '../../core/import-history.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
+import { RouteStateService } from '../../core/route-state.service';
+import { ServiceRatingImportService } from '../../core/service-rating-import.service';
+import { canManageServiceRatingImport } from '../../core/transaction-import.guard';
 import { AppDatePipe } from '../../shared/pipes';
 import { HeaderComponent, LayoutIconComponent, SidebarComponent } from '../../shared/layout';
 import {
@@ -13,8 +17,14 @@ import {
   TablePaginationComponent,
   UiSelectComponent,
 } from '../../shared/ui';
+import { ImportBatchDrawerComponent } from './import-batch-drawer.component';
 
-/** SCR-ADM-07: import history list. Filters are rendered but disabled pending API filter support. */
+/**
+ * SCR-ADM-07: import history list. The file type picks the history (transactions, or service ratings with
+ * `service_rating_import:manage`); the other filters are rendered but disabled pending API filter support. Selecting a
+ * row opens its details drawer (ADM-07-D1). Navigation state `importFileType` / `importBatchId` opens a given batch
+ * (a 1-star rating notification, the import result).
+ */
 @Component({
   selector: 'app-import-history-list',
   imports: [
@@ -26,6 +36,7 @@ import {
     StatusBadgeComponent,
     TablePaginationComponent,
     UiSelectComponent,
+    ImportBatchDrawerComponent,
   ],
   templateUrl: './import-history-list.component.html',
   styleUrls: [
@@ -36,12 +47,37 @@ import {
 })
 export class ImportHistoryListComponent extends LocalizedComponent {
   private readonly api = inject(ImportHistoryService);
+  private readonly ratingApi = inject(ServiceRatingImportService);
+  private readonly routeState = inject(RouteStateService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly canViewRatings = canManageServiceRatingImport(
+    inject(AuthService).currentUser()?.permissions,
+  );
 
   protected readonly dateTime = 'DD/MM/YYYY HH:mm';
 
-  /** Filters are not wired yet, so the dropdowns only show their placeholder. */
+  /** Filters other than the file type are not wired yet, so those dropdowns only show their placeholder. */
   protected readonly noOptions: readonly SelectOption[] = [];
+
+  protected readonly fileType = signal<ImportFileType>(
+    this.canViewRatings && this.routeState.value('importFileType') === 'SERVICE_RATING'
+      ? 'SERVICE_RATING'
+      : 'TRANSACTION',
+  );
+  protected readonly fileTypeOptions = computed<SelectOption<ImportFileType>[]>(() => {
+    const t = this.localization.importHistory;
+    return [
+      { value: 'TRANSACTION', label: t.fileTypeTransaction },
+      ...(this.canViewRatings
+        ? [{ value: 'SERVICE_RATING' as const, label: t.fileTypeServiceRating }]
+        : []),
+    ];
+  });
+  protected readonly fileTypeLabel = computed(() =>
+    this.fileType() === 'SERVICE_RATING'
+      ? this.localization.importHistory.fileTypeServiceRating
+      : this.localization.importHistory.fileTypeTransaction,
+  );
 
   protected readonly items = signal<ImportBatchSummary[]>([]);
   protected readonly totalCount = signal(0);
@@ -50,7 +86,7 @@ export class ImportHistoryListComponent extends LocalizedComponent {
 
   protected readonly page = signal(1);
   protected readonly pageSize = signal(20);
-  protected readonly selectedId = signal<string | null>(null);
+  protected readonly selectedId = signal<string | null>(this.routeState.value('importBatchId'));
 
   protected readonly pageCount = computed(() =>
     Math.max(1, Math.ceil(this.totalCount() / this.pageSize())),
@@ -64,7 +100,8 @@ export class ImportHistoryListComponent extends LocalizedComponent {
   protected load(): void {
     this.loading.set(true);
     this.failed.set(false);
-    this.api
+    const source = this.fileType() === 'SERVICE_RATING' ? this.ratingApi : this.api;
+    source
       .list(this.page(), this.pageSize())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -86,8 +123,16 @@ export class ImportHistoryListComponent extends LocalizedComponent {
     this.load();
   }
 
+  protected selectFileType(type: ImportFileType): void {
+    if (type === this.fileType()) return;
+    this.fileType.set(type);
+    this.selectedId.set(null);
+    this.page.set(1);
+    this.load();
+  }
+
   protected selectRow(batch: ImportBatchSummary): void {
-    this.selectedId.set(batch.id === this.selectedId() ? null : batch.id);
+    this.selectedId.set(batch.id);
   }
 
   protected batchCode(batch: ImportBatchSummary): string {

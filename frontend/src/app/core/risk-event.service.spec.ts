@@ -89,6 +89,25 @@ describe('RiskEventService', () => {
     request.flush(envelope([{}, {}]));
   });
 
+  it('confirms, dismisses and resolves an encoded event with an empty POST', () => {
+    service.confirm('a b').subscribe((confirmed) => expect(confirmed.componentScore).toBe(-10));
+    const confirm = http.expectOne(`${url}/a%20b/confirm`);
+    expect(confirm.request.method).toBe('POST');
+    expect(confirm.request.body).toEqual({});
+    confirm.flush(envelope({ status: 'CONFIRMED', componentScore: -10 }));
+
+    for (const [call, path, status] of [
+      [service.dismiss('a b'), 'dismiss', 'DISMISSED'],
+      [service.resolve('a b'), 'resolve', 'RESOLVED'],
+    ] as const) {
+      call.subscribe((event) => expect(event.status).toBe(status));
+      const request = http.expectOne(`${url}/a%20b/${path}`);
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toEqual({});
+      request.flush(envelope({ status }));
+    }
+  });
+
   it('reverses with the trimmed reason', () => {
     service.reverse('r1', '  Ghi nhầm nhân viên.  ').subscribe();
     const request = http.expectOne(`${url}/r1/reverse`);

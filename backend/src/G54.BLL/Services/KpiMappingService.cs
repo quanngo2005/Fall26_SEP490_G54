@@ -88,9 +88,13 @@ public sealed class KpiMappingService(AppDbContext db) : IKpiMappingService
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public Task<List<KpiOptionDto>> GetAvailableKpisAsync(CancellationToken cancellationToken = default)
+    public async Task<List<KpiOptionDto>> GetAvailableKpisAsync(
+        Guid objectiveId,
+        CancellationToken cancellationToken = default)
     {
-        return db.KpiDefinitions
+        await EnsureObjectiveExistsAsync(objectiveId, cancellationToken);
+
+        return await db.KpiDefinitions
             .AsNoTracking()
             .Where(kpi => kpi.Status == KpiStatus.Active)
             .OrderBy(kpi => kpi.Code)

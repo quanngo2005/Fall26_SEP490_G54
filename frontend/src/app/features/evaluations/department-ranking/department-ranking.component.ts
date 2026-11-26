@@ -95,8 +95,8 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
   }
 
   signed(value: number, maxDecimals: number): string {
-    const arrow = value > 0 ? '▲' : '▼';
-    return `${arrow} ${this.i18n.formatNumber(Math.abs(value), maxDecimals)}`;
+    const sign = value > 0 ? '+' : '−';
+    return `${sign}${this.i18n.formatNumber(Math.abs(value), maxDecimals)}`;
   }
 
   lockNoticeText(): string {

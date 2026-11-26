@@ -32,7 +32,12 @@
   text-align: right;
 }
 .quarter-table .kpi-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
   min-width: 220px;
+  background: #f8fafc;
+  box-shadow: inset -1px 0 0 #e2e8f0;
 }
 .quarter-table .unit-col {
   min-width: 80px;
@@ -56,7 +61,16 @@
   text-align: right;
 }
 .kpi-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 220px;
+  background: #fff;
   font-weight: 500;
+  box-shadow: inset -1px 0 0 #e2e8f0;
+}
+.quarter-table tbody tr:hover .kpi-cell {
+  background: #f8fafc;
 }
 .unit-cell {
   color: #475569;
@@ -126,6 +140,15 @@
   color: #94a3b8;
   font-size: 13px;
 }
+.quarter-caption {
+  display: block;
+  margin-top: 2px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 400;
+  text-align: right;
+  white-space: nowrap;
+}
 .row-action {
   text-align: right;
 }
@@ -192,4 +215,10 @@
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+.suggest-warning {
+  margin: 4px 0 0;
+  color: #b45309;
+  font-size: 12px;
 }

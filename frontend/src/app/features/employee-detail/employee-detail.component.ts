@@ -2,10 +2,9 @@
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   catchError,
-  combineLatest,
   distinctUntilChanged,
   EMPTY,
   finalize,
@@ -22,15 +21,15 @@ import { DepartmentMember } from '../../core/department.models';
 import { EmployeeDetail, EmployeeStatus } from '../../core/employee.models';
 import { EmployeeService } from '../../core/employee.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
+import { RouteStateService } from '../../core/route-state.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { displayNumber, initials } from '../../shared/ui/display';
 import { ChangePasswordDialogComponent } from './change-password-dialog.component';
 import { ChangePhoneDialogComponent } from './change-phone-dialog.component';
 
 const CANDIDATE_PAGE_SIZE = 20;
-/** The URL key that always means "my own record", so neither an id nor a code appears in the address. */
+/** The key that always means "my own record" (`/employee-detail/me`). */
 const SELF_KEY = 'me';
-const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Dialog = 'phone' | 'password';
 
@@ -56,12 +55,12 @@ export class EmployeeDetailComponent extends LocalizedComponent {
   private readonly employees = inject(EmployeeService);
   private readonly departments = inject(DepartmentService);
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
+  private readonly routeState = inject(RouteStateService);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly reload = new Subject<void>();
 
-  /** The URL key: `me`, an employee code, or (legacy links only) a GUID. Null shows the picker. */
+  /** `me` or an employee code from the navigation state. Null shows the picker. */
   protected readonly employeeKey = signal<string | null>(null);
   protected readonly employee = signal<EmployeeDetail | null>(null);
   /**
@@ -111,9 +110,12 @@ export class EmployeeDetailComponent extends LocalizedComponent {
       )
       .subscribe();
 
-    combineLatest([this.route.paramMap, this.route.queryParamMap])
+    // `/employee-detail/me` is the user's own record; any other employee comes in the navigation state.
+    const ownRecord = this.route.snapshot.data['self'] === true;
+    this.routeState
+      .watch('employeeCode')
       .pipe(
-        map(([params, query]) => params.get('code') ?? query.get('id')),
+        map((code) => (ownRecord ? SELF_KEY : code)),
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -192,17 +194,7 @@ export class EmployeeDetailComponent extends LocalizedComponent {
   }
 
   private fetch(key: string): Observable<EmployeeDetail> {
-    if (key === SELF_KEY) return this.employees.me();
-    if (!GUID_PATTERN.test(key)) return this.employees.byCode(key);
-    // A link from before URLs used codes: resolve it, then swap the GUID in the address bar for the code.
-    return this.employees.detail(key).pipe(
-      tap(
-        (employee) =>
-          void this.router.navigate(['/employee-detail', employee.employeeCode], {
-            replaceUrl: true,
-          }),
-      ),
-    );
+    return key === SELF_KEY ? this.employees.me() : this.employees.byCode(key);
   }
 
   private loadDetail(key: string): Observable<void> {

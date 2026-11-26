@@ -35,13 +35,24 @@
   align-items: start;
 }
 
-.staff-panel {
-  grid-column: 1;
-}
-
+/* The tier panel takes column 2 of row 1, so the staff panel auto-places into column 1. */
 .tier-panel {
   grid-column: 2;
   grid-row: 1;
+}
+
+/* Phones and small tablets: stack the staff panel and the tier panel so neither is squeezed. */
+@media (max-width: 900px) {
+  .ranking-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .staff-panel,
+  .tier-panel {
+    grid-column: 1;
+    grid-row: auto;
+    min-width: 0;
+  }
 }
 
 .panel-title {
@@ -121,16 +132,15 @@
   }
 }
 
-.num-col {
+.num-col,
+.stt-col,
+.tier-col {
   text-align: center;
 }
 
-.ranking-table {
-  th.num-col,
-  th.tier-col,
-  th.stt-col {
-    text-align: center;
-  }
+/* Beats the left-aligned `.ranking-table th`. */
+.ranking-table th:is(.num-col, .tier-col, .stt-col) {
+  text-align: center;
 }
 
 .tier-badge {
@@ -145,22 +155,29 @@
   text-align: center;
 }
 
-.tier-a,
-.tier-select.tier-a {
+.tier-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+.tier-a {
   background: #ecfdf5;
   border-color: #a7f3d0;
   color: #047857;
 }
 
-.tier-b,
-.tier-select.tier-b {
+.tier-b {
   background: #eff6ff;
   border-color: #bfdbfe;
   color: #1d4ed8;
 }
 
-.tier-c,
-.tier-select.tier-c {
+.tier-c {
   background: #fffbeb;
   border-color: #fde68a;
   color: #b45309;
@@ -195,7 +212,6 @@
 
 .stt-col {
   width: 44px;
-  text-align: center;
 }
 
 .ranking-table th.penalty-col {
@@ -219,7 +235,6 @@
 
 .tier-col {
   width: 90px;
-  text-align: center;
 }
 
 .staff-name {
@@ -249,16 +264,6 @@
 
 .delta-bad {
   color: #be123c;
-}
-
-.tier-select {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
 }
 
 .tier-select-changed {

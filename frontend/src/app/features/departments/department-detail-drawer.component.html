@@ -90,7 +90,11 @@
                 <tr>
                   <td class="col-emp-code font-bold">{{member.employeeCode}}</td>
                   <td class="col-emp-name">
-                    <a class="emp-link" [routerLink]="['/employee-detail', member.employeeCode]">
+                    <a
+                      class="emp-link"
+                      routerLink="/employee-detail/profile"
+                      [state]="{ employeeCode: member.employeeCode }"
+                    >
                       {{member.fullName}}
                     </a>
                   </td>

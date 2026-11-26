@@ -41,7 +41,7 @@ public sealed class MyTargetAssignmentsControllerTests
             null, null, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "NOT_VIEWED");
         var service = new StubService { Mine = [sample] };
 
-        var result = await CreateController(service).GetMine(new MyTargetAssignmentQueryDto());
+        var result = await CreateController(service).GetMine(new MyTargetAssignmentQueryDto(), CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var envelope = Assert.IsType<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>(ok.Value);
@@ -62,7 +62,7 @@ public sealed class MyTargetAssignmentsControllerTests
         };
 
         var result = await CreateController(service).GetSuggestedDaily(
-            employeeId, new SuggestedDailyTargetQueryDto { EvaluationPeriodId = periodId });
+            employeeId, new SuggestedDailyTargetQueryDto { EvaluationPeriodId = periodId }, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var envelope = Assert.IsType<ApiResponse<SuggestedDailyTargetDto>>(ok.Value);
@@ -91,7 +91,7 @@ public sealed class MyTargetAssignmentsControllerTests
         var feedback = new TargetAssignmentFeedbackDto(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "CONFIRM", null, DateTimeOffset.UnixEpoch);
         var service = new StubService { Feedback = feedback };
 
-        var result = await CreateController(service).Confirm(Guid.NewGuid());
+        var result = await CreateController(service).Confirm(Guid.NewGuid(), CancellationToken.None);
 
         // Both the HTTP status and the envelope status must be 201.
         var http = Assert.IsType<ObjectResult>(result.Result);
@@ -108,20 +108,20 @@ public sealed class MyTargetAssignmentsControllerTests
 
         public TargetAssignmentFeedbackDto Feedback { get; set; } = null!;
 
-        public Task<TargetAssignmentDto> CreateRootAsync(Guid accountId, CreateTargetAssignmentDto dto) => throw new NotImplementedException();
+        public Task<TargetAssignmentDto> CreateRootAsync(Guid accountId, CreateTargetAssignmentDto dto, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-        public Task<IReadOnlyList<TargetAssignmentDto>> AllocateAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetDto dto) => throw new NotImplementedException();
+        public Task<IReadOnlyList<TargetAssignmentDto>> AllocateAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetDto dto, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-        public Task<IReadOnlyList<TargetAssignmentDto>> ReallocateAsync(Guid accountId, Guid parentAssignmentId, ReallocateTargetDto dto) => throw new NotImplementedException();
-        public Task<IReadOnlyList<TargetAssignmentDto>> ReviseAsync(Guid accountId, Guid assignmentId, ReviseTargetAssignmentDto dto) => throw new NotImplementedException();
+        public Task<IReadOnlyList<TargetAssignmentDto>> ReallocateAsync(Guid accountId, Guid parentAssignmentId, ReallocateTargetDto dto, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<TargetAssignmentDto>> ReviseAsync(Guid accountId, Guid assignmentId, ReviseTargetAssignmentDto dto, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-        public Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto) => throw new NotImplementedException();
+        public Task<IReadOnlyList<TargetAssignmentDto>> AllocateByPeriodAsync(Guid accountId, Guid parentAssignmentId, AllocateTargetByPeriodDto dto, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-        public Task<IReadOnlyList<TargetAssignmentDto>> ListAsync(Guid accountId, TargetAssignmentQueryDto query) => throw new NotImplementedException();
+        public Task<IReadOnlyList<TargetAssignmentDto>> ListAsync(Guid accountId, TargetAssignmentQueryDto query, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-        public Task<TargetAssignmentDto> GetAsync(Guid accountId, Guid assignmentId) => throw new NotImplementedException();
+        public Task<TargetAssignmentDto> GetAsync(Guid accountId, Guid assignmentId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-        public Task<TargetAssignmentBreakdownDto> GetBreakdownAsync(Guid accountId, Guid assignmentId, string? granularity) => throw new NotImplementedException();
+        public Task<TargetAssignmentBreakdownDto> GetBreakdownAsync(Guid accountId, Guid assignmentId, string? granularity, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
         public SuggestedDailyTargetDto SuggestedDaily { get; set; } = null!;
 
@@ -129,7 +129,7 @@ public sealed class MyTargetAssignmentsControllerTests
 
         public Guid RequestedPeriodId { get; private set; }
 
-        public Task<SuggestedDailyTargetDto> GetSuggestedDailyAsync(Guid accountId, Guid employeeId, Guid evaluationPeriodId)
+        public Task<SuggestedDailyTargetDto> GetSuggestedDailyAsync(Guid accountId, Guid employeeId, Guid evaluationPeriodId, CancellationToken cancellationToken = default)
         {
             CallerId = accountId;
             RequestedEmployeeId = employeeId;
@@ -137,20 +137,20 @@ public sealed class MyTargetAssignmentsControllerTests
             return Task.FromResult(SuggestedDaily);
         }
 
-        public Task<IReadOnlyList<TargetAssignmentDto>> GetMineAsync(Guid accountId, MyTargetAssignmentQueryDto query)
+        public Task<IReadOnlyList<TargetAssignmentDto>> GetMineAsync(Guid accountId, MyTargetAssignmentQueryDto query, CancellationToken cancellationToken = default)
         {
             CallerId = accountId;
             return Task.FromResult(Mine);
         }
 
-        public Task<TargetAssignmentFeedbackDto> ConfirmAsync(Guid accountId, Guid assignmentId)
+        public Task<TargetAssignmentFeedbackDto> ConfirmAsync(Guid accountId, Guid assignmentId, CancellationToken cancellationToken = default)
         {
             CallerId = accountId;
             return Task.FromResult(Feedback);
         }
 
-        public Task<TargetAssignmentFeedbackDto> CommentAsync(Guid accountId, Guid assignmentId, CreateTargetFeedbackCommentDto dto) => throw new NotImplementedException();
+        public Task<TargetAssignmentFeedbackDto> CommentAsync(Guid accountId, Guid assignmentId, CreateTargetFeedbackCommentDto dto, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-        public Task<IReadOnlyList<TargetAssignmentFeedbackDto>> GetFeedbackAsync(Guid accountId, Guid assignmentId) => throw new NotImplementedException();
+        public Task<IReadOnlyList<TargetAssignmentFeedbackDto>> GetFeedbackAsync(Guid accountId, Guid assignmentId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
     }
 }

@@ -1,8 +1,9 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { catchError, EMPTY, finalize, switchMap, tap } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
+import { RouteStateService } from '../../core/route-state.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import {
   ReconciliationDetail,
@@ -42,7 +43,7 @@ type ResultKind = 'match' | 'mismatch' | 'fromFile' | 'waiting' | 'notApplicable
 })
 export class ReconciliationDetailComponent extends LocalizedComponent {
   private readonly api = inject(ReconciliationService);
-  private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
@@ -87,12 +88,13 @@ export class ReconciliationDetailComponent extends LocalizedComponent {
 
   constructor() {
     super();
-    this.route.paramMap
+    this.routeState
+      .watch('reconciliationId')
       .pipe(
-        switchMap((params) => {
+        switchMap((id) => {
           this.loading.set(true);
           this.errorKey.set(null);
-          return this.api.detail(params.get('id') ?? '').pipe(
+          return this.api.detail(id ?? '').pipe(
             tap((detail) => this.detail.set(detail)),
             catchError((error: unknown) => {
               this.detail.set(null);
@@ -239,12 +241,15 @@ export class ReconciliationDetailComponent extends LocalizedComponent {
   }
 
   protected openSibling(sibling: ReconciliationSibling): void {
-    void this.router.navigate(['/reconciliations', sibling.id]);
+    void this.router.navigate(['/reconciliations/detail'], {
+      state: { reconciliationId: sibling.id },
+    });
   }
 
-  protected onFlagged(): void {
+  protected onFlagged(reworked = false): void {
     this.flagging.set(false);
-    this.notice.set(this.localization.reconciliation.flagModal.success);
+    const t = this.localization.reconciliation.flagModal;
+    this.notice.set(reworked ? t.reworkSuccess : t.success);
     this.reloadCurrent();
   }
 

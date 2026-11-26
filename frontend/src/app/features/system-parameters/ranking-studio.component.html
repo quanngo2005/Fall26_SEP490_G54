@@ -185,6 +185,15 @@
             (input)="scoreFormula.set($any($event.target).value)"
           ></textarea>
 
+          @if (formulaTree()) {
+            <p class="formula-explain" aria-live="polite">
+              <strong>{{t.formula.explainLabel}}</strong>
+              {{formulaExplanation()}}
+            </p>
+          } @else {
+            <p class="formula-explain is-warning" role="status">{{t.formula.unparsable}}</p>
+          }
+
           <div class="token-bars">
             <div class="token-group">
               <span class="chip-label">{{t.formulaInsertVar}}</span>
@@ -193,6 +202,7 @@
                   type="button"
                   class="chip var-chip"
                   [disabled]="policyMeta().isLockedSnapshot"
+                  [title]="formulaVariableLabel(variable)"
                   (click)="insertToken(variable, false, formulaBox)"
                 >
                   {{variable}}
@@ -395,7 +405,9 @@
               <article class="rule-block" [class.is-disabled]="!rule.enabled">
                 <div class="rule-header">
                   <div class="rule-title-group">
-                    <span class="step-badge">RULE #{{rIdx + 1}}</span>
+                    <span class="step-badge">
+                      {{i18n.translate('rankingStudio.ruleBadge', { n: rIdx + 1 })}}
+                    </span>
                     <input
                       type="text"
                       class="rule-name-input"
@@ -448,10 +460,15 @@
                   </div>
                 </div>
 
-                <!-- WHENScratch Block -->
+                <!-- WHEN Scratch Block -->
                 <div class="scratch-lane lane-when">
-                  <span class="lane-tag tag-when">{{t.whenBlock}}</span>
-                  <span class="lane-text">{{t.whenEvaluated}}</span>
+                  <div class="lane-head">
+                    <span class="lane-tag tag-when">{{t.whenBlock}}</span>
+                    <span class="lane-text">{{t.whenEvaluated}}</span>
+                  </div>
+                  <p class="lane-note">
+                    <strong>{{t.notes.label}}</strong> {{ruleWhenNote(rule)}}
+                  </p>
                 </div>
 
                 <!-- IF Scratch Block -->
@@ -525,7 +542,7 @@
                             (input)="updateConditionValue(rIdx, cIdx, false, $event)"
                           />
                           @if (cond.operator === 'BETWEEN') {
-                            <span class="between-sep">..</span>
+                            <span class="between-sep">{{t.betweenTo}}</span>
                             <input
                               type="number"
                               step="0.5"
@@ -557,6 +574,9 @@
                       {{t.btnAddCondition}}
                     </button>
                   }
+                  <p class="lane-note">
+                    <strong>{{t.notes.label}}</strong> {{ruleIfNote(rule)}}
+                  </p>
                 </div>
 
                 <!-- THEN Scratch Block -->
@@ -642,6 +662,9 @@
                       {{t.btnAddAction}}
                     </button>
                   }
+                  <p class="lane-note">
+                    <strong>{{t.notes.label}}</strong> {{ruleThenNote(rule)}}
+                  </p>
                 </div>
               </article>
             }

@@ -57,3 +57,34 @@
     text-decoration: line-through;
   }
 }
+
+.status-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    padding: 3px 10px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: #94a3b8;
+
+    &.reached {
+      border-style: solid;
+      border-color: #93c5fd;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    &[aria-current='step'] {
+      border-color: #2563eb;
+      background: #2563eb;
+      color: #fff;
+      font-weight: 600;
+    }
+  }
+}

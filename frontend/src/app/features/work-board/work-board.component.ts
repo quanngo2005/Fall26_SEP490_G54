@@ -1,4 +1,3 @@
-import { CdkDrag, CdkDragDrop, CdkDropList, DragDropModule } from '@angular/cdk/drag-drop';
 import { Component, DestroyRef, NgZone, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -20,6 +19,7 @@ import { DepartmentService } from '../../core/department.service';
 import { EmployeeDetail } from '../../core/employee.models';
 import { EmployeeService } from '../../core/employee.service';
 import { HandoverDetail } from '../../core/handover.models';
+import { RouteStateService } from '../../core/route-state.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { JobPositionSummary } from '../../core/job-position.models';
 import { JobPositionService } from '../../core/job-position.service';
@@ -112,7 +112,6 @@ const emptyColumn = (loading: boolean): ColumnState => ({
   standalone: true,
   imports: [
     FormsModule,
-    DragDropModule,
     HeaderComponent,
     SidebarComponent,
     WorkDetailDrawerComponent,
@@ -139,12 +138,12 @@ export class WorkBoardComponent extends LocalizedComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly zone = inject(NgZone);
   private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
 
   private readonly boardReload = new Subject<void>();
   private readonly listReload = new Subject<void>();
   private readonly keywordInput = new Subject<void>();
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
-  private suppressClick = false;
   /** Bumped on every board reload so a late "load more" answer cannot land in a newer board. */
   private boardVersion = 0;
 
@@ -157,14 +156,14 @@ export class WorkBoardComponent extends LocalizedComponent {
   protected readonly columnDefs = computed(() => (this.isTeam() ? TEAM_COLUMNS : BOARD_COLUMNS));
   /** The one move a card allows: my board starts a work, the department board completes one. */
   private readonly action = computed(
-    (): { status: 'InProgress' | 'Done'; column: BoardColumnKey; allows: typeof canStart } =>
+    (): { status: 'IN_PROGRESS' | 'DONE'; column: BoardColumnKey; allows: typeof canStart } =>
       this.isTeam()
-        ? { status: 'Done', column: 'done', allows: canComplete }
-        : { status: 'InProgress', column: 'inProgress', allows: canStart },
+        ? { status: 'DONE', column: 'done', allows: canComplete }
+        : { status: 'IN_PROGRESS', column: 'inProgress', allows: canStart },
   );
   protected readonly priorities: readonly WorkPriority[] = ['Critical', 'High', 'Medium', 'Low'];
 
-  protected readonly view = signal<'board' | 'list' | 'monitor' | 'handovers'>('board');
+  protected readonly view = signal<'list' | 'monitor' | 'handovers'>('list');
   protected readonly profileLoading = signal(true);
   protected readonly profileFailed = signal(false);
   protected readonly columns = signal<Record<BoardColumnKey, ColumnState>>(this.emptyColumns(true));
@@ -351,7 +350,7 @@ export class WorkBoardComponent extends LocalizedComponent {
           const requestedView = query.get('view') ?? this.route.snapshot.data?.['view'];
           const employeeCode = query.get('employeeCode');
           const linkedKeyword = query.get('keyword');
-          const linkedWorkId = query.get('workId');
+          const linkedWorkId = this.routeState.value('workId');
           if (linkedKeyword || linkedWorkId) {
             this.keyword = linkedKeyword ?? '';
             this.selectedId.set(linkedWorkId);
@@ -405,7 +404,7 @@ export class WorkBoardComponent extends LocalizedComponent {
     if (scope === 'team' && !this.isManager()) return;
     this.scope.set(scope);
     if (scope === 'mine' && this.view() === 'monitor') {
-      this.view.set('board');
+      this.view.set('list');
     }
     this.quick.set(null);
     this.positionId.set('');
@@ -419,7 +418,7 @@ export class WorkBoardComponent extends LocalizedComponent {
 
   // ---- Filters and view -----------------------------------------------------------------------
 
-  protected setView(mode: 'board' | 'list' | 'monitor' | 'handovers'): void {
+  protected setView(mode: 'list' | 'monitor' | 'handovers'): void {
     if (mode === 'monitor' && !this.isTeam()) return;
     if (this.view() === mode) return;
     this.view.set(mode);
@@ -455,7 +454,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   protected readonly handoverWorks = computed(() => {
     const columns = this.columns();
     return [...(columns.new?.items ?? []), ...(columns.inProgress?.items ?? [])].filter((item) =>
-      ['New', 'InProgress'].includes(item.status),
+      ['NEW', 'IN_PROGRESS'].includes(item.status),
     );
   });
 
@@ -677,7 +676,7 @@ export class WorkBoardComponent extends LocalizedComponent {
 
   /** A deadline only matters while the assignee still owes a result. */
   private deadlineApplies(status: WorkStatus): boolean {
-    return !['Submitted', 'Verified', 'Done', 'Cancelled'].includes(status);
+    return !['SUBMITTED', 'VERIFIED', 'DONE', 'CANCELLED'].includes(status);
   }
 
   protected badgeOf(item: WorkListItem): {
@@ -687,7 +686,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   } {
     const today = this.clock().date;
     const late = daysOverdue(item.plannedEndDate, today);
-    if (item.status === 'Overdue' || (late > 0 && this.deadlineApplies(item.status))) {
+    if (item.status === 'OVERDUE' || (late > 0 && this.deadlineApplies(item.status))) {
       return { kind: 'overdue', days: Math.max(1, late), priority: item.priority };
     }
     if (isDueOn(item.plannedEndDate, today) && this.deadlineApplies(item.status)) {
@@ -700,16 +699,16 @@ export class WorkBoardComponent extends LocalizedComponent {
   protected chipOf(item: WorkListItem): { text: string; tone: string } | null {
     const text = this.localization.work.status;
     switch (item.status) {
-      case 'Submitted':
-        return { text: text.Submitted, tone: 'info' };
-      case 'Verified':
-        return { text: text.Verified, tone: this.isTeam() ? 'info' : 'success' };
-      case 'HandedOver':
-        return { text: text.HandedOver, tone: 'warning' };
-      case 'Rejected':
-        return { text: text.Rejected, tone: 'danger' };
-      case 'Done':
-        return { text: text.Done, tone: 'success' };
+      case 'SUBMITTED':
+        return { text: text.SUBMITTED, tone: 'info' };
+      case 'VERIFIED':
+        return { text: text.VERIFIED, tone: this.isTeam() ? 'info' : 'success' };
+      case 'HANDED_OVER':
+        return { text: text.HANDED_OVER, tone: 'warning' };
+      case 'REJECTED':
+        return { text: text.REJECTED, tone: 'danger' };
+      case 'DONE':
+        return { text: text.DONE, tone: 'success' };
       default:
         break;
     }
@@ -741,7 +740,6 @@ export class WorkBoardComponent extends LocalizedComponent {
   }
 
   protected openDetail(item: WorkListItem): void {
-    if (this.suppressClick) return;
     this.selectedId.set(item.id);
   }
 
@@ -749,33 +747,16 @@ export class WorkBoardComponent extends LocalizedComponent {
     this.selectedId.set(null);
   }
 
-  protected onDragStarted(): void {
-    this.suppressClick = true;
-  }
+  // ---- Start / complete -----------------------------------------------------------------------
 
-  protected onDragEnded(): void {
-    setTimeout(() => (this.suppressClick = false));
-  }
-
-  // ---- Drag and drop / start / complete -------------------------------------------------------
-
-  /** The only move is into the action's column: "start" goes to In progress, "complete" to Done. */
-  protected readonly canEnter = (
-    drag: CdkDrag<WorkListItem>,
-    drop: CdkDropList<BoardColumnKey>,
-  ): boolean => drop.data === this.action().column && this.canAct(drag.data);
-
-  protected onDrop(event: CdkDragDrop<BoardColumnKey, BoardColumnKey, WorkListItem>): void {
-    if (event.previousContainer === event.container) return;
-    if (this.canEnter(event.item, event.container)) this.changeStatus(event.item.data);
-  }
-
-  /** Moves the card at once and puts it back, with a message, when the API refuses. */
-  protected changeStatus(item: WorkListItem): void {
+  /** Updates the row status optimistically and puts it back, with a message, when the API refuses. */
+  protected changeStatus(item: WorkListItem, event?: Event): void {
+    event?.stopPropagation();
     const { status: target, column: to } = this.action();
     const from = columnKeyOf(this.columnDefs(), item.status);
     if (!from || !this.canAct(item)) return;
     const before = this.columns();
+    const beforeList = this.list();
     this.columns.update((columns) => {
       const moved = { ...item, status: target };
       const stays = from === to;
@@ -793,6 +774,14 @@ export class WorkBoardComponent extends LocalizedComponent {
         },
       };
     });
+    this.list.update((page) =>
+      page
+        ? {
+            ...page,
+            items: page.items.map((c) => (c.id === item.id ? { ...c, status: target } : c)),
+          }
+        : page,
+    );
 
     this.works
       .changeStatus(item.id, { status: target })
@@ -808,6 +797,18 @@ export class WorkBoardComponent extends LocalizedComponent {
               ),
             },
           }));
+          this.list.update((page) =>
+            page
+              ? {
+                  ...page,
+                  items: page.items.map((c) =>
+                    c.id === item.id
+                      ? { ...c, status: detail.status, updatedAt: detail.updatedAt }
+                      : c,
+                  ),
+                }
+              : page,
+          );
           this.showToast(
             'success',
             this.i18n.translate(this.isTeam() ? 'work.toast.completed' : 'work.toast.started', {
@@ -817,6 +818,7 @@ export class WorkBoardComponent extends LocalizedComponent {
         },
         error: (error: { status?: number }) => {
           this.columns.set(before);
+          this.list.set(beforeList);
           this.showToast('error', this.changeStatusError(error.status, item));
         },
       });

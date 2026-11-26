@@ -92,6 +92,19 @@ public sealed class NotifierTests : IDisposable
     }
 
     [Fact]
+    public async Task Publish_DropsTheRelatedType_WhenTheDraftHasNoRelatedId()
+    {
+        var recipient = await AddEmployeeAsync("ONE");
+        var notifier = Notifier(new RecordingPusher());
+
+        await notifier.PublishAsync([new NotificationDraft(recipient.Id, NotificationType.TargetRevised, "Chỉ tiêu", null, NotificationSeverity.Important, NotificationRelatedType.Target)]);
+
+        var row = await _db.Notifications.AsNoTracking().SingleAsync();
+        Assert.Null(row.RelatedType);
+        Assert.Null(row.RelatedId);
+    }
+
+    [Fact]
     public async Task TryPublish_SwallowsAStorageFailure_ButPublishDoesNot()
     {
         var recipient = await AddEmployeeAsync("ONE");

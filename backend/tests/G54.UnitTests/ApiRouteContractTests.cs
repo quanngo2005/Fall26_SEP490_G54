@@ -25,12 +25,14 @@ public sealed class ApiRouteContractTests
     [InlineData(typeof(TargetAssignmentsController), "target-assignments")]
     [InlineData(typeof(MyTargetAssignmentsController), "target-assignments")]
     [InlineData(typeof(ResultSubmissionsController), "")]
+    [InlineData(typeof(CallRecordingsController), "")]
     [InlineData(typeof(AppealsController), "")]
     [InlineData(typeof(HandoversController), "")]
     [InlineData(typeof(HelloController), "hello")]
     [InlineData(typeof(AuditLogsController), "audit-logs")]
     [InlineData(typeof(DataImportsController), "data-imports")]
     [InlineData(typeof(TransactionImportsController), "transaction-imports")]
+    [InlineData(typeof(ServiceRatingImportsController), "service-rating-imports")]
     [InlineData(typeof(MyDashboardController), "my-dashboard")]
     public void ControllersExposeRootResourceRoutes(Type controller, string expectedRoute)
     {

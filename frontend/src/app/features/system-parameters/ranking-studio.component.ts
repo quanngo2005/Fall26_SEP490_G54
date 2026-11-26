@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { catchError, forkJoin, of } from 'rxjs';
 import { EvaluationPeriodOption } from '../../core/evaluation.models';
@@ -16,6 +16,8 @@ import {
 } from '../../core/system-parameter.models';
 import { SystemParameterService } from '../../core/system-parameter.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { describeFormula, parseFormula } from './ranking-formula';
+import { ifNote, thenNote, whenNote } from './ranking-rule-notes';
 
 const STRING_METRICS = new Set(['CURRENT_TIER', 'JOB_POSITION_CODE']);
 
@@ -27,6 +29,7 @@ const STRING_METRICS = new Set(['CURRENT_TIER', 'JOB_POSITION_CODE']);
   styleUrls: [
     './admin-config-shell.scss',
     './ranking-studio.component.scss',
+    './ranking-studio-formula.scss',
     './ranking-studio-pipeline.scss',
   ],
 })
@@ -124,6 +127,21 @@ export class RankingStudioComponent extends LocalizedComponent {
 
   readonly simulation = signal<SimulateRankingPolicyResult | null>(null);
 
+  /** Parsed Effective Score formula, or null when it has a syntax error. */
+  readonly formulaTree = computed(() =>
+    parseFormula(this.scoreFormula(), this.catalog().formulaVariables),
+  );
+
+  /** One plain-language sentence that reads the whole formula aloud. */
+  readonly formulaExplanation = computed(() => {
+    const tree = this.formulaTree();
+    return tree
+      ? describeFormula(tree, this.localization.rankingStudio.formula, (name) =>
+          this.formulaVariableLabel(name),
+        )
+      : '';
+  });
+
   constructor() {
     super();
     this.loadInitial();
@@ -194,6 +212,23 @@ export class RankingStudioComponent extends LocalizedComponent {
     this.scoreFormula.set(current.trim() ? `${current.trim()} + ${snippet}` : snippet);
   }
 
+  formulaVariableLabel(name: string): string {
+    const dict = this.localization.rankingStudio.formula.variables as Record<string, string>;
+    return dict[name] ?? name;
+  }
+
+  ruleWhenNote(rule: RankingAutomationRule): string {
+    return whenNote(rule, this.localization.rankingStudio.notes);
+  }
+
+  ruleIfNote(rule: RankingAutomationRule): string {
+    return ifNote(rule, this.localization.rankingStudio.notes);
+  }
+
+  ruleThenNote(rule: RankingAutomationRule): string {
+    return thenNote(rule, this.localization.rankingStudio.notes);
+  }
+
   resetDefaultTemplate(): void {
     if (this.policyMeta().isLockedSnapshot) return;
     this.scoreFormula.set('TotalScore');
@@ -213,7 +248,7 @@ export class RankingStudioComponent extends LocalizedComponent {
     this.rules.set([
       {
         id: 'rule-critical-risk-cap',
-        name: 'Hạ trần tối đa hạng B khi có sự kiện rủi ro Nghiêm trọng',
+        name: 'Hạ trần tối đa hạng B khi có sự kiện rủi ro nghiêm trọng',
         enabled: true,
         stopOnMatch: false,
         conditions: {
@@ -225,13 +260,13 @@ export class RankingStudioComponent extends LocalizedComponent {
           {
             type: 'CAP_MAX_TIER',
             tierCode: 'B',
-            message: 'Hạ trần tối đa hạng B do phát sinh sự kiện rủi ro mức CRITICAL',
+            message: 'Hạ trần tối đa hạng B do phát sinh sự kiện rủi ro mức nghiêm trọng',
           },
         ],
       },
       {
         id: 'rule-low-tier-coaching',
-        name: 'Tự động gắn cờ Kèm cặp (Coaching) cho hạng C trở xuống',
+        name: 'Tự động gắn cờ kèm cặp cho hạng C trở xuống',
         enabled: true,
         stopOnMatch: false,
         conditions: {
@@ -322,7 +357,7 @@ export class RankingStudioComponent extends LocalizedComponent {
     if (kind === 'risk') {
       rule = {
         id,
-        name: 'Khống chế trần hạng khi có Rủi ro CRITICAL',
+        name: 'Khống chế trần hạng khi có rủi ro nghiêm trọng',
         enabled: true,
         stopOnMatch: false,
         conditions: {
@@ -334,7 +369,7 @@ export class RankingStudioComponent extends LocalizedComponent {
           {
             type: 'CAP_MAX_TIER',
             tierCode: fallbackTier,
-            message: `Hạ trần tối đa hạng ${fallbackTier} do phát sinh sự kiện rủi ro mức CRITICAL`,
+            message: `Hạ trần tối đa hạng ${fallbackTier} do phát sinh sự kiện rủi ro mức nghiêm trọng`,
           },
           { type: 'SET_COACHING_FLAG', flagValue: true },
         ],
@@ -361,7 +396,7 @@ export class RankingStudioComponent extends LocalizedComponent {
     } else if (kind === 'quota') {
       rule = {
         id,
-        name: 'Kiểm soát hạn ngạch Top 20% nhóm Hạng A',
+        name: 'Kiểm soát hạn ngạch top 20% nhóm hạng A',
         enabled: true,
         stopOnMatch: false,
         conditions: {
@@ -374,7 +409,7 @@ export class RankingStudioComponent extends LocalizedComponent {
             type: 'ENFORCE_GROUP_QUOTA_PERCENT',
             tierCode: fallbackTier,
             numericValue: 20,
-            message: `Chuyển xuống ${fallbackTier} do vượt hạn ngạch Top 20% Hạng A của đơn vị`,
+            message: `Chuyển xuống ${fallbackTier} do vượt hạn ngạch top 20% hạng A của đơn vị`,
           },
         ],
       };

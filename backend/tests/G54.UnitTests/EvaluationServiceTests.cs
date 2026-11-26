@@ -778,6 +778,67 @@ public sealed class EvaluationServiceTests
     }
 
     [Fact]
+    public async Task SubmitDepartmentCalibrationAsync_RejectsAnUnknownTier_AndStoresNothing()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+
+        var eval = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id).Id,
+            TotalScore = 80m,
+            Status = PerformanceEvaluationStatus.Calculated,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(eval);
+        await context.SaveChangesAsync();
+
+        var request = new SubmitCalibrationRequestDto(
+            DepartmentId: dept.Id,
+            PeriodId: period.Id,
+            Adjustments: new List<CalibrationAdjustmentItemDto> { new(staff.Id, "ZZ", "Tier không tồn tại", false) },
+            Notes: null,
+            IsDraft: false);
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.SubmitDepartmentCalibrationAsync(request, manager.Id));
+
+        var stored = await context.PerformanceEvaluations.FindAsync(eval.Id);
+        Assert.DoesNotContain("CALIBRATION_JSON", stored!.Comment ?? string.Empty);
+        Assert.Equal(PerformanceEvaluationStatus.Calculated, stored.Status);
+    }
+
+    [Fact]
+    public async Task SaveRankingBoardDraftAsync_RejectsAnUnknownTier_AndStoresNothing()
+    {
+        var (context, service) = CreateTestEnvironment();
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var eval = new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            EvaluationProfileId = context.EvaluationProfiles.Single(ep => ep.JobPositionId == position.Id).Id,
+            TotalScore = 80m,
+            Status = PerformanceEvaluationStatus.Calculated,
+            CalculatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        await context.PerformanceEvaluations.AddAsync(eval);
+        await context.SaveChangesAsync();
+
+        var request = new SaveRankingBoardRequestDto(dept.Id, period.Id, [new RankingBoardAdjustmentItemDto(staff.Id, "ZZ", "Tier không tồn tại")]);
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.SaveRankingBoardDraftAsync(request, manager.Id));
+
+        var stored = await context.PerformanceEvaluations.FindAsync(eval.Id);
+        Assert.DoesNotContain("CALIBRATION_JSON", stored!.Comment ?? string.Empty);
+    }
+
+    [Fact]
     public async Task SubmitDepartmentCalibrationAsync_ThrowsBusinessRuleException_WhenTierAExceedsCap()
     {
         var (context, service) = CreateTestEnvironment();

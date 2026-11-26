@@ -176,7 +176,7 @@ public sealed class QaQueueServiceTests : IDisposable
         var (_, passedSubmission) = await AddApprovedAsync("B3", _childDept);
         var dismissed = await AddFlagAsync(dismissedSubmission);
         var rework = await AddFlagAsync(reworkSubmission);
-        await Qa.DismissFlagAsync(dismissed.Id, _qa.Id);
+        await Qa.DismissFlagAsync(dismissed.Id, _qa.Id, new DismissQualityFlagDto("Đã đối chiếu lại, chứng từ khớp với báo cáo."));
         await Qa.RequestReworkAsync(rework.Id, _qa.Id, new RequestReworkDto("Làm lại báo cáo và đính kèm chứng từ."));
         var passed = await AddSampleAsync(passedSubmission, 5);
         await Qa.DecideSampleAsync(passed.Id, _qa.Id, new DecideQaSampleDto("PASSED", null, null, false));
@@ -340,19 +340,62 @@ public sealed class QaQueueServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Detail_OfAReworkedFlag_ReturnsItsReasonAndReworkComment()
+    public async Task Detail_OfAReworkedFlag_ReturnsEveryVersionTheVerificationHistoryAndTheQaReview()
     {
         await SeedOrganizationAsync();
-        var (_, submission) = await AddApprovedAsync("G1", _childDept);
+        var (maker, submission) = await AddApprovedAsync("G1", _childDept);
         var flag = await AddFlagAsync(submission);
         await Qa.RequestReworkAsync(flag.Id, _qa.Id, new RequestReworkDto("Làm lại báo cáo và đính kèm chứng từ."));
+        var resubmission = new ResultSubmission
+        {
+            Id = Guid.NewGuid(),
+            WorkId = submission.WorkId,
+            SubmitterEmployeeId = maker.Id,
+            SubmissionNo = 2,
+            Comment = "Đã bổ sung chứng từ.",
+            Status = SubmissionStatus.Rejected,
+            SubmittedAt = Now.AddDays(1),
+            UpdatedAt = Now.AddDays(1),
+        };
+        _db.ResultSubmissions.Add(resubmission);
+        _db.Verifications.Add(new Verification
+        {
+            Id = Guid.NewGuid(),
+            ResultSubmissionId = resubmission.Id,
+            VerifierEmployeeId = _qa.Id,
+            RoundNo = 1,
+            Decision = VerificationDecision.NeedMoreInfo,
+            Comment = "Thiếu chữ ký khách hàng.",
+            VerifiedAt = Now.AddDays(2),
+            UpdatedAt = Now.AddDays(2),
+        });
+        _db.Evidences.Add(new Evidence
+        {
+            Id = Guid.NewGuid(),
+            ResultSubmissionId = resubmission.Id,
+            FileName = "bo_sung.pdf",
+            FilePath = "x/bo_sung.pdf",
+            FileSize = 512,
+            MimeType = "application/pdf",
+            UploadedAt = Now,
+            UpdatedAt = Now,
+        });
+        await _db.SaveChangesAsync();
 
         var detail = await Queue.GetItemAsync("FLAG", flag.Id);
 
         Assert.Equal(LongText, detail.Reason);
-        Assert.Equal("Làm lại báo cáo và đính kèm chứng từ.", detail.ReworkComment);
-        Assert.NotNull(detail.ReviewedAt);
         Assert.Equal("REJECTED", detail.Item.Tab);
+        Assert.Empty(detail.Evidences);
+        Assert.Equal([2, 1], detail.Versions.Select(v => v.SubmissionNo));
+        Assert.Equal(["REJECTED", "APPROVED"], detail.Versions.Select(v => v.Status));
+        Assert.Equal("bo_sung.pdf", Assert.Single(detail.Versions[0].Evidences).FileName);
+        Assert.Empty(detail.Versions[1].Evidences);
+        Assert.Equal([(2, "REVISION_REQUIRED"), (1, "APPROVED")], detail.VerificationHistory.Select(v => (v.SubmissionNo, v.Decision)));
+        Assert.Equal(_qa.FullName, detail.VerificationHistory[0].VerifierName);
+        Assert.Equal(
+            new QaReviewDto(_qa.FullName, Now, null, "Làm lại báo cáo và đính kèm chứng từ.", Now),
+            detail.QaReview);
     }
 
     [Fact]

@@ -227,7 +227,7 @@
                           }
                         </td>
                         <td>
-                          <app-status-badge [tone]="item.state === 'REVERSED' ? 'neutral' : 'info'">
+                          <app-status-badge [tone]="stateTone(item)">
                             {{stateLabel(item)}}
                           </app-status-badge>
                         </td>
@@ -265,7 +265,7 @@
         <app-risk-event-drawer
           [eventId]="id"
           (closed)="closeDrawer()"
-          (reversed)="onReversed($event)"
+          (changed)="onChanged($event)"
         />
       }
 

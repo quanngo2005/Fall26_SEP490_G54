@@ -45,6 +45,18 @@ export class EvaluationService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
+  /** `POST /evaluation-periods/years`: creates the year, its half-years and quarters so its targets can be imported. */
+  createYearPeriods(
+    year: number,
+  ): Observable<{ yearPeriodId: string; year: number; createdCount: number }> {
+    return this.http
+      .post<ApiResponse<{ yearPeriodId: string; year: number; createdCount: number }>>(
+        `${environment.apiUrl}/evaluation-periods/years`,
+        { year },
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
   branchPeriods(
     year?: number | null,
     periodType?: string | null,

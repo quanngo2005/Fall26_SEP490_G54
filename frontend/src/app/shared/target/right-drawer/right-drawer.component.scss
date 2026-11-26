@@ -1,0 +1,103 @@
+$header-height: 64px;
+$footer-height: 72px;
+
+.right-drawer {
+  position: fixed;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  width: 560px;
+  max-width: 100vw;
+  height: calc(100dvh - 56px);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: #fff;
+  border-left: 1px solid #e2e8f0;
+  box-shadow: -8px 0 24px rgb(15 23 42 / 8%);
+  overflow: hidden;
+}
+
+.drawer-header {
+  height: $header-height;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.drawer-heading {
+  flex: 1;
+  min-width: 0;
+
+  h2 {
+    margin: 0;
+    color: #0f172a;
+    font:
+      600 16px/22px 'Nunito Sans',
+      sans-serif;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.drawer-subtitle {
+  margin: 2px 0 0;
+  color: #64748b;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawer-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #002b49;
+    outline-offset: 1px;
+  }
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.drawer-footer {
+  height: $footer-height;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 20px;
+  border-top: 1px solid #f1f5f9;
+  background: #f8fafc;
+}

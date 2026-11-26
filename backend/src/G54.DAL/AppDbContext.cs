@@ -97,6 +97,10 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<TargetAssignmentFeedback> TargetAssignmentFeedbacks { get; set; }
 
+    public virtual DbSet<EmployeeTargetAck> EmployeeTargetAcks { get; set; }
+
+    public virtual DbSet<TargetChangeLog> TargetChangeLogs { get; set; }
+
     public virtual DbSet<TaskHandover> TaskHandovers { get; set; }
 
     public virtual DbSet<UserRole> UserRoles { get; set; }
@@ -1693,6 +1697,8 @@ public partial class AppDbContext : DbContext
             entity.ToTable("target_assignment_feedback", table =>
             {
                 table.HasCheckConstraint("ck_target_assignment_feedback_comment_len", "comment IS NULL OR char_length(comment) <= 500");
+                table.HasCheckConstraint("ck_target_assignment_feedback_reply_len", "reply IS NULL OR char_length(reply) <= 500");
+                table.HasCheckConstraint("ck_target_assignment_feedback_replied_by_time", "(replied_by IS NULL) = (replied_at IS NULL)");
             });
 
             entity.HasIndex(e => e.TargetAssignmentId, "ix_target_assignment_feedback_target");
@@ -1712,6 +1718,14 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Type)
                 .HasColumnType("target_assignment_feedback_type")
                 .HasColumnName("type");
+            entity.Property(e => e.ProposedYear).HasPrecision(18, 4).HasColumnName("proposed_year");
+            entity.Property(e => e.ProposedQ1).HasPrecision(18, 4).HasColumnName("proposed_q1");
+            entity.Property(e => e.ProposedQ2).HasPrecision(18, 4).HasColumnName("proposed_q2");
+            entity.Property(e => e.ProposedQ3).HasPrecision(18, 4).HasColumnName("proposed_q3");
+            entity.Property(e => e.ProposedQ4).HasPrecision(18, 4).HasColumnName("proposed_q4");
+            entity.Property(e => e.Reply).HasMaxLength(500).HasColumnName("reply");
+            entity.Property(e => e.RepliedBy).HasColumnName("replied_by");
+            entity.Property(e => e.RepliedAt).HasColumnName("replied_at");
 
             entity.HasOne(d => d.TargetAssignment)
                 .WithMany()
@@ -1724,6 +1738,100 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_target_assignment_feedback_employee");
+
+            entity.HasOne<Employee>()
+                .WithMany()
+                .HasForeignKey(d => d.RepliedBy)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_assignment_feedback_replied_by");
+        });
+
+        modelBuilder.Entity<EmployeeTargetAck>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("employee_target_ack_pkey");
+
+            entity.ToTable("employee_target_ack", table =>
+            {
+                table.HasCheckConstraint("ck_employee_target_ack_status", "status IN ('PENDING', 'CONFIRMED', 'RECONFIRM')");
+            });
+
+            entity.HasIndex(e => new { e.EmployeeId, e.Year }, "uq_employee_target_ack_employee_year").IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
+            entity.Property(e => e.Year).HasColumnName("year");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .HasColumnName("status");
+            entity.Property(e => e.ConfirmedAt).HasColumnName("confirmed_at");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(d => d.Employee)
+                .WithMany()
+                .HasForeignKey(d => d.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_employee_target_ack_employee");
+        });
+
+        modelBuilder.Entity<TargetChangeLog>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("target_change_log_pkey");
+
+            entity.ToTable("target_change_log", table =>
+            {
+                table.HasCheckConstraint("ck_target_change_log_action",
+                    "action IN ('SUGGEST', 'MANUAL', 'PUBLISH', 'ADJUST', 'FEEDBACK', 'REPLY')");
+                table.HasCheckConstraint("ck_target_change_log_tier", "tier IN (1, 2, 3)");
+            });
+
+            entity.HasIndex(e => e.KpiDefinitionId, "ix_target_change_log_kpi");
+            entity.HasIndex(e => new { e.EmployeeId, e.Year }, "ix_target_change_log_employee_year");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.ActorId).HasColumnName("actor_id");
+            entity.Property(e => e.OccurredAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("occurred_at");
+            entity.Property(e => e.Action).HasMaxLength(20).HasColumnName("action");
+            entity.Property(e => e.Tier).HasColumnName("tier");
+            entity.Property(e => e.KpiDefinitionId).HasColumnName("kpi_definition_id");
+            entity.Property(e => e.Unit).HasMaxLength(50).HasColumnName("unit");
+            entity.Property(e => e.Period).HasMaxLength(10).HasColumnName("period");
+            entity.Property(e => e.OldValue).HasPrecision(18, 4).HasColumnName("old_value");
+            entity.Property(e => e.NewValue).HasPrecision(18, 4).HasColumnName("new_value");
+            entity.Property(e => e.Basis).HasMaxLength(50).HasColumnName("basis");
+            entity.Property(e => e.RoundingStep).HasPrecision(18, 4).HasColumnName("rounding_step");
+            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
+            entity.Property(e => e.DepartmentId).HasColumnName("department_id");
+            entity.Property(e => e.Year).HasColumnName("year");
+            entity.Property(e => e.ScopeJson).HasColumnType("jsonb").HasColumnName("scope_json");
+
+            entity.HasOne(d => d.KpiDefinition)
+                .WithMany()
+                .HasForeignKey(d => d.KpiDefinitionId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_change_log_kpi");
+
+            entity.HasOne(d => d.Employee)
+                .WithMany()
+                .HasForeignKey(d => d.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_change_log_employee");
+
+            entity.HasOne(d => d.Department)
+                .WithMany()
+                .HasForeignKey(d => d.DepartmentId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_change_log_department");
         });
 
         modelBuilder.Entity<TaskHandover>(entity =>
@@ -2147,11 +2255,19 @@ public partial class AppDbContext : DbContext
         ConfigureKpiCatalog(modelBuilder);
         ConfigureQualityAssurance(modelBuilder);
         ConfigureRiskEventScreens(modelBuilder);
+        ConfigureCallRecordings(modelBuilder);
+        ConfigureServiceRatings(modelBuilder);
         modelBuilder.Entity<ImportBatch>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("import_batch_pkey");
             entity.ToTable("import_batch");
+            entity.HasIndex(e => new { e.FileType, e.ImportedAt }, "ix_import_batch_file_type");
             entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.FileType)
+                .HasConversion(PgNameConverter<ImportFileType>())
+                .HasMaxLength(20)
+                .HasDefaultValue(ImportFileType.Transaction)
+                .HasColumnName("file_type");
             entity.Property(e => e.FileName).HasMaxLength(255).HasColumnName("file_name");
             entity.Property(e => e.TotalRows).HasColumnName("total_rows");
             entity.Property(e => e.ImportedRows).HasColumnName("imported_rows");

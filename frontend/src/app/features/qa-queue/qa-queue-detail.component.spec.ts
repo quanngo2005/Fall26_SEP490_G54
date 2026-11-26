@@ -1,20 +1,30 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Component } from '@angular/core';
+import { Component, input, output, signal, WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import { By } from '@angular/platform-browser';
+import { provideRouter, Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
+import { AuthenticatedUser } from '../../core/auth.models';
+import { AuthService } from '../../core/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { QaQueueDetail, QaQueueItem } from '../../core/qa-queue.models';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
+import { RiskEventCreateModalComponent } from '../risk-events/risk-event-create-modal.component';
 import { QaQueueContext } from './qa-queue-display';
 import { QaQueueDetailComponent } from './qa-queue-detail.component';
+import { FakeRouteState, provideRouteState } from '../../core/route-state.testing';
 
 @Component({ selector: 'app-header', template: '' })
 class HeaderStub {}
 @Component({ selector: 'app-sidebar', template: '' })
 class SidebarStub {}
+@Component({ selector: 'app-risk-event-create-modal', template: '<p class="risk-stub"></p>' })
+class RiskModalStub {
+  readonly preset = input<unknown>();
+  readonly created = output<{ code: string; uploadFailed: boolean }>();
+  readonly dismissed = output<void>();
+}
 
 const api = environment.apiUrl;
 const envelope = <T>(data: T) => ({ success: true, status: 200, data });
@@ -46,9 +56,6 @@ const detail = (
 ): QaQueueDetail => ({
   item: item(itemOver),
   reason: 'Số liệu không khớp chứng từ gốc.',
-  reworkComment: null,
-  reviewedAt: null,
-  reviewedByName: null,
   submissionComment: 'Đã phát hành đủ thẻ.',
   submittedAt: '2026-10-20T07:00:00Z',
   jobPositionTitle: 'Teller',
@@ -66,16 +73,55 @@ const detail = (
       transactionDate: '2026-10-20',
     },
   ],
+  versions: [
+    {
+      id: 's1',
+      submissionNo: 2,
+      status: 'APPROVED',
+      submittedAt: '2026-10-20T07:00:00Z',
+      comment: 'Đã phát hành đủ thẻ.',
+      evidences: [
+        { id: 'ev1', fileName: 'phieu_mo_the.pdf', fileSize: 2048, mimeType: 'application/pdf' },
+      ],
+    },
+    {
+      id: 's0',
+      submissionNo: 1,
+      status: 'REJECTED',
+      submittedAt: '2026-10-18T07:00:00Z',
+      comment: null,
+      evidences: [],
+    },
+  ],
+  verificationHistory: [
+    {
+      submissionNo: 1,
+      roundNo: 1,
+      decision: 'REVISION_REQUIRED',
+      comment: 'Thiếu chữ ký khách hàng.',
+      verifiedAt: '2026-10-19T03:00:00Z',
+      verifierName: 'Trần Văn Duyệt',
+    },
+  ],
+  qaReview: {
+    reviewedByName: null,
+    reviewedAt: null,
+    dismissReason: null,
+    reworkComment: null,
+    reworkRequestedAt: null,
+  },
   ...over,
 });
+const DISMISS_REASON = 'Đã đối chiếu lại, chứng từ khớp với báo cáo.';
 
 describe('QaQueueDetailComponent', () => {
   let http: HttpTestingController;
-  let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let routeState: FakeRouteState;
   let navigate: jasmine.Spy;
+  let user: WritableSignal<AuthenticatedUser | null>;
 
   const open = (kind = 'FLAG', id = 'f1', body: QaQueueDetail | null = detail()) => {
-    params.next(convertToParamMap({ kind, id }));
+    routeState.set({ qaKind: kind, qaItemId: id });
     const fixture = TestBed.createComponent(QaQueueDetailComponent);
     fixture.detectChanges();
     if (body) {
@@ -95,19 +141,22 @@ describe('QaQueueDetailComponent', () => {
   };
 
   beforeEach(async () => {
-    params = new BehaviorSubject(convertToParamMap({}));
+    const state = provideRouteState();
+    routeState = state.fake;
+    user = signal<AuthenticatedUser | null>(null);
     await TestBed.configureTestingModule({
       imports: [QaQueueDetailComponent],
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { paramMap: params.asObservable() } },
+        ...state.providers,
+        { provide: AuthService, useValue: { currentUser: user.asReadonly() } },
       ],
     })
       .overrideComponent(QaQueueDetailComponent, {
-        remove: { imports: [HeaderComponent, SidebarComponent] },
-        add: { imports: [HeaderStub, SidebarStub] },
+        remove: { imports: [HeaderComponent, SidebarComponent, RiskEventCreateModalComponent] },
+        add: { imports: [HeaderStub, SidebarStub, RiskModalStub] },
       })
       .compileComponents();
     http = TestBed.inject(HttpTestingController);
@@ -158,31 +207,128 @@ describe('QaQueueDetailComponent', () => {
     expect(text(fixture)).toContain('Không thể mở tệp bằng chứng.');
   });
 
-  it('dismisses a flag when QA confirms the result is correct, then reloads it', () => {
+  it('dismisses a flag with the reason when QA confirms the result is correct, then reloads it', () => {
     const fixture = open();
+    type(fixture, DISMISS_REASON);
+    click(fixture, '.decision-footer .btn-primary');
 
-    click(fixture, '.btn-primary');
-    http.expectOne(`${api}/quality-flags/f1/dismiss`).flush(envelope({}));
-    http
-      .expectOne(`${api}/qa-queue/FLAG/f1`)
-      .flush(envelope(detail({}, { tab: 'CONFIRMED', status: 'DISMISSED' })));
+    const request = http.expectOne(`${api}/quality-flags/f1/dismiss`);
+    expect(request.request.body).toEqual({ reason: DISMISS_REASON });
+    request.flush(envelope({}));
+    http.expectOne(`${api}/qa-queue/FLAG/f1`).flush(
+      envelope(
+        detail(
+          {
+            qaReview: {
+              reviewedByName: 'Lê Văn Kiểm',
+              reviewedAt: '2026-10-24T03:00:00Z',
+              dismissReason: DISMISS_REASON,
+              reworkComment: null,
+              reworkRequestedAt: null,
+            },
+          },
+          { tab: 'CONFIRMED', status: 'DISMISSED' },
+        ),
+      ),
+    );
     fixture.detectChanges();
 
     expect(text(fixture)).toContain('Đã ghi nhận quyết định cho QA-0331.');
     expect(text(fixture)).toContain('Mục này đã được xử lý (Đã xác nhận).');
+    expect(text(fixture)).toContain('Lý do xác nhận đúng');
+    expect(text(fixture)).toContain(DISMISS_REASON);
     expect(fixture.nativeElement.querySelector('#qaComment')).toBeNull();
   });
 
-  it('refuses to reject a flag without a reason of at least ten characters', () => {
+  for (const verdict of ['confirm', 'reject']) {
+    it(`refuses to ${verdict} a flag without a reason of at least ten characters`, () => {
+      const fixture = open();
+      if (verdict === 'reject') click(fixture, '.verdict-btn', 1);
+      fixture.detectChanges();
+      type(fixture, 'ngắn');
+      click(fixture, '.decision-footer .btn-primary');
+      fixture.detectChanges();
+
+      http.expectNone(`${api}/quality-flags/f1/dismiss`);
+      http.expectNone(`${api}/quality-flags/f1/request-rework`);
+      expect(text(fixture)).toContain('Lý do là bắt buộc, từ 10 đến 2000 ký tự.');
+    });
+  }
+
+  it('shows every submitted version, the verification history and an empty QA history', () => {
     const fixture = open();
-    click(fixture, '.verdict-btn', 1);
-    fixture.detectChanges();
-    type(fixture, 'ngắn');
-    click(fixture, '.btn-primary');
+    const body = text(fixture);
+    const versions = fixture.nativeElement.querySelectorAll('.version-item');
+
+    expect(versions.length).toBe(2);
+    expect(versions[0].classList).toContain('current');
+    expect(versions[1].classList).not.toContain('current');
+    expect(versions[0].textContent).toContain('Lần nộp 2 · 20/10/2026');
+    expect(versions[0].textContent).toContain('Đã duyệt');
+    expect(versions[0].textContent).toContain('Đang xem');
+    expect(versions[1].textContent).toContain('Lần nộp 1 · 18/10/2026');
+    expect(versions[1].textContent).toContain('Bị từ chối');
+    expect(body).toContain('Lần nộp 1 · vòng 1 · Trần Văn Duyệt');
+    expect(body).toContain('Yêu cầu bổ sung');
+    expect(body).toContain('Thiếu chữ ký khách hàng.');
+    expect(body).toContain('QA chưa xử lý mục này.');
+  });
+
+  it('says so when there is no version or verification yet', () => {
+    const fixture = open('FLAG', 'f1', detail({ versions: [], verificationHistory: [] }));
+
+    expect(text(fixture)).toContain('Chưa có phiên bản nộp nào.');
+    expect(text(fixture)).toContain('Chưa có lần duyệt nào.');
+  });
+
+  it('records a risk event preset with the employee and the work, then shows a notice', () => {
+    user.set({
+      id: 'a1',
+      email: 'qa@bank.test',
+      fullName: 'QA',
+      roles: [],
+      permissions: ['risk_event:create'],
+    });
+    const fixture = open();
+    http.expectOne(`${api}/employees/me`).flush(envelope({ id: 'qa-employee' }));
     fixture.detectChanges();
 
-    http.expectNone(`${api}/quality-flags/f1/request-rework`);
-    expect(text(fixture)).toContain('tối thiểu 10 ký tự');
+    click(fixture, '.header-right-actions .btn-primary');
+    fixture.detectChanges();
+    const modal = fixture.debugElement.query(By.directive(RiskModalStub))
+      .componentInstance as RiskModalStub;
+    expect(modal.preset()).toEqual({
+      employeeId: 'e1',
+      employeeCode: 'NV0244',
+      employeeName: 'Lê Thu Hoa',
+      workCode: 'WK-1051',
+    });
+
+    modal.created.emit({ code: 'RE-0007', uploadFailed: false });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.risk-stub')).toBeNull();
+    expect(text(fixture)).toContain('Đã lập sự kiện rủi ro RE-0007.');
+  });
+
+  it('hides the risk event button without the permission', () => {
+    const fixture = open();
+
+    http.expectNone(`${api}/employees/me`);
+    expect(fixture.nativeElement.querySelector('.header-right-actions .btn-primary')).toBeNull();
+  });
+
+  it('hides the risk event button on the caller’s own item', () => {
+    user.set({
+      id: 'a1',
+      email: 'qa@bank.test',
+      fullName: 'QA',
+      roles: [],
+      permissions: ['risk_event:create'],
+    });
+    const own = open();
+    http.expectOne(`${api}/employees/me`).flush(envelope({ id: 'e1' }));
+    own.detectChanges();
+    expect(own.nativeElement.querySelector('.header-right-actions .btn-primary')).toBeNull();
   });
 
   it('sends the work back when QA rejects a flag with a reason', () => {
@@ -196,16 +342,22 @@ describe('QaQueueDetailComponent', () => {
     const request = http.expectOne(`${api}/quality-flags/f1/request-rework`);
     expect(request.request.body).toEqual({ comment: 'Làm lại báo cáo và đính kèm chứng từ.' });
     request.flush(envelope({}));
-    http
-      .expectOne(`${api}/qa-queue/FLAG/f1`)
-      .flush(
-        envelope(
-          detail(
-            { reworkComment: 'Làm lại báo cáo và đính kèm chứng từ.' },
-            { tab: 'REJECTED', status: 'REWORK_REQUESTED' },
-          ),
+    http.expectOne(`${api}/qa-queue/FLAG/f1`).flush(
+      envelope(
+        detail(
+          {
+            qaReview: {
+              reviewedByName: 'Lê Văn Kiểm',
+              reviewedAt: '2026-10-24T03:00:00Z',
+              dismissReason: null,
+              reworkComment: 'Làm lại báo cáo và đính kèm chứng từ.',
+              reworkRequestedAt: '2026-10-24T03:00:00Z',
+            },
+          },
+          { tab: 'REJECTED', status: 'REWORK_REQUESTED' },
         ),
-      );
+      ),
+    );
     fixture.detectChanges();
     expect(text(fixture)).toContain('Nội dung yêu cầu làm lại');
   });
@@ -287,8 +439,13 @@ describe('QaQueueDetailComponent', () => {
       's1',
       detail(
         {
-          reviewedAt: '2026-10-24T03:00:00Z',
-          reviewedByName: 'Lê Văn Kiểm',
+          qaReview: {
+            reviewedByName: 'Lê Văn Kiểm',
+            reviewedAt: '2026-10-24T03:00:00Z',
+            dismissReason: null,
+            reworkComment: null,
+            reworkRequestedAt: null,
+          },
           reason: 'Đạt yêu cầu.',
         },
         { kind: 'SAMPLE', type: 'SAMPLE', id: 's1', tab: 'CONFIRMED', status: 'PASSED' },
@@ -312,9 +469,13 @@ describe('QaQueueDetailComponent', () => {
     ) as NodeListOf<HTMLButtonElement>;
 
     buttons[0].click();
-    expect(navigate).toHaveBeenCalledWith(['/qa-queue', 'FLAG', 'f0']);
+    expect(navigate).toHaveBeenCalledWith(['/qa-queue/detail'], {
+      state: { qaKind: 'FLAG', qaItemId: 'f0' },
+    });
     buttons[1].click();
-    expect(navigate).toHaveBeenCalledWith(['/qa-queue', 'SAMPLE', 's2']);
+    expect(navigate).toHaveBeenCalledWith(['/qa-queue/detail'], {
+      state: { qaKind: 'SAMPLE', qaItemId: 's2' },
+    });
   });
 
   it('disables the neighbour buttons when the list is unknown', () => {

@@ -24,9 +24,9 @@ public sealed class MyTargetAssignmentsController(ITargetAssignmentService servi
     /// <summary>The caller's own employee-owned target assignments, with feedbackStatus.</summary>
     [HttpGet("mine")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>> GetMine([FromQuery] MyTargetAssignmentQueryDto query)
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentDto>>>> GetMine([FromQuery] MyTargetAssignmentQueryDto query, CancellationToken cancellationToken)
     {
-        var result = await service.GetMineAsync(User.GetRequiredUserId(), query);
+        var result = await service.GetMineAsync(User.GetRequiredUserId(), query, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
@@ -36,9 +36,9 @@ public sealed class MyTargetAssignmentsController(ITargetAssignmentService servi
     [ProducesResponseType<ApiResponse<TargetAssignmentBreakdownDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<TargetAssignmentBreakdownDto>>> GetBreakdown(Guid id, [FromQuery] string? granularity)
+    public async Task<ActionResult<ApiResponse<TargetAssignmentBreakdownDto>>> GetBreakdown(Guid id, [FromQuery] string? granularity, CancellationToken cancellationToken)
     {
-        var result = await service.GetBreakdownAsync(User.GetRequiredUserId(), id, granularity);
+        var result = await service.GetBreakdownAsync(User.GetRequiredUserId(), id, granularity, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
@@ -49,9 +49,9 @@ public sealed class MyTargetAssignmentsController(ITargetAssignmentService servi
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<SuggestedDailyTargetDto>>> GetSuggestedDaily(
-        Guid employeeId, [FromQuery] SuggestedDailyTargetQueryDto query)
+        Guid employeeId, [FromQuery] SuggestedDailyTargetQueryDto query, CancellationToken cancellationToken)
     {
-        var result = await service.GetSuggestedDailyAsync(User.GetRequiredUserId(), employeeId, query.EvaluationPeriodId!.Value);
+        var result = await service.GetSuggestedDailyAsync(User.GetRequiredUserId(), employeeId, query.EvaluationPeriodId!.Value, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
@@ -61,9 +61,9 @@ public sealed class MyTargetAssignmentsController(ITargetAssignmentService servi
     [ProducesResponseType<ApiResponse<TargetAssignmentFeedbackDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<ApiResponse<TargetAssignmentFeedbackDto>>> Confirm(Guid id)
+    public async Task<ActionResult<ApiResponse<TargetAssignmentFeedbackDto>>> Confirm(Guid id, CancellationToken cancellationToken)
     {
-        var result = await service.ConfirmAsync(User.GetRequiredUserId(), id);
+        var result = await service.ConfirmAsync(User.GetRequiredUserId(), id, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, Created(result, "Xác nhận target thành công."));
     }
 
@@ -72,9 +72,9 @@ public sealed class MyTargetAssignmentsController(ITargetAssignmentService servi
     [ProducesResponseType<ApiResponse<TargetAssignmentFeedbackDto>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<TargetAssignmentFeedbackDto>>> Comment(Guid id, [FromBody] CreateTargetFeedbackCommentDto dto)
+    public async Task<ActionResult<ApiResponse<TargetAssignmentFeedbackDto>>> Comment(Guid id, [FromBody] CreateTargetFeedbackCommentDto dto, CancellationToken cancellationToken)
     {
-        var result = await service.CommentAsync(User.GetRequiredUserId(), id, dto);
+        var result = await service.CommentAsync(User.GetRequiredUserId(), id, dto, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, Created(result, "Gửi góp ý thành công."));
     }
 
@@ -82,9 +82,9 @@ public sealed class MyTargetAssignmentsController(ITargetAssignmentService servi
     [HttpGet("{id:guid}/feedback")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<TargetAssignmentFeedbackDto>>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentFeedbackDto>>>> GetFeedback(Guid id)
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TargetAssignmentFeedbackDto>>>> GetFeedback(Guid id, CancellationToken cancellationToken)
     {
-        var result = await service.GetFeedbackAsync(User.GetRequiredUserId(), id);
+        var result = await service.GetFeedbackAsync(User.GetRequiredUserId(), id, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 

@@ -64,6 +64,8 @@ describe('authInterceptor', () => {
     '/reconciliations',
     '/transaction-imports',
     '/transaction-imports/template',
+    '/service-rating-imports',
+    '/service-rating-imports/template',
     '/data-imports/employees/preview',
   ]) {
     it(`sends the bearer token to the QA endpoint ${path}`, () => {
@@ -98,7 +100,18 @@ describe('authInterceptor', () => {
 
   it('attaches the token to admin configuration and lookup endpoints', () => {
     localStorage.setItem('g54.auth.session', JSON.stringify(refreshedSession));
-    for (const path of ['/sidebar-configurations', '/roles', '/job-positions', '/audit-logs']) {
+    for (const path of [
+      '/sidebar-configurations',
+      '/roles',
+      '/job-positions',
+      '/audit-logs',
+      '/target-suggestions/2027',
+      '/my-targets/2026',
+      '/data-imports',
+      '/my-dashboard',
+      '/notifications',
+      '/transaction-imports',
+    ]) {
       client.get(`${environment.apiUrl}${path}`).subscribe();
       const request = http.expectOne(`${environment.apiUrl}${path}`);
       expect(request.request.headers.get('Authorization')).toBe('Bearer rotated-access-token');

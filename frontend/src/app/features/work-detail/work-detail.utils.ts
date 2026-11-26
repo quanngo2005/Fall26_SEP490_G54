@@ -24,10 +24,10 @@ export interface SpanPart {
 
 /** Statuses in which a work still waits for the assignee, so a late deadline matters. */
 export const OPEN_FOR_ASSIGNEE: readonly WorkStatus[] = [
-  'New',
-  'InProgress',
-  'Rejected',
-  'Overdue',
+  'NEW',
+  'IN_PROGRESS',
+  'REJECTED',
+  'OVERDUE',
 ];
 
 /** A deadline `YYYY-MM-DD` runs until 23:59:59 of that day, local time. */

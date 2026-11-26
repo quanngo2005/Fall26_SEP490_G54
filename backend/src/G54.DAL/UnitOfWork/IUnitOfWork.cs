@@ -26,6 +26,12 @@ public interface IUnitOfWork : IAsyncDisposable, IDisposable
     IRepository<ImportBatch> ImportBatches { get; }
     IRepository<WorkTransaction> WorkTransactions { get; }
     IRepository<ImportedTransaction> ImportedTransactions { get; }
+    IRepository<AuditLog> AuditLogs { get; }
+    IRepository<EmployeeTargetAck> EmployeeTargetAcks { get; }
+    IRepository<TargetAssignmentFeedback> TargetAssignmentFeedbacks { get; }
+    IRepository<EvaluationProfile> EvaluationProfiles { get; }
+    IRepository<JobPositionWorkType> JobPositionWorkTypes { get; }
+    IRepository<WorkResultItem> WorkResultItems { get; }
 
     IRepository<TEntity> Repository<TEntity>() where TEntity : class;
 

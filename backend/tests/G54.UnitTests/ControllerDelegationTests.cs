@@ -23,15 +23,13 @@ public sealed class ControllerDelegationTests
     public async Task TargetAssignmentController_EveryActionDelegatesAndReturns2xx()
     {
         var controller = new TargetAssignmentController(
-            Stub<ITargetAllocationService>(out var allocation),
             Stub<ITargetImportService>(out var import),
             Stub<ITargetSetupService>(out var setup));
 
         var actions = await RunAllAsync(controller);
 
-        Assert.Equal(13, actions.Count);
+        Assert.Equal(23, actions.Count);
         Assert.All(actions, a => AssertSuccess(a.Result, a.Name));
-        Assert.NotEmpty(allocation.Calls);
         Assert.NotEmpty(import.Calls);
         Assert.NotEmpty(setup.Calls);
     }
@@ -40,7 +38,6 @@ public sealed class ControllerDelegationTests
     public async Task TargetAssignmentController_RejectsMissingOrNonXlsxFiles()
     {
         var controller = Prepare(new TargetAssignmentController(
-            Stub<ITargetAllocationService>(out _),
             Stub<ITargetImportService>(out var import),
             Stub<ITargetSetupService>(out _)));
         var notXlsx = new FormFile(new MemoryStream(XlsxBytes), 0, XlsxBytes.Length, "file", "targets.csv");
@@ -55,6 +52,18 @@ public sealed class ControllerDelegationTests
 
         Assert.All(results, r => Assert.Equal(400, Assert.IsType<BadRequestObjectResult>(r).StatusCode));
         Assert.Empty(import.Calls);
+    }
+
+    [Fact]
+    public async Task TargetSuggestionController_EveryActionDelegatesAndReturns2xx()
+    {
+        var controller = new TargetSuggestionController(Stub<ITargetSuggestionService>(out var suggestion));
+
+        var actions = await RunAllAsync(controller);
+
+        Assert.Single(actions);
+        Assert.All(actions, a => AssertSuccess(a.Result, a.Name));
+        Assert.Contains("SuggestAsync", suggestion.Calls);
     }
 
     [Fact]
@@ -96,6 +105,40 @@ public sealed class ControllerDelegationTests
     }
 
     [Fact]
+    public async Task ServiceRatingImportsController_EveryActionDelegatesAndReturns2xx()
+    {
+        var controller = new ServiceRatingImportsController(
+            Stub<IServiceRatingImportService>(out var service),
+            Options.Create(new SystemParametersOptions()),
+            Stub<IServiceRatingImportTemplateProvider>(out var template));
+
+        var actions = await RunAllAsync(controller);
+
+        Assert.Equal(6, actions.Count);
+        Assert.All(actions, a => AssertSuccess(a.Result, a.Name));
+        Assert.Contains("ImportAsync", service.Calls);
+        Assert.Contains("ListRatingsAsync", service.Calls);
+        Assert.NotEmpty(template.Calls);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("ratings.csv")]
+    public async Task ServiceRatingImportsController_RejectsMissingOrNonXlsxFile(string? fileName)
+    {
+        var controller = Prepare(new ServiceRatingImportsController(
+            Stub<IServiceRatingImportService>(out var service),
+            Options.Create(new SystemParametersOptions()),
+            Stub<IServiceRatingImportTemplateProvider>(out _)));
+        IFormFile? file = fileName is null ? null : new FormFile(new MemoryStream(XlsxBytes), 0, XlsxBytes.Length, "file", fileName);
+
+        var result = await controller.Import(file, default);
+
+        Assert.Equal(400, Assert.IsType<BadRequestObjectResult>(result.Result).StatusCode);
+        Assert.DoesNotContain("ImportAsync", service.Calls);
+    }
+
+    [Fact]
     public async Task QualityAssuranceController_EveryActionDelegatesAndReturns2xx()
     {
         var controller = new QualityAssuranceController(
@@ -110,6 +153,18 @@ public sealed class ControllerDelegationTests
         Assert.NotEmpty(quality.Calls);
         Assert.NotEmpty(queue.Calls);
         Assert.NotEmpty(dashboard.Calls);
+    }
+
+    [Fact]
+    public async Task MyTargetsController_EveryActionDelegatesAndReturns2xx()
+    {
+        var controller = new MyTargetsController(Stub<IMyTargetsService>(out var service));
+
+        var actions = await RunAllAsync(controller);
+
+        Assert.Equal(9, actions.Count);
+        Assert.All(actions, a => AssertSuccess(a.Result, a.Name));
+        Assert.NotEmpty(service.Calls);
     }
 
     private static T Stub<T>(out StubService proxy)

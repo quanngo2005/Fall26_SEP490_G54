@@ -1,0 +1,29 @@
+@let text = this.text();
+<div class="preview-banner">
+  <span class="banner-icon" aria-hidden="true">
+    <svg viewBox="0 0 16 16" fill="currentColor">
+      <path
+        d="M8 1a1 1 0 0 1 1 1v.09a6 6 0 0 1 5 5.91V9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-1a6 6 0 0 1 5-5.91V2a1 1 0 0 1 1-1Zm-3 11h6a3 3 0 0 1-6 0Z"
+      />
+    </svg>
+  </span>
+  <p class="banner-text">
+    {{text.suggestedPrefix}} {{cellCount() | appNumber}} {{text.cells}} {{text.inKpis}}
+    {{kpiCount() | appNumber}} {{text.kpis}} · {{text.basisLabel}} {{basisLabel()}} ·
+    {{text.roundingLabel}} {{roundingLabel()}}
+    @if (fallbackNote(); as note) {
+      <span class="banner-note">{{note}}</span>
+    }
+  </p>
+  <div class="banner-actions">
+    <button type="button" class="button button-secondary" (click)="changeBasis.emit()">
+      {{text.changeBasis}}
+    </button>
+    <button type="button" class="button button-secondary" (click)="undo.emit()">
+      {{text.undo}}
+    </button>
+    <button type="button" class="button button-primary" (click)="apply.emit()">
+      {{text.apply}}
+    </button>
+  </div>
+</div>

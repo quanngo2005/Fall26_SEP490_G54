@@ -13,7 +13,7 @@ const work = {
   title: 'E-banking - Đăng ký',
   assigneeEmployeeName: 'Nguyễn Văn A',
   priority: 'High',
-  status: 'InProgress',
+  status: 'IN_PROGRESS',
   plannedStartDate: '2026-10-24',
   plannedEndDate: '2026-10-25',
   checklistItems: [

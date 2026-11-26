@@ -1,0 +1,55 @@
+@let text = this.text();
+<table class="kpi-group-table">
+  <thead>
+    <tr>
+      <th class="col-name">{{text.colKpiName}}</th>
+      <th class="col-type">{{text.colKpiType}}</th>
+      <ng-content select="[groupTableHeaderCells]"></ng-content>
+    </tr>
+  </thead>
+  <tbody>
+    @for (group of groups(); track group.id) {
+      <tr class="group-row" (click)="toggle(group)">
+        <td [attr.colspan]="2 + extraColumnCount()">
+          <button
+            type="button"
+            class="group-toggle"
+            [attr.aria-expanded]="isExpanded(group)"
+            [attr.aria-label]="isExpanded(group) ? text.collapse : text.expand"
+          >
+            <svg
+              class="chevron"
+              [class.is-open]="isExpanded(group)"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M4.5 6 8 9.5 11.5 6l1 1-4.5 4.5L3.5 7Z" />
+            </svg>
+            <span class="group-name">{{group.name}}</span>
+            @if (group.complete) {
+              <span class="complete-badge">{{text.completeBadge}}</span>
+            }
+          </button>
+        </td>
+      </tr>
+      @if (isExpanded(group)) {
+        @if (group.rows.length) {
+          @for (row of group.rows; track row.id) {
+            <tr class="kpi-row">
+              <td class="col-name">{{row.kpiName}}</td>
+              <td class="col-type">{{row.kpiType}}</td>
+              <ng-container
+                *ngTemplateOutlet="rowTemplate(); context: rowContext(row, group)"
+              ></ng-container>
+            </tr>
+          }
+        } @else {
+          <tr class="empty-row">
+            <td [attr.colspan]="2 + extraColumnCount()">{{text.emptyGroup}}</td>
+          </tr>
+        }
+      }
+    }
+  </tbody>
+</table>

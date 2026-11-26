@@ -14,6 +14,9 @@ public interface IEvaluationPeriodService
     /// <summary>Creates a period that starts <c>OPEN</c>.</summary>
     Task<EvaluationPeriodStatusDto> CreateAsync(CreateEvaluationPeriodRequestDto request, CancellationToken cancellationToken = default);
 
+    /// <summary>Creates the whole period tree of a calendar year in one step: the year, its 2 half-years and 4 quarters, all <c>OPEN</c>. 409 when the year already exists.</summary>
+    Task<CreateYearPeriodsResultDto> CreateYearAsync(CreateYearPeriodsRequestDto request, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// <c>OPEN</c> → <c>IN_REVIEW</c>. Returns the pre-close check: result submissions still in review (carried to the
     /// next period) and appeals still open (they must be settled before the period is locked, BR-31).

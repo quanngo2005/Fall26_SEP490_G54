@@ -34,18 +34,6 @@ export function formatSigned(
   return value < 0 ? `−${text}` : text;
 }
 
-/** A change with an arrow ("▲ 0,1", "▼ 6,5"); null shows as "—". */
-export function formatArrow(
-  locale: string,
-  value: number | null | undefined,
-  decimals = 1,
-): string {
-  if (value == null) return NOT_AVAILABLE;
-  const text = formatValue(locale, Math.abs(value), decimals);
-  if (value > 0) return `▲ ${text}`;
-  return value < 0 ? `▼ ${text}` : text;
-}
-
 export function toneOf(value: number | null | undefined): Tone | null {
   if (value == null) return null;
   if (value > 0) return 'up';

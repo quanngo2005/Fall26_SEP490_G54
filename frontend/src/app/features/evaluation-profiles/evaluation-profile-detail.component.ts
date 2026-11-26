@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, HostListener, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { catchError, map, of, switchMap } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
 import { canApproveEvaluationProfiles } from '../../core/evaluation-profile-permissions';
@@ -11,6 +11,7 @@ import {
   EvaluationProfileStatus,
 } from '../../core/evaluation-profile.models';
 import { EvaluationProfileService } from '../../core/evaluation-profile.service';
+import { RouteStateService } from '../../core/route-state.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { serverMessage } from '../campaigns/campaign.utils';
@@ -48,7 +49,7 @@ const MAX_REASON = 500;
 export class EvaluationProfileDetailComponent extends LocalizedComponent {
   private readonly api = inject(EvaluationProfileService);
   private readonly auth = inject(AuthService);
-  private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly tabs: readonly DetailTab[] = [
@@ -110,9 +111,10 @@ export class EvaluationProfileDetailComponent extends LocalizedComponent {
 
   constructor() {
     super();
-    this.route.paramMap
+    this.routeState
+      .watch('profileId')
       .pipe(
-        map((params) => params.get('id') ?? ''),
+        map((id) => id ?? ''),
         switchMap((id) => this.fetch(id)),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -120,7 +122,7 @@ export class EvaluationProfileDetailComponent extends LocalizedComponent {
   }
 
   protected reload(): void {
-    this.fetch(this.route.snapshot.paramMap.get('id') ?? '')
+    this.fetch(this.routeState.value('profileId') ?? '')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
   }

@@ -6,7 +6,7 @@
       @if (branchView) {
         <app-branch-target-overview />
       } @else {
-        <app-department-target-overview />
+        <app-branch-target-overview [departmentScope]="true" />
       }
     </main>
   </div>

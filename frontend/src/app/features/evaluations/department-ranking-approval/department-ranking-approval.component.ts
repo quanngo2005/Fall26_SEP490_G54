@@ -1,7 +1,7 @@
 import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { EvaluationService } from '../../../core/evaluation.service';
 import {
@@ -29,6 +29,7 @@ export interface PositionTabItem {
   hiddenCount: number;
 }
 
+import { RouteStateService } from '../../../core/route-state.service';
 @Component({
   selector: 'app-department-ranking-approval',
   standalone: true,
@@ -57,7 +58,7 @@ export interface PositionTabItem {
 export class DepartmentRankingApprovalComponent implements OnInit {
   private readonly evaluationService = inject(EvaluationService);
   private readonly i18n = inject(I18nService);
-  private readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -316,7 +317,9 @@ export class DepartmentRankingApprovalComponent implements OnInit {
     if (!newPeriodId || newPeriodId === this.periodId()) return;
     this.periodId.set(newPeriodId);
     this.selectedComparePeriodId.set(null);
-    void this.router.navigate(['/branch-performance/evaluations', newPeriodId, 'approval']);
+    void this.router.navigate(['/branch-performance/evaluations/approval'], {
+      state: { periodId: newPeriodId },
+    });
     this.loadBranchOverview();
   }
 
@@ -341,17 +344,19 @@ export class DepartmentRankingApprovalComponent implements OnInit {
         },
       });
 
-    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
-      const pid = params.get('periodId');
-      if (pid) {
-        this.periodId.set(pid);
-        const match = this.periods().find((p) => p.id === pid);
-        if (match) {
-          this.selectedPeriodType.set(match.periodType);
+    this.routeState
+      .watch('periodId')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((pid) => {
+        if (pid) {
+          this.periodId.set(pid);
+          const match = this.periods().find((p) => p.id === pid);
+          if (match) {
+            this.selectedPeriodType.set(match.periodType);
+          }
+          this.loadBranchOverview();
         }
-        this.loadBranchOverview();
-      }
-    });
+      });
 
     this.destroyRef.onDestroy(() => {
       if (this.toastTimer) clearTimeout(this.toastTimer);
@@ -607,7 +612,7 @@ export class DepartmentRankingApprovalComponent implements OnInit {
 
   navigateToTraceability(employeeId: string): void {
     this.router.navigate(['/performance-traceability'], {
-      queryParams: { employeeId, periodId: this.periodId() },
+      state: { employeeId, periodId: this.periodId() },
     });
   }
 

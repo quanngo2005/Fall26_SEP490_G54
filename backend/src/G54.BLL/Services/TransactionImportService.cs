@@ -1,5 +1,4 @@
 using G54.BLL.Common;
-using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Import.Parsing;
 using G54.BLL.Common.Import.Reading;
@@ -24,20 +23,14 @@ public sealed class TransactionImportService(
     private const string PeriodLockedMessage =
         "Kỳ đánh giá của ngày giao dịch đã bị khóa; mọi thay đổi phải thực hiện qua bút toán đảo (Reversal Entry) ở kỳ đang mở.";
 
-    private const string PeriodLockedCode = "PERIOD_LOCKED";
-    private const string ConflictingDuplicateCode = "CONFLICTING_DUPLICATE";
-    private const int LookupChunk = 1000;
-    private const int MaxMessageLength = 500;
-    private const int MaxFieldLength = 50;
-
 
     public async Task<ImportBatchDto> ImportAsync(string fileName, Stream excel, Guid userId, CancellationToken ct = default)
     {
         var (rows, fields) = ReadRows(excel);
-        var importerEmployeeId = await ResolveEmployeeIdAsync(userId, ct);
+        var importerEmployeeId = await ImportBatchSupport.ResolveEmployeeIdAsync(uow, userId, ct);
         var employees = await LoadEmployeesAsync(rows, ct);
         var products = await LoadProductCodesAsync(ct);
-        var lockedPeriods = await LoadLockedPeriodsAsync(rows, ct);
+        var lockedPeriods = await ImportBatchSupport.LoadLockedPeriodsAsync(uow, rows.Where(r => r.Date is not null).Select(r => r.Date!.Value).ToList(), ct);
 
         // A concurrent import of the same codes can win the unique index between our read and our insert:
         // reload what exists and classify the rows again, once, instead of failing the whole request.
@@ -56,67 +49,29 @@ public sealed class TransactionImportService(
                         ct);
                 }
 
-                return ToDto(batch, errors);
+                return ImportBatchSupport.ToDto(batch, errors);
             }
             catch (DbUpdateException ex) when (attempt < 2 && PostgresConflict.IsUniqueViolation(ex))
             {
-                // Detach the whole failed graph: removing only the batch leaves its rows tracked as Added, and the
-                // next SaveChanges would insert them again (pointing to a batch that no longer exists).
-                foreach (var transaction in batch.Transactions.ToList())
-                {
-                    uow.ImportedTransactions.Remove(transaction);
-                }
-
-                foreach (var error in batch.Errors.ToList())
-                {
-                    uow.Repository<ImportBatchError>().Remove(error);
-                }
-
-                uow.ImportBatches.Remove(batch);
+                ImportBatchSupport.Detach(uow, batch);
             }
         }
     }
 
-    public async Task<PagedResult<ImportBatchDto>> ListBatchesAsync(int page, int pageSize, CancellationToken ct = default)
-    {
-        page = Math.Max(page, 1);
-        pageSize = Math.Clamp(pageSize, 1, 200);
-        var result = await uow.ImportBatches.GetPagedAsync(page, pageSize, null, q => q.OrderByDescending(b => b.ImportedAt), ct);
-        return new PagedResult<ImportBatchDto>(result.Items.Select(b => ToDto(b, null)).ToList(), result.TotalCount, result.PageIndex, result.PageSize);
-    }
+    public Task<PagedResult<ImportBatchDto>> ListBatchesAsync(int page, int pageSize, CancellationToken ct = default) =>
+        ImportBatchSupport.ListBatchesAsync(uow, ImportFileType.Transaction, page, pageSize, ct);
 
-    public async Task<ImportBatchDto> GetBatchAsync(Guid id, CancellationToken ct = default)
-    {
-        var batch = await uow.ImportBatches.GetByIdAsync(id, ct) ?? throw new NotFoundException("Import batch not found.");
-        return ToDto(batch, null);
-    }
+    public Task<ImportBatchDto> GetBatchAsync(Guid id, CancellationToken ct = default) =>
+        ImportBatchSupport.GetBatchAsync(uow, ImportFileType.Transaction, id, ct);
 
-    public async Task<PagedResult<ImportRowErrorDto>> ListErrorsAsync(
-        Guid batchId, int page, int pageSize, CancellationToken ct = default)
-    {
-        if (!await uow.ImportBatches.AnyAsync(b => b.Id == batchId, ct))
-        {
-            throw new NotFoundException("Import batch not found.");
-        }
-
-        page = Math.Max(page, 1);
-        pageSize = Math.Clamp(pageSize, 1, 200);
-        var query = uow.Repository<ImportBatchError>().Query().Where(e => e.ImportBatchId == batchId);
-        var total = await query.CountAsync(ct);
-        var items = await query.OrderBy(e => e.RowNumber).ThenBy(e => e.Code).Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(e => new ImportRowErrorDto(e.RowNumber, e.Field, e.Code, e.Message))
-            .ToListAsync(ct);
-        return new PagedResult<ImportRowErrorDto>(items, total, page, pageSize);
-    }
+    public Task<PagedResult<ImportRowErrorDto>> ListErrorsAsync(
+        Guid batchId, int page, int pageSize, CancellationToken ct = default) =>
+        ImportBatchSupport.ListErrorsAsync(uow, ImportFileType.Transaction, batchId, page, pageSize, ct);
 
     public async Task<PagedResult<ImportedTransactionDto>> ListTransactionsAsync(
         Guid batchId, string? employeeCode, string? productCode, int page, int pageSize, CancellationToken ct = default)
     {
-        if (!await uow.ImportBatches.AnyAsync(b => b.Id == batchId, ct))
-        {
-            throw new NotFoundException("Import batch not found.");
-        }
-
+        await ImportBatchSupport.EnsureBatchExistsAsync(uow, ImportFileType.Transaction, batchId, ct);
         var query = uow.ImportedTransactions.Query().Where(t => t.ImportBatchId == batchId);
         if (!string.IsNullOrWhiteSpace(employeeCode))
         {
@@ -162,6 +117,7 @@ public sealed class TransactionImportService(
         {
             Id = Guid.NewGuid(),
             FileName = fileName.Length > 255 ? fileName[..255] : fileName,
+            FileType = ImportFileType.Transaction,
             TotalRows = rows.Count,
             ImportedBy = userId,
             ImportedAt = clock.GetUtcNow(),
@@ -171,14 +127,14 @@ public sealed class TransactionImportService(
         foreach (var row in rows)
         {
             var error = Validate(row, fields, employees, products);
-            if (error is null && lockedPeriods.Any(p => p.Start <= row.Date!.Value && row.Date.Value <= p.End))
+            if (error is null && ImportBatchSupport.IsLocked(lockedPeriods, row.Date!.Value))
             {
-                error = (fields.TransactionDate, PeriodLockedCode, PeriodLockedMessage);
+                error = (fields.TransactionDate, ImportBatchSupport.PeriodLockedCode, PeriodLockedMessage);
             }
 
             if (error is not null)
             {
-                errors.Add(new ImportRowErrorDto(row.Number, ClampField(error.Value.Field), error.Value.Code, error.Value.Message));
+                errors.Add(ImportBatchSupport.RowError(row.Number, error.Value.Field, error.Value.Code, error.Value.Message));
                 continue;
             }
 
@@ -191,10 +147,10 @@ public sealed class TransactionImportService(
                 }
                 else
                 {
-                    errors.Add(new ImportRowErrorDto(
+                    errors.Add(ImportBatchSupport.RowError(
                         row.Number,
-                        ClampField(fields.TransactionCode),
-                        ConflictingDuplicateCode,
+                        fields.TransactionCode,
+                        ImportBatchSupport.ConflictingDuplicateCode,
                         $"Mã giao dịch '{row.TransactionCode}' đã tồn tại trên hệ thống với thông tin khác."));
                 }
 
@@ -203,9 +159,9 @@ public sealed class TransactionImportService(
 
             if (!seen.Add(row.TransactionCode))
             {
-                errors.Add(new ImportRowErrorDto(
+                errors.Add(ImportBatchSupport.RowError(
                     row.Number,
-                    ClampField(fields.TransactionCode),
+                    fields.TransactionCode,
                     "DUPLICATE_IN_FILE",
                     $"Mã giao dịch '{row.TransactionCode}' bị trùng lặp trong file."));
                 continue;
@@ -228,22 +184,7 @@ public sealed class TransactionImportService(
             });
         }
 
-        foreach (var e in errors)
-        {
-            batch.Errors.Add(new ImportBatchError
-            {
-                Id = Guid.NewGuid(),
-                ImportBatchId = batch.Id,
-                RowNumber = e.Row,
-                Field = e.Field,
-                Code = e.Code,
-                Message = e.Message.Length > MaxMessageLength ? e.Message[..MaxMessageLength] : e.Message,
-            });
-        }
-
-        batch.ImportedRows = batch.Transactions.Count;
-        batch.DuplicateRows = duplicates;
-        batch.ErrorRows = errors.Count;
+        ImportBatchSupport.Complete(batch, batch.Transactions.Count, duplicates, errors);
         return (batch, errors);
     }
 
@@ -267,7 +208,7 @@ public sealed class TransactionImportService(
             .Distinct(StringComparer.OrdinalIgnoreCase);
 
         var employees = new Dictionary<string, EmployeeLookup>(StringComparer.OrdinalIgnoreCase);
-        foreach (var chunk in codes.Chunk(LookupChunk))
+        foreach (var chunk in codes.Chunk(ImportBatchSupport.LookupChunk))
         {
             var upperChunk = chunk.ToList();
             var found = await uow.Employees.Query().AsNoTracking()
@@ -299,7 +240,7 @@ public sealed class TransactionImportService(
     private async Task<Dictionary<string, ImportedTransaction>> LoadExistingAsync(List<Row> rows, CancellationToken ct)
     {
         var existing = new Dictionary<string, ImportedTransaction>(StringComparer.OrdinalIgnoreCase);
-        foreach (var chunk in rows.Select(r => r.TransactionCode).Where(c => c.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Chunk(LookupChunk))
+        foreach (var chunk in rows.Select(r => r.TransactionCode).Where(c => c.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Chunk(ImportBatchSupport.LookupChunk))
         {
             var found = await uow.ImportedTransactions.Query().AsNoTracking()
                 .Where(t => chunk.Contains(t.TransactionCode.ToUpper()))
@@ -312,27 +253,6 @@ public sealed class TransactionImportService(
 
         return existing;
     }
-
-    // BR-29: evaluation periods with status LOCKED or CLOSED reject new data (docs/api/PERIOD_LOCK_CONTRACT.md).
-    private async Task<List<(DateOnly Start, DateOnly End)>> LoadLockedPeriodsAsync(List<Row> rows, CancellationToken ct)
-    {
-        var dates = rows.Where(r => r.Date is not null).Select(r => r.Date!.Value).ToList();
-        if (dates.Count == 0)
-        {
-            return [];
-        }
-
-        var min = dates.Min();
-        var max = dates.Max();
-        var periods = await uow.EvaluationPeriods.Query().AsNoTracking()
-            .Where(p => (p.Status == PeriodStatus.Locked || p.Status == PeriodStatus.Closed) && p.StartDate <= max && p.EndDate >= min)
-            .Select(p => new { p.StartDate, p.EndDate })
-            .ToListAsync(ct);
-        return periods.Select(p => (p.StartDate, p.EndDate)).ToList();
-    }
-
-    private static ImportBatchDto ToDto(ImportBatch b, List<ImportRowErrorDto>? errors) =>
-        new(b.Id, b.FileName, "COMPLETED", b.TotalRows, b.ImportedRows, b.DuplicateRows, b.ErrorRows, errors, b.ImportedAt, b.ImportedBy);
 
     private static (string Field, string Code, string Message)? Validate(
         Row row,
@@ -431,19 +351,14 @@ public sealed class TransactionImportService(
             (field, "REQUIRED_FIELD_MISSING", $"'{field}' là bắt buộc nhập.");
     }
 
-    private (List<Row> Rows, FieldNames Fields) ReadRows(Stream excel)
-    {
-        try
+    private (List<Row> Rows, FieldNames Fields) ReadRows(Stream excel) => ImportBatchSupport.ReadRows(
+        reader,
+        excel,
+        parameters.Value.ImportMaxRows,
+        TransactionImportTemplateProvider.Template,
+        (sheet, headerIndex) =>
         {
-            var sheet = reader.Read(excel, parameters.Value.ImportMaxRows);
             var template = TransactionImportTemplateProvider.Template;
-            var headerIndex = template.BuildHeaderIndex(sheet.Headers, ErrorCodes.ImportInvalidFile);
-
-            if (sheet.Rows.Count == 0)
-            {
-                throw new AppException("File không có dòng dữ liệu nào.", ErrorCodes.ImportInvalidFile, 400);
-            }
-
             var fields = new FieldNames(
                 ImportHeaderNormalizer.GetMatchedHeader(TransactionImportTemplateProvider.TransactionCodeHeader, sheet.Headers, headerIndex),
                 ImportHeaderNormalizer.GetMatchedHeader(TransactionImportTemplateProvider.TransactionDateHeader, sheet.Headers, headerIndex),
@@ -483,28 +398,7 @@ public sealed class TransactionImportService(
             }
 
             return (rows, fields);
-        }
-        catch (AppException ex) when (ex.GetType() == typeof(AppException) && ex.ErrorCode == ErrorCodes.ImportInvalidFile)
-        {
-            throw;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw new AppException(
-                ex is AppException appEx ? appEx.Message : "File không phải là workbook .xlsx hợp lệ.",
-                ErrorCodes.ImportInvalidFile,
-                400);
-        }
-    }
-
-    private async Task<Guid?> ResolveEmployeeIdAsync(Guid userId, CancellationToken ct) =>
-        await uow.Employees.Query().AsNoTracking()
-            .Where(e => e.Id == userId || (e.Account != null && e.Account.Id == userId))
-            .Select(e => (Guid?)e.Id)
-            .FirstOrDefaultAsync(ct);
-
-    private static string ClampField(string field) =>
-        field.Length > MaxFieldLength ? field[..MaxFieldLength] : field;
+        });
 
     private sealed record EmployeeLookup(Guid Id, string Code, EmployeeStatus Status);
 

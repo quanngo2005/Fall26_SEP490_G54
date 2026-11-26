@@ -43,10 +43,18 @@ export class ReconciliationService {
   flagQuality(
     submissionId: string,
     request: { reason: string; severity: QualityFlagSeverity },
-  ): Observable<unknown> {
-    return this.http.post<ApiResponse<unknown>>(
+  ): Observable<ApiResponse<{ id: string }>> {
+    return this.http.post<ApiResponse<{ id: string }>>(
       `${environment.apiUrl}/submissions/${encodeURIComponent(submissionId)}/quality-flags`,
       request,
+    );
+  }
+
+  /** Sends the flagged result back to the employee for rework (`POST /quality-flags/{id}/request-rework`, UC90). */
+  requestRework(flagId: string, comment: string): Observable<unknown> {
+    return this.http.post<ApiResponse<unknown>>(
+      `${environment.apiUrl}/quality-flags/${encodeURIComponent(flagId)}/request-rework`,
+      { comment },
     );
   }
 

@@ -186,11 +186,11 @@ export class CampaignListComponent extends LocalizedComponent {
   }
 
   protected open(campaign: CampaignSummary): void {
-    void this.router.navigate(['/campaigns', campaign.id]);
+    void this.router.navigate(['/campaigns/detail'], { state: { campaignId: campaign.id } });
   }
 
   protected onCreated(id: string): void {
     this.createOpen.set(false);
-    void this.router.navigate(['/campaigns', id]);
+    void this.router.navigate(['/campaigns/detail'], { state: { campaignId: id } });
   }
 }

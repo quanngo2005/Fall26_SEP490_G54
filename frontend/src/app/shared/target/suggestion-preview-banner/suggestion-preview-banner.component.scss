@@ -1,0 +1,40 @@
+.preview-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.banner-icon {
+  flex-shrink: 0;
+  color: #1d4ed8;
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.banner-text {
+  flex: 1;
+  margin: 0;
+  color: #1e3a8a;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.banner-note {
+  display: block;
+  margin-top: 2px;
+  color: #1d4ed8;
+  font-size: 12px;
+}
+
+.banner-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}

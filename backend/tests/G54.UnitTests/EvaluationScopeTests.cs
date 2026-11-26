@@ -197,11 +197,35 @@ public sealed class EvaluationScopeTests
         using var context = CreateContext();
         var s = await SeedAsync(context);
         var service = CreateService(context, Grant("read", PermissionScopes.Dept));
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "2026-M11",
+            Name = "Tháng 11/2026",
+            PeriodType = PeriodType.Month,
+            StartDate = new DateOnly(2026, 11, 1),
+            EndDate = new DateOnly(2026, 11, 30),
+            Status = PeriodStatus.Open,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+        context.EvaluationPeriods.Add(period);
+        await context.SaveChangesAsync();
 
-        var rows = await service.GetDepartmentEmployeesForEvaluationAsync(Guid.NewGuid(), null, s.ManagerAAccount.Id);
+        var rows = await service.GetDepartmentEmployeesForEvaluationAsync(period.Id, null, s.ManagerAAccount.Id);
 
         Assert.Equal(2, rows.Count);
         Assert.All(rows, row => Assert.Equal(s.DeptAId, row.DepartmentId));
+    }
+
+    [Fact]
+    public async Task GetDepartmentEmployees_UnknownPeriod_ThrowsNotFound()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var service = CreateService(context, Grant("read", PermissionScopes.Dept));
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            service.GetDepartmentEmployeesForEvaluationAsync(Guid.NewGuid(), null, s.ManagerAAccount.Id));
     }
 
     [Fact]
