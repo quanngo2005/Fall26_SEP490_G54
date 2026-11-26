@@ -156,10 +156,10 @@ export class WorkBoardComponent extends LocalizedComponent {
   protected readonly columnDefs = computed(() => (this.isTeam() ? TEAM_COLUMNS : BOARD_COLUMNS));
   /** The one move a card allows: my board starts a work, the department board completes one. */
   private readonly action = computed(
-    (): { status: 'InProgress' | 'Done'; column: BoardColumnKey; allows: typeof canStart } =>
+    (): { status: 'IN_PROGRESS' | 'DONE'; column: BoardColumnKey; allows: typeof canStart } =>
       this.isTeam()
-        ? { status: 'Done', column: 'done', allows: canComplete }
-        : { status: 'InProgress', column: 'inProgress', allows: canStart },
+        ? { status: 'DONE', column: 'done', allows: canComplete }
+        : { status: 'IN_PROGRESS', column: 'inProgress', allows: canStart },
   );
   protected readonly priorities: readonly WorkPriority[] = ['Critical', 'High', 'Medium', 'Low'];
 
@@ -454,7 +454,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   protected readonly handoverWorks = computed(() => {
     const columns = this.columns();
     return [...(columns.new?.items ?? []), ...(columns.inProgress?.items ?? [])].filter((item) =>
-      ['New', 'InProgress'].includes(item.status),
+      ['NEW', 'IN_PROGRESS'].includes(item.status),
     );
   });
 
@@ -676,7 +676,7 @@ export class WorkBoardComponent extends LocalizedComponent {
 
   /** A deadline only matters while the assignee still owes a result. */
   private deadlineApplies(status: WorkStatus): boolean {
-    return !['Submitted', 'Verified', 'Done', 'Cancelled'].includes(status);
+    return !['SUBMITTED', 'VERIFIED', 'DONE', 'CANCELLED'].includes(status);
   }
 
   protected badgeOf(item: WorkListItem): {
@@ -686,7 +686,7 @@ export class WorkBoardComponent extends LocalizedComponent {
   } {
     const today = this.clock().date;
     const late = daysOverdue(item.plannedEndDate, today);
-    if (item.status === 'Overdue' || (late > 0 && this.deadlineApplies(item.status))) {
+    if (item.status === 'OVERDUE' || (late > 0 && this.deadlineApplies(item.status))) {
       return { kind: 'overdue', days: Math.max(1, late), priority: item.priority };
     }
     if (isDueOn(item.plannedEndDate, today) && this.deadlineApplies(item.status)) {
@@ -699,16 +699,16 @@ export class WorkBoardComponent extends LocalizedComponent {
   protected chipOf(item: WorkListItem): { text: string; tone: string } | null {
     const text = this.localization.work.status;
     switch (item.status) {
-      case 'Submitted':
-        return { text: text.Submitted, tone: 'info' };
-      case 'Verified':
-        return { text: text.Verified, tone: this.isTeam() ? 'info' : 'success' };
-      case 'HandedOver':
-        return { text: text.HandedOver, tone: 'warning' };
-      case 'Rejected':
-        return { text: text.Rejected, tone: 'danger' };
-      case 'Done':
-        return { text: text.Done, tone: 'success' };
+      case 'SUBMITTED':
+        return { text: text.SUBMITTED, tone: 'info' };
+      case 'VERIFIED':
+        return { text: text.VERIFIED, tone: this.isTeam() ? 'info' : 'success' };
+      case 'HANDED_OVER':
+        return { text: text.HANDED_OVER, tone: 'warning' };
+      case 'REJECTED':
+        return { text: text.REJECTED, tone: 'danger' };
+      case 'DONE':
+        return { text: text.DONE, tone: 'success' };
       default:
         break;
     }

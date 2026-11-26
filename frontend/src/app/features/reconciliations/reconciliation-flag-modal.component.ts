@@ -1,7 +1,7 @@
 import { Component, DestroyRef, HostListener, inject, input, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { finalize } from 'rxjs';
+import { finalize, map, of, switchMap } from 'rxjs';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { QualityFlagSeverity } from '../../core/reconciliation.models';
 import { ReconciliationService } from '../../core/reconciliation.service';
@@ -70,6 +70,18 @@ const SEVERITIES: readonly QualityFlagSeverity[] = ['LOW', 'MEDIUM', 'HIGH'];
           }
         </select>
       </div>
+      <label class="rework-option" for="flag-rework">
+        <input
+          id="flag-rework"
+          type="checkbox"
+          [ngModel]="requestRework()"
+          (ngModelChange)="requestRework.set($event)"
+        />
+        <span>{{t.requestRework}}</span>
+      </label>
+      @if (requestRework()) {
+        <p class="hint">{{t.requestReworkHint}}</p>
+      }
       @if (errorKey(); as key) {
         <p class="field-error" role="alert">{{i18n.translate(key)}}</p>
       }
@@ -98,6 +110,14 @@ const SEVERITIES: readonly QualityFlagSeverity[] = ['LOW', 'MEDIUM', 'HIGH'];
   styleUrls: ['../../shared/ui/ui-controls.scss', '../../shared/ui/modal.scss'],
   styles: [
     `
+      .rework-option {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin: 4px 0 8px;
+        font-size: 14px;
+        cursor: pointer;
+      }
       .hint {
         margin: 0 0 12px;
         color: #475569;
@@ -111,13 +131,16 @@ export class ReconciliationFlagModalComponent extends LocalizedComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly submissionId = input.required<string>();
-  readonly flagged = output<void>();
+  /** Emits true when the result was also sent back for rework. */
+  readonly flagged = output<boolean>();
   readonly dismissed = output<void>();
 
   protected readonly severities = SEVERITIES;
   protected readonly maxReason = MAX_REASON;
   protected readonly reason = signal('');
   protected readonly severity = signal<QualityFlagSeverity>('MEDIUM');
+  /** UC90: send the result back to the employee in the same step (uses the reason as the rework comment). */
+  protected readonly requestRework = signal(false);
   protected readonly showValidation = signal(false);
   protected readonly submitting = signal(false);
   protected readonly errorKey = signal<string | null>(null);
@@ -141,14 +164,21 @@ export class ReconciliationFlagModalComponent extends LocalizedComponent {
     if (!this.reasonValid() || this.submitting()) return;
     this.errorKey.set(null);
     this.submitting.set(true);
+    const reason = this.reason().trim();
+    const rework = this.requestRework();
     this.api
-      .flagQuality(this.submissionId(), { reason: this.reason().trim(), severity: this.severity() })
+      .flagQuality(this.submissionId(), { reason, severity: this.severity() })
       .pipe(
+        switchMap((response) =>
+          rework && response?.data?.id
+            ? this.api.requestRework(response.data.id, reason).pipe(map(() => true))
+            : of(false),
+        ),
         finalize(() => this.submitting.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: () => this.flagged.emit(),
+        next: (reworked) => this.flagged.emit(reworked),
         error: (error: unknown) => {
           const key = reconciliationErrorKey(error);
           this.errorKey.set(

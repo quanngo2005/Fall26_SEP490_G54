@@ -1,27 +1,27 @@
 /** Work API enums are PascalCase on the wire (docs/api/WORK_CONTRACT.md, section 6). */
 export type WorkStatus =
-  | 'New'
-  | 'InProgress'
-  | 'HandedOver'
-  | 'Submitted'
-  | 'Verified'
-  | 'Rejected'
-  | 'Overdue'
-  | 'Done'
-  | 'Cancelled';
+  | 'NEW'
+  | 'IN_PROGRESS'
+  | 'HANDED_OVER'
+  | 'SUBMITTED'
+  | 'VERIFIED'
+  | 'REJECTED'
+  | 'OVERDUE'
+  | 'DONE'
+  | 'CANCELLED';
 
 /** Work still needing action; mirrors `WorkStatusGroups.Open` in the backend. */
 export const OPEN_WORK_STATUSES: readonly WorkStatus[] = [
-  'New',
-  'InProgress',
-  'HandedOver',
-  'Submitted',
-  'Rejected',
-  'Overdue',
+  'NEW',
+  'IN_PROGRESS',
+  'HANDED_OVER',
+  'SUBMITTED',
+  'REJECTED',
+  'OVERDUE',
 ];
 
 /** Work verified or closed out; mirrors `WorkStatusGroups.Completed` in the backend. */
-export const COMPLETED_WORK_STATUSES: readonly WorkStatus[] = ['Done', 'Verified'];
+export const COMPLETED_WORK_STATUSES: readonly WorkStatus[] = ['DONE', 'VERIFIED'];
 
 export type WorkPriority = 'Low' | 'Medium' | 'High' | 'Critical';
 
@@ -145,7 +145,7 @@ export interface WorkFilter {
 }
 
 /** Only these target statuses can be set through `PATCH /works/{id}/status`. */
-export type WorkManualStatus = 'InProgress' | 'Done' | 'Cancelled';
+export type WorkManualStatus = 'IN_PROGRESS' | 'DONE' | 'CANCELLED';
 
 export interface WorkStatusChange {
   status: WorkManualStatus;

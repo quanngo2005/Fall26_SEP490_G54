@@ -1819,15 +1819,15 @@
           "Critical": "Khẩn"
         },
         "status": {
-          "New": "Mới",
-          "InProgress": "Đang thực hiện",
-          "HandedOver": "Đang bàn giao",
-          "Submitted": "Chờ thẩm định",
-          "Verified": "Đã thẩm định",
-          "Rejected": "Cần làm lại",
-          "Overdue": "Quá hạn",
-          "Done": "Hoàn thành",
-          "Cancelled": "Đã hủy"
+          "NEW": "Mới",
+          "IN_PROGRESS": "Đang thực hiện",
+          "HANDED_OVER": "Đang bàn giao",
+          "SUBMITTED": "Chờ thẩm định",
+          "VERIFIED": "Đã thẩm định",
+          "REJECTED": "Cần làm lại",
+          "OVERDUE": "Quá hạn",
+          "DONE": "Hoàn thành",
+          "CANCELLED": "Đã hủy"
         },
         "card": {
           "due": "Hạn {date}",
@@ -4993,6 +4993,9 @@
           "submitting": "Đang gắn cờ…",
           "cancel": "Hủy",
           "success": "Đã gắn cờ chất lượng. Mục mới nằm trong hàng chờ QA.",
+          "requestRework": "Yêu cầu nhân viên làm lại ngay",
+          "requestReworkHint": "Kết quả bị thu hồi điểm KPI, công việc quay về Đang thực hiện để nhân viên nộp lại. Lý do ở trên được gửi kèm.",
+          "reworkSuccess": "Đã gắn cờ và yêu cầu nhân viên làm lại công việc.",
           "errors": {
             "reason": "Nhập lý do ít nhất 10 ký tự.",
             "failed": "Không gắn được cờ. Vui lòng thử lại."
@@ -6262,15 +6265,15 @@
           "Critical": "Urgent"
         },
         "status": {
-          "New": "New",
-          "InProgress": "In progress",
-          "HandedOver": "Being handed over",
-          "Submitted": "Awaiting review",
-          "Verified": "Verified",
-          "Rejected": "Needs rework",
-          "Overdue": "Overdue",
-          "Done": "Done",
-          "Cancelled": "Cancelled"
+          "NEW": "New",
+          "IN_PROGRESS": "In progress",
+          "HANDED_OVER": "Being handed over",
+          "SUBMITTED": "Awaiting review",
+          "VERIFIED": "Verified",
+          "REJECTED": "Needs rework",
+          "OVERDUE": "Overdue",
+          "DONE": "Done",
+          "CANCELLED": "Cancelled"
         },
         "card": {
           "due": "Due {date}",
@@ -9974,6 +9977,9 @@
           "submitting": "Flagging…",
           "cancel": "Cancel",
           "success": "Quality flagged. The new item is in the QA queue.",
+          "requestRework": "Ask the employee to rework now",
+          "requestReworkHint": "The KPI points of the result are withdrawn and the work goes back to In progress so the employee can resubmit. The reason above is sent with it.",
+          "reworkSuccess": "Flagged and sent back to the employee for rework.",
           "errors": {
             "reason": "Enter a reason of at least 10 characters.",
             "failed": "The flag could not be created. Please try again."

@@ -340,6 +340,8 @@ FROM (VALUES
     ('SYSTEM_ADMIN', 'SERVICE_RATING_IMPORT_MANAGE', 'All'), ('DEPT_MANAGER', 'SERVICE_RATING_IMPORT_MANAGE', 'All'),
     ('BRANCH_MANAGER', 'SERVICE_RATING_IMPORT_MANAGE', 'All'), ('VERIFIER', 'SERVICE_RATING_IMPORT_MANAGE', 'All'),
     ('DEPT_MANAGER', 'NOTIFICATION_SEND', 'Dept'),
+    ('DEPT_MANAGER', 'QUALITY_FLAG_CREATE', 'Dept'), ('DEPT_MANAGER', 'QUALITY_FLAG_REWORK', 'Dept'),
+    ('BRANCH_MANAGER', 'QUALITY_FLAG_CREATE', 'Branch'), ('BRANCH_MANAGER', 'QUALITY_FLAG_REWORK', 'Branch'),
     -- QA quality control (docs/api/QUALITY_ASSURANCE_CONTRACT.md); the migration AddQualityAssurance grants the same on an existing database.
     ('SYSTEM_ADMIN', 'QUALITY_FLAG_CREATE', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_READ', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_REWORK', 'All'), ('SYSTEM_ADMIN', 'QUALITY_FLAG_DISMISS', 'All'), ('SYSTEM_ADMIN', 'QA_SAMPLE_READ', 'All'), ('SYSTEM_ADMIN', 'QA_SAMPLE_DECIDE', 'All'), ('VERIFIER', 'QUALITY_FLAG_CREATE', 'All'), ('VERIFIER', 'QUALITY_FLAG_READ', 'All'), ('VERIFIER', 'QUALITY_FLAG_REWORK', 'All'), ('VERIFIER', 'QUALITY_FLAG_DISMISS', 'All'), ('VERIFIER', 'QA_SAMPLE_READ', 'All'), ('VERIFIER', 'QA_SAMPLE_DECIDE', 'All'),
     -- Risk events (docs/api/RISK_EVENT_CONTRACT.md §9): QA and administrators record and reverse; managers read within their scope.

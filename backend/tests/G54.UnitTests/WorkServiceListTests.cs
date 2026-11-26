@@ -134,7 +134,7 @@ public sealed class WorkServiceListTests : IDisposable
         var item = result.Items[0];
         Assert.Equal("T1", item.AssigneeEmployeeCode);
         Assert.Equal("CN-GD", item.DepartmentCode);
-        Assert.Equal("New", item.Status);
+        Assert.Equal("NEW", item.Status);
         Assert.Equal("Medium", item.Priority);
     }
 

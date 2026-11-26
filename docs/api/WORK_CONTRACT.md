@@ -115,7 +115,7 @@ Response Body:
     "assigneeEmployeeName": "Nguyễn Văn An",
     "assigneeEmployeeCode": "EMP001",
     "priority": "High",
-    "status": "New",
+    "status": "NEW",
     "plannedStartDate": "2026-10-20",
     "plannedEndDate": "2026-10-31",
     "estimatedHours": 16.5,
@@ -232,7 +232,7 @@ Giá trị `status`/`priority` không hợp lệ -> 400 `VALIDATION_ERROR`. Sắ
         "workTypeId": "…", "workTypeName": "Mở tài khoản khách hàng", "businessCampaignId": null,
         "assigneeEmployeeId": "…", "assigneeEmployeeCode": "NV004", "assigneeEmployeeName": "Lê Minh Châu",
         "departmentId": "…", "departmentCode": "CN-HN-KD-N1", "departmentName": "Nhóm Kinh doanh 1",
-        "priority": "Medium", "status": "InProgress",
+        "priority": "Medium", "status": "IN_PROGRESS",
         "plannedStartDate": "2026-10-20", "plannedEndDate": "2026-10-30",
         "updatedAt": "2026-10-22T08:00:00+00:00"
       }
@@ -242,7 +242,7 @@ Giá trị `status`/`priority` không hợp lệ -> 400 `VALIDATION_ERROR`. Sắ
 }
 ```
 
-`priority` và `status` là PascalCase, giống `WorkDetailDto`. Danh sách không trả `description`/`estimatedHours`; dùng `GET /works/{id}` để xem chi tiết.
+`priority` là PascalCase, `status` là `UPPER_SNAKE`, giống `WorkDetailDto`. Danh sách không trả `description`/`estimatedHours`; dùng `GET /works/{id}` để xem chi tiết.
 Lỗi: 400 `VALIDATION_ERROR`, 401, 403 (không có quyền `work:read`, tài khoản khóa, hoặc `departmentId` ngoài phạm vi), 404 (`departmentId` không tồn tại).
 
 ---
@@ -276,7 +276,7 @@ Truy vấn thông tin chi tiết của một công việc theo định danh duy 
     "assigneeEmployeeName": "Nguyễn Văn An",
     "assigneeEmployeeCode": "EMP001",
     "priority": "High",
-    "status": "New",
+    "status": "NEW",
     "plannedStartDate": "2026-10-20",
     "plannedEndDate": "2026-10-31",
     "estimatedHours": 16.5,
@@ -321,13 +321,13 @@ Người dùng khác nhận 403 (`FORBIDDEN`).
 
 ```json
 {
-  "status": "InProgress"
+  "status": "IN_PROGRESS"
 }
 ```
 
 #### Response Thành công (`200 OK`)
 
-`data` là `WorkDetailDto` (xem mục 4) với `status` và `updatedAt` mới. Định dạng `status` trong response giữ nguyên **PascalCase** như `GET /works/{id}`.
+`data` là `WorkDetailDto` (xem mục 4) với `status` và `updatedAt` mới. Định dạng `status` trong response là **`UPPER_SNAKE`** như `GET /works/{id}`.
 
 #### Các mã lỗi
 
@@ -373,7 +373,7 @@ Chỉ sửa được khi công việc ở `New`, `InProgress`, `Rejected`, `Over
 | `assigneeEmployeeName` | `string` | Có | Họ và tên nhân viên được phân công. |
 | `assigneeEmployeeCode` | `string` | Có | Mã nhân viên được phân công (ví dụ: `EMP001`). |
 | `priority` | `string` | Không | Mức độ ưu tiên, định dạng **PascalCase**: `Low`, `Medium`, `High`, `Critical`. |
-| `status` | `string` | Không | Trạng thái công việc, định dạng **PascalCase**: `New`, `InProgress`, `HandedOver`, `Submitted`, `Verified`, `Rejected`, `Overdue`, `Done`, `Cancelled`. Khi khởi tạo luôn là `New`. Xem máy trạng thái ở mục 7. |
+| `status` | `string` | Không | Trạng thái công việc, định dạng **`UPPER_SNAKE`** (khớp `[PgName]` của enum `work_status`, như mọi API khác): `NEW`, `IN_PROGRESS`, `HANDED_OVER`, `SUBMITTED`, `VERIFIED`, `REJECTED`, `OVERDUE`, `DONE`, `CANCELLED`. Khi khởi tạo luôn là `NEW`. Xem máy trạng thái ở mục 7 (bảng ở mục 7 viết tên trạng thái dạng PascalCase cho dễ đọc). |
 | `plannedStartDate` | `string (date)` | Có | Ngày bắt đầu dự kiến (`YYYY-MM-DD`). |
 | `plannedEndDate` | `string (date)` | Có | Hạn hoàn thành dự kiến (`YYYY-MM-DD`). |
 | `estimatedHours` | `number (decimal)` | Có | Số giờ ước tính hoàn thành công việc. |
@@ -410,7 +410,7 @@ Chỉ sửa được khi công việc ở `New`, `InProgress`, `Rejected`, `Over
 ## 6. Lưu ý và Khác biệt Hiện tại
 
 1. **Lệch HTTP Status và Body Status ở POST /works**: `POST /works` trả về mã HTTP là **201 Created** kèm header `Location`, nhưng trường `status` trong body JSON envelope là **200** do hàm `ApiResponse.Ok` khởi tạo mặc định. Client cần căn cứ vào HTTP Status Code làm nguồn chân lý.
-2. **Enum trả về PascalCase**: Mặc dù một số enum trong hệ thống dùng `UPPER_SNAKE` trên wire format, hai trường `priority` và `status` của Work API được chuyển thành chuỗi bằng `.ToString()` từ C# enum nên có định dạng **PascalCase** (`New`, `InProgress`, `High`...). Client cần xử lý chính xác định dạng này.
+2. **`priority` còn PascalCase**: từ 26/11/2026 `status` của Work API (`GET /works`, `GET /works/{id}`, `POST /works`, `PATCH /works/{id}/status`) trả `UPPER_SNAKE` qua `ToEnumString()` như các API khác. Riêng `priority` vẫn là PascalCase (`Low`, `Medium`, `High`, `Critical`). Tham số `status` của bộ lọc và body `PATCH` vẫn nhận cả PascalCase lẫn `UPPER_SNAKE`.
 3. **Mức ưu tiên không hợp lệ bị fallback về Medium**: Hàm `ParsePriority` xử lý case-insensitive (không phân biệt chữ hoa/thường): `"P1"` / `"Critical"` thành `Critical`, `"P2"` / `"High"` thành `High`, `"Low"` thành `Low`. Mọi giá trị khác (kể cả `"Medium"` hay chuỗi sai chính tả như `"Normal"`, `"abc"`) đều được âm thầm đưa về `Medium` mà **không báo lỗi**.
 4. **`checklistItems` đã được lưu** (từ SCR-WRK-03): xem mục 3.5 và 3.6.
 5. **Ràng buộc `[Required]` với `Guid.Empty`**: Thuộc tính `[Required]` của DataAnnotations coi `Guid.Empty` (`00000000-0000-0000-0000-000000000000`) là giá trị hợp lệ. Tuy nhiên khi vào service, câu truy vấn tìm kiếm theo `Guid.Empty` sẽ không tìm thấy bản ghi và ném ra lỗi 400 (`VALIDATION_ERROR`).

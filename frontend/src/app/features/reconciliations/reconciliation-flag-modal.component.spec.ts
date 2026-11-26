@@ -66,6 +66,24 @@ describe('ReconciliationFlagModalComponent', () => {
     expect(flagged).toBe(1);
   });
 
+  it('sends the result back for rework in the same step when the option is ticked (UC90)', () => {
+    const fixture = open();
+    const emitted: boolean[] = [];
+    fixture.componentInstance.flagged.subscribe((reworked) => emitted.push(reworked));
+    type(fixture, 'Chứng từ không khớp với báo cáo.');
+    const rework = fixture.nativeElement.querySelector('#flag-rework') as HTMLInputElement;
+    rework.click();
+    fixture.detectChanges();
+
+    submit(fixture);
+
+    http.expectOne(`${environment.apiUrl}/submissions/s1/quality-flags`).flush({ success: true, data: { id: 'f1' } });
+    const request = http.expectOne(`${environment.apiUrl}/quality-flags/f1/request-rework`);
+    expect(request.request.body).toEqual({ comment: 'Chứng từ không khớp với báo cáo.' });
+    request.flush({ success: true, data: {} });
+    expect(emitted).toEqual([true]);
+  });
+
   it('keeps the form open and explains when the flag could not be created', () => {
     const fixture = open();
     let flagged = 0;

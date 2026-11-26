@@ -348,7 +348,7 @@ public sealed partial class WorkService(
             AssigneeEmployeeName: assigneeName,
             AssigneeEmployeeCode: assigneeCode,
             Priority: work.Priority.ToString(),
-            Status: work.Status.ToString(),
+            Status: work.Status.ToEnumString(),
             PlannedStartDate: work.PlannedStartDate,
             PlannedEndDate: work.PlannedEndDate,
             EstimatedHours: work.EstimatedHours,
