@@ -1,0 +1,131 @@
+@let t = text;
+<div
+  animate.leave="g54-leave-fade"
+  class="modal-backdrop"
+  (click)="close()"
+  (keydown.escape)="close()"
+  role="presentation"
+>
+  <div
+    animate.leave="g54-leave-pop"
+    class="modal-dialog allocate-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="customer-allocate-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    <div class="modal-header">
+      <h2 id="customer-allocate-title">{{t.title}} · {{campaign().code}}</h2>
+      <button type="button" class="modal-close" [attr.aria-label]="t.close" (click)="close()">
+        ×
+      </button>
+    </div>
+
+    <div class="modal-body">
+      @if (error(); as message) {
+        <div class="notice is-error" role="alert">
+          <span>{{message}}</span>
+        </div>
+      }
+
+      @if (result(); as data) {
+        <p class="count-line">
+          <strong>{{resultTitle(data)}}</strong>
+        </p>
+        <ul class="result-list">
+          @for (item of data.byEmployee; track item.employeeId) {
+            <li>
+              <span
+                >{{item.employeeName}}
+                <span class="muted mono">{{item.employeeCode}}</span></span
+              >
+              <strong>{{item.count}}</strong>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="count-line">
+          <strong>{{unassigned()}}</strong> {{t.unassignedCount}}
+        </p>
+        <p class="hint">{{scopeText()}}</p>
+
+        @if (unassigned() === 0) {
+          <div class="notice" role="status">
+            <span>{{t.none}}</span>
+          </div>
+        } @else if (overLimit()) {
+          <div class="notice is-error" role="alert">
+            <span>{{overLimitText()}}</span>
+          </div>
+        }
+
+        <fieldset class="field">
+          <legend>{{t.rule}} *</legend>
+          <div class="rules">
+            @for (item of rules; track item) {
+              <label class="check-row">
+                <input
+                  type="radio"
+                  name="allocation-rule"
+                  [checked]="rule() === item"
+                  (change)="rule.set(item)"
+                />
+                {{ruleLabel(item)}}
+              </label>
+            }
+          </div>
+        </fieldset>
+
+        <fieldset class="field">
+          <legend>{{t.participants}} *</legend>
+          @if (campaign().participants.length === 0) {
+            <p class="muted">{{t.noParticipants}}</p>
+          } @else {
+            <ul class="participants">
+              @for (participant of campaign().participants; track participant.employeeId) {
+                <li>
+                  <label class="check-row">
+                    <input
+                      type="checkbox"
+                      [checked]="selectedIds().includes(participant.employeeId)"
+                      (change)="toggle(participant.employeeId, $any($event.target).checked)"
+                    />
+                    <span>
+                      {{participant.fullName}}
+                      <span class="muted mono">{{participant.employeeCode}}</span>
+                    </span>
+                    <span class="muted">{{holdingLabel(participant.employeeId)}}</span>
+                  </label>
+                </li>
+              }
+            </ul>
+            @if (selectedIds().length === 0) {
+              <p class="field-error" role="alert">{{t.pickOne}}</p>
+            }
+          }
+        </fieldset>
+        <p class="hint">{{t.createsWork}}</p>
+      }
+    </div>
+
+    <div class="modal-footer">
+      @if (result()) {
+        <button type="button" class="button button-primary" (click)="close()">{{t.done}}</button>
+      } @else {
+        <button type="button" class="button button-secondary" (click)="close()">
+          {{t.cancel}}
+        </button>
+        <button
+          type="button"
+          class="button button-primary"
+          [disabled]="!canSubmit()"
+          (click)="submit()"
+        >
+          {{submitLabel()}}
+        </button>
+      }
+    </div>
+  </div>
+</div>

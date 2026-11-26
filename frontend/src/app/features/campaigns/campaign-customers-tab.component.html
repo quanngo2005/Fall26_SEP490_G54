@@ -1,0 +1,286 @@
+@let text = localization.campaignCustomers;
+@if (notice(); as message) {
+  <div class="notice toast" role="status">
+    <span>{{message}}</span>
+    <button type="button" (click)="notice.set(null)" [attr.aria-label]="localization.common.close">
+      ×
+    </button>
+  </div>
+}
+@if (error(); as message) {
+  <div class="notice is-error toast" role="alert">
+    <span>{{message}}</span>
+    <button type="button" (click)="error.set(null)" [attr.aria-label]="localization.common.close">
+      ×
+    </button>
+  </div>
+}
+
+@if (loading() && !data()) {
+  <div class="state-card" role="status">
+    <span class="spinner" aria-hidden="true"></span>
+    <p>{{text.loading}}</p>
+  </div>
+} @else if (failed() && !data()) {
+  <div class="state-card state-error" role="alert">
+    <p>{{text.loadFailed}}</p>
+    <button type="button" class="button button-secondary" (click)="reload()">
+      {{text.retry}}
+    </button>
+  </div>
+} @else if (data(); as list) {
+  @let summary = list.summary;
+  @let closedTotal = campaign().metrics.customerClosed;
+  <section class="summary-grid">
+    <article class="panel surface-card">
+      <p class="stat-label">{{text.statTotal}}</p>
+      <p class="stat-value">{{summary.total}}</p>
+    </article>
+    <article class="panel surface-card">
+      <p class="stat-label">{{text.statUnassigned}}</p>
+      <p class="stat-value">
+        {{summary.unassigned}} <small>{{text.statUnit}}</small>
+      </p>
+    </article>
+    <article class="panel surface-card">
+      <p class="stat-label">{{text.statClosed}}</p>
+      <p class="stat-value">
+        {{closedTotal}}/{{summary.total}}
+        <small>({{percent(closedTotal, summary.total)}}%)</small>
+      </p>
+    </article>
+    <article class="panel surface-card by-status">
+      <p class="stat-label">{{text.byStatus}}</p>
+      <ul class="status-counts">
+        @for (item of statuses; track item) {
+          <li>
+            <span class="status-badge" [class]="badge(item)">{{statusLabel(item)}}</span>
+            <strong>{{statusCount(item)}}</strong>
+          </li>
+        }
+      </ul>
+    </article>
+  </section>
+
+  <section class="panel surface-card">
+    <h2>{{text.byAssignee}}</h2>
+    <p class="muted hint">{{text.byAssigneeHint}}</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>{{text.colCode}}</th>
+            <th>{{text.colName}}</th>
+            <th class="num">{{text.colAssigned}}</th>
+            <th class="num">{{text.colClosed}}</th>
+            <th>{{text.colProgress}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of summary.byAssignee; track row.employeeId) {
+            <tr>
+              <td class="mono">{{row.employeeCode}}</td>
+              <td>{{row.employeeName}}</td>
+              <td class="num">{{row.assigned}}</td>
+              <td class="num">{{row.closed}}</td>
+              <td>
+                <span class="progress-track">
+                  <span
+                    class="progress-fill"
+                    [style.width.%]="percent(row.closed, row.assigned)"
+                  ></span>
+                </span>
+                <span class="muted">
+                  {{row.closed}}/{{row.assigned}} {{text.closedOf}} ({{percent(row.closed, row.assigned)}}%)
+                </span>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td class="empty-cell" colspan="5">{{text.noAssignee}}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel surface-card">
+    <div class="list-toolbar">
+      <div class="filters">
+        <app-ui-search-input
+          [value]="searchDraft()"
+          [placeholder]="text.searchPlaceholder"
+          [clearLabel]="localization.common.close"
+          (valueChange)="onSearchInput($event)"
+          (enterPressed)="setSearch(searchDraft())"
+        />
+        <select
+          class="select"
+          [attr.aria-label]="text.colStatus"
+          [value]="status()"
+          (change)="setStatus($any($event.target).value)"
+        >
+          <option value="">{{text.allStatuses}}</option>
+          @for (item of statuses; track item) {
+            <option [value]="item">{{statusLabel(item)}}</option>
+          }
+        </select>
+        <select
+          class="select"
+          [attr.aria-label]="text.colAssignee"
+          [value]="assigneeId()"
+          (change)="setAssignee($any($event.target).value)"
+        >
+          <option value="">{{text.allAssignees}}</option>
+          @for (participant of campaign().participants; track participant.employeeId) {
+            <option [value]="participant.employeeId">{{participant.fullName}}</option>
+          }
+        </select>
+        <label class="check-row">
+          <input
+            type="checkbox"
+            [checked]="unassignedOnly()"
+            (change)="toggleUnassigned($any($event.target).checked)"
+          />
+          {{text.unassignedOnly}}
+        </label>
+      </div>
+      @if (canManage()) {
+        <div class="toolbar-actions">
+          <button
+            type="button"
+            class="button button-secondary"
+            [disabled]="!editable()"
+            (click)="downloadTemplate()"
+          >
+            {{text.downloadTemplate}}
+          </button>
+          <button
+            type="button"
+            class="button button-secondary"
+            [disabled]="!editable()"
+            (click)="importOpen.set(true)"
+          >
+            {{text.import}}
+          </button>
+          <button
+            type="button"
+            class="button button-primary"
+            [disabled]="!editable()"
+            (click)="allocateOpen.set(true)"
+          >
+            {{text.allocate}}
+          </button>
+        </div>
+      }
+    </div>
+    @if (canManage() && !editable()) {
+      <p class="muted hint" role="status">{{text.disabledReason}}</p>
+    }
+
+    <div class="table-wrap" [attr.aria-busy]="loading()">
+      <table>
+        <thead>
+          <tr>
+            <th>{{text.colCif}}</th>
+            <th>{{text.colCustomer}}</th>
+            <th>{{text.colPhone}}</th>
+            <th>{{text.colNote}}</th>
+            <th>{{text.colAssignee}}</th>
+            <th>{{text.colStatus}}</th>
+            <th>{{text.colResult}}</th>
+            <th>{{text.colUpdated}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (customer of list.page.items; track customer.id) {
+            <tr>
+              <td class="mono">{{customer.customerCif}}</td>
+              <td>{{customer.customerName}}</td>
+              <td class="mono">{{customer.phone ?? localization.campaign.noValue}}</td>
+              <td class="note-cell" [title]="customer.note ?? ''">
+                {{customer.note ?? localization.campaign.noValue}}
+              </td>
+              <td>
+                @if (editable() && customer.contactStatus !== 'CLOSED') {
+                  <select
+                    #assignee
+                    class="select assignee-select"
+                    [attr.aria-label]="reassignLabel(customer)"
+                    (change)="reassign(customer, assignee.value, assignee)"
+                  >
+                    @if (!customer.assigneeEmployeeId) {
+                      <option value="" selected>{{text.unassigned}}</option>
+                    }
+                    @for (participant of campaign().participants; track participant.employeeId) {
+                      <option
+                        [value]="participant.employeeId"
+                        [selected]="participant.employeeId === customer.assigneeEmployeeId"
+                      >
+                        {{participant.fullName}}
+                      </option>
+                    }
+                  </select>
+                } @else {
+                  {{customer.assigneeEmployeeName ?? text.unassigned}}
+                }
+              </td>
+              <td>
+                <span class="status-badge" [class]="badge(customer.contactStatus)">
+                  {{statusLabel(customer.contactStatus)}}
+                </span>
+              </td>
+              <td>
+                {{customer.resultText}}
+                @if (customer.contactStatus === 'CLOSED' && customer.workId) {
+                  <div class="work-link">
+                    @if (customer.workStatus === 'REJECTED') {
+                      <span class="status-badge is-danger">{{text.workRejected}}</span>
+                    } @else {
+                      <span class="status-badge is-muted">
+                        {{workStatusLabel(customer.workStatus)}}
+                      </span>
+                    }
+                  </div>
+                }
+              </td>
+              <td class="mono">{{customer.updatedAt | appDate: 'DD/MM/YYYY HH:mm'}}</td>
+            </tr>
+          } @empty {
+            <tr>
+              <td class="empty-cell" colspan="8">
+                {{filtered() ? text.emptyFiltered : text.empty}}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-table-pagination
+      [page]="page()"
+      [pageSize]="pageSize"
+      [totalCount]="list.page.totalCount"
+      [rangeTemplate]="rangeTemplate()"
+      [disabled]="loading()"
+      (pageChange)="page.set($event)"
+    />
+  </section>
+
+  @if (importOpen()) {
+    <app-campaign-customer-import-modal
+      [campaign]="campaign()"
+      (closed)="importOpen.set(false)"
+      (committed)="onImported()"
+    />
+  }
+  @if (allocateOpen()) {
+    <app-campaign-customer-allocate-modal
+      [campaign]="campaign()"
+      [unassigned]="list.summary.unassigned"
+      [holding]="list.summary.byAssignee"
+      (closed)="allocateOpen.set(false)"
+      (allocated)="onAllocated()"
+    />
+  }
+}

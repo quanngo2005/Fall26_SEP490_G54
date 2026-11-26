@@ -137,6 +137,23 @@ public sealed class WorkTransactionServiceTests
         public Task<WorkTransactionsDto> AddAsync(params string[] codes) =>
             Service.AddAsync(Work.Id, Owner.Id, new AddWorkTransactionsRequestDto([.. codes]));
 
+        /// <summary>Links <see cref="Work"/> as the lead Work of a new campaign customer (CAMPAIGN_CONTRACT.md §5.4).</summary>
+        public void MakeLeadWork(CampaignContactStatus status)
+        {
+            Db.CampaignCustomers.Add(new CampaignCustomer
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = Guid.NewGuid(),
+                CustomerCif = "CIF-LEAD",
+                CustomerName = "Lead Customer",
+                AssigneeEmployeeId = Owner.Id,
+                ContactStatus = status,
+                WorkId = Work.Id,
+                UpdatedAt = Now,
+            });
+            Db.SaveChanges();
+        }
+
         private static Employee Person(string code) => new()
         {
             Id = Guid.NewGuid(),
@@ -175,6 +192,22 @@ public sealed class WorkTransactionServiceTests
         Assert.Equal("IN_REVIEW", Assert.Single(result.Items).Status);
         Assert.Equal("SUBMITTED", result.WorkStatus);
         Assert.Empty(rig.Db.ActualProgresses);
+    }
+
+    [Fact]
+    public async Task AddForLeadCloseAsync_SharesTheAddCoreAndSubmitsTheWork()
+    {
+        // AddForLeadCloseAsync (Slice B, CAMPAIGN_CONTRACT.md §5.5) shares the validation/limit/duplicate/submit
+        // core with AddAsync, but skips the ownership check: the caller passes the Work entity directly.
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        rig.Work.Status = WorkStatus.New;
+        await rig.Db.SaveChangesAsync();
+
+        var result = await rig.Service.AddForLeadCloseAsync(rig.Work, ["T1"]);
+
+        Assert.Equal("IN_REVIEW", Assert.Single(result.Items).Status);
+        Assert.Equal("SUBMITTED", result.WorkStatus);
+        Assert.Equal(WorkStatus.Submitted, (await rig.Db.Works.SingleAsync()).Status);
     }
 
     [Fact]
@@ -428,5 +461,43 @@ public sealed class WorkTransactionServiceTests
         var after = await rig.Service.RemoveAsync(rig.Work.Id, pending.Id, rig.Owner.Id);
         Assert.Equal("DONE", after.WorkStatus);
         await Assert.ThrowsAsync<NotFoundException>(() => rig.Service.RemoveAsync(rig.Work.Id, pending.Id, rig.Owner.Id));
+    }
+
+    [Fact]
+    public async Task AddAsync_LeadWorkWhoseCustomerIsNotClosed_IsLocked()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        rig.MakeLeadWork(CampaignContactStatus.Called);
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => rig.AddAsync("T1"));
+
+        Assert.Equal(ErrorCodes.CampaignWorkLocked, ex.ErrorCode);
+        Assert.Equal(409, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddAsync_LeadWorkWhoseCustomerIsClosed_IsAllowed()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        rig.MakeLeadWork(CampaignContactStatus.Closed);
+        rig.Import("T1");
+
+        var result = await rig.AddAsync("T1");
+
+        Assert.Equal("MATCHED", Assert.Single(result.Items).Status);
+    }
+
+    [Fact]
+    public async Task RemoveAsync_LastCodeOfAClosedLeadWork_IsLocked()
+    {
+        var rig = new Rig((KpiAggregationType.Sum, KpiValueSource.Count));
+        rig.MakeLeadWork(CampaignContactStatus.Closed);
+        var added = await rig.AddAsync("T1");
+        var item = Assert.Single(added.Items);
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => rig.Service.RemoveAsync(rig.Work.Id, item.Id, rig.Owner.Id));
+
+        Assert.Equal(ErrorCodes.CampaignWorkLocked, ex.ErrorCode);
+        Assert.Equal(409, ex.StatusCode);
     }
 }

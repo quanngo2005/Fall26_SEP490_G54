@@ -1,0 +1,80 @@
+.import-dialog {
+  width: min(960px, 100%);
+  min-width: 0;
+}
+.file-drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.file-name {
+  min-width: 0;
+  color: #0f172a;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.hint {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.link-button {
+  margin-top: 12px;
+  border: 0;
+  background: none;
+  color: #0e7490;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+.import-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.table-scroll {
+  max-height: 340px;
+  margin-top: 8px;
+  overflow: auto;
+}
+.num {
+  text-align: right;
+}
+.row-invalid {
+  background: #fff1f2;
+}
+.row-error {
+  margin: 0;
+  color: #be123c;
+  font-size: 12px;
+}
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  color: #334155;
+  font-size: 13px;
+}
+td.mono {
+  white-space: nowrap;
+}
+.check-row {
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}

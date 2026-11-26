@@ -109,6 +109,7 @@ describe('authInterceptor', () => {
       '/my-targets/2026',
       '/data-imports',
       '/my-dashboard',
+      '/my-campaigns/c1/customers',
       '/notifications',
       '/transaction-imports',
     ]) {

@@ -15,6 +15,7 @@ export type MenuKey =
   | 'overview'
   | 'myWork'
   | 'mySubmissions'
+  | 'myCampaigns'
   | 'myTargets'
   | 'myPerformance'
   | 'notifications'
@@ -86,6 +87,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'overview',
     'myWork',
     'mySubmissions',
+    'myCampaigns',
     'myPerformance',
     'myTargets',
     'appeals',
@@ -167,6 +169,12 @@ const ITEMS: readonly NavigationItem[] = [
   { id: 'overview', icon: 'dashboard', route: '/home' },
   { id: 'myWork', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'mySubmissions', icon: 'mySubmissions', route: '/submissions', permission: 'WORK_READ' },
+  {
+    id: 'myCampaigns',
+    icon: 'targetsAndCampaigns',
+    route: '/my-campaigns',
+    permission: 'CAMPAIGN_CONTACT',
+  },
   { id: 'myTargets', icon: 'targetsAndCampaigns', route: '/my-targets' },
   { id: 'myPerformance', icon: 'myPerformance', route: '/my-evaluation' },
   { id: 'appeals', icon: 'reportsComplaints', route: '/appeals' },
@@ -297,6 +305,7 @@ export class NavigationService {
     '/my-work',
     '/work-monitor',
     '/my-targets',
+    '/my-campaigns',
     '/my-evaluation',
     '/departments',
     '/department-performance',

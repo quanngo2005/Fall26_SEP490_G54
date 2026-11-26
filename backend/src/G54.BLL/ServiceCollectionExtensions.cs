@@ -77,6 +77,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEvaluationService, EvaluationService>();
         services.AddScoped<IEvaluationProfileService, EvaluationProfileService>();
         services.AddScoped<ICampaignService, CampaignService>();
+        services.AddScoped<ICampaignCustomerService, CampaignCustomerService>();
+        services.AddScoped<IMyCampaignService, MyCampaignService>();
         services.AddScoped<ITransactionImportService, TransactionImportService>();
         services.AddScoped<ITransactionImportTemplateProvider, TransactionImportTemplateProvider>();
         services.AddScoped<IServiceRatingImportService, ServiceRatingImportService>();
@@ -88,6 +90,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IExcelSheetReader, ClosedXmlSheetReader>();
         services.AddScoped<IEmployeeImportService, EmployeeImportService>();
+        services.AddScoped<ICampaignCustomerImportService, CampaignCustomerImportService>();
         services.AddScoped<BranchYearTargetImportDefinition>();
         services.AddScoped<BranchYearTargetCommitter>();
         services.AddScoped<ITargetImportService, TargetImportService>();

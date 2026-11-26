@@ -314,12 +314,15 @@ INSERT INTO permission (id, code, name, resource, action) VALUES
  ('5eed0000-0000-0000-0009-000000000033', 'AI_REVIEW_FLAG_READ', 'Xem đoạn ghi âm cần nghe lại', 'ai_review_flag', 'read'),
  ('5eed0000-0000-0000-0009-000000000034', 'AI_REVIEW_FLAG_REVIEW', 'Xác nhận hoặc bỏ qua đoạn ghi âm cần nghe lại', 'ai_review_flag', 'review'),
  ('5eed0000-0000-0000-0009-000000000035', 'CALL_RECORDING_PLAY', 'Nghe ghi âm cuộc gọi', 'call_recording', 'play'),
- ('5eed0000-0000-0000-0009-000000000036', 'SERVICE_RATING_IMPORT_MANAGE', 'Import đánh giá dịch vụ', 'service_rating_import', 'manage')
+ ('5eed0000-0000-0000-0009-000000000036', 'SERVICE_RATING_IMPORT_MANAGE', 'Import đánh giá dịch vụ', 'service_rating_import', 'manage'),
+ ('5eed0000-0000-0000-0009-000000000037', 'CAMPAIGN_CONTACT',    'Cập nhật liên hệ khách hàng chiến dịch', 'campaign_customer', 'update')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permission (role_id, permission_id, scope)
 SELECT r.id, p.id, m.scope
 FROM (VALUES
+    -- Campaign customer contact tracking (docs/api/CAMPAIGN_CONTRACT.md §5); own-scope for every role that can be a campaign participant or owner.
+    ('EMPLOYEE', 'CAMPAIGN_CONTACT', 'Own'), ('DEPT_MANAGER', 'CAMPAIGN_CONTACT', 'Own'), ('BRANCH_MANAGER', 'CAMPAIGN_CONTACT', 'Own'),
     ('SYSTEM_ADMIN', 'WORK_READ', 'All'), ('SYSTEM_ADMIN', 'WORK_CREATE', 'All'), ('SYSTEM_ADMIN', 'WORK_UPDATE', 'All'),
     ('SYSTEM_ADMIN', 'SUBMISSION_READ', 'All'), ('SYSTEM_ADMIN', 'SUBMISSION_CREATE', 'All'), ('SYSTEM_ADMIN', 'VERIFICATION_DECIDE', 'All'),
     ('SYSTEM_ADMIN', 'KPI_READ', 'All'), ('SYSTEM_ADMIN', 'KPI_MANAGE', 'All'), ('SYSTEM_ADMIN', 'TARGET_MANAGE', 'All'), ('SYSTEM_ADMIN', 'EVALUATION_READ', 'All'),
@@ -619,9 +622,10 @@ INSERT INTO business_campaign (id, business_objective_id, code, name, descriptio
  ('5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-0010-000000000001', 'CMP-2026-Q4-HDV', 'Chiến dịch huy động tiền gửi Q4/2026', 'Đẩy mạnh huy động và mở mới khách hàng cuối năm', '2026-10-01', '2026-12-31', 'RUNNING')
 ON CONFLICT DO NOTHING;
 
+-- A campaign now targets exactly one product (CAMPAIGN_CONTRACT.md §5.5). Keep the row the CampaignLeadWorks
+-- migration keeps on existing databases (equal work counts, oldest row wins), so a reseed does not re-add the other.
 INSERT INTO campaign_work_type (id, business_campaign_id, work_type_id) VALUES
- ('5eed0000-0000-0000-0013-000000000001', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-000c-000000000001'),
- ('5eed0000-0000-0000-0013-000000000002', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-000c-000000000002')
+ ('5eed0000-0000-0000-0013-000000000001', '5eed0000-0000-0000-0012-000000000001', '5eed0000-0000-0000-000c-000000000001')
 ON CONFLICT DO NOTHING;
 
 -- 4 Sales + 2 Teller join the campaign.

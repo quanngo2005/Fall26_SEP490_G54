@@ -1,17 +1,22 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, EMPTY, finalize, map, startWith, Subject, switchMap } from 'rxjs';
 import { BatchWorkResult, CampaignDetail, CampaignStatus } from '../../core/campaign.models';
 import { CampaignService } from '../../core/campaign.service';
+import { AuthService } from '../../core/auth.service';
+import { canManageCampaigns } from '../../core/campaign-permissions';
 import { RouteStateService } from '../../core/route-state.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { AppDatePipe } from '../../shared/pipes';
 import { CampaignBatchModalComponent } from './campaign-batch-modal.component';
+import { CampaignCustomersTabComponent } from './campaign-customers-tab.component';
+import { CampaignLifecycleModalComponent } from './campaign-lifecycle-modal.component';
 import { statusBadgeClass, worksProgress } from './campaign.utils';
 
-type DetailTab = 'overview' | 'participants' | 'works';
+type DetailTab = 'overview' | 'participants' | 'works' | 'customers';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -22,6 +27,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
     HeaderComponent,
     SidebarComponent,
     CampaignBatchModalComponent,
+    CampaignCustomersTabComponent,
+    CampaignLifecycleModalComponent,
     AppDatePipe,
   ],
   templateUrl: './campaign-detail.component.html',
@@ -36,14 +43,18 @@ export class CampaignDetailComponent extends LocalizedComponent {
   private readonly api = inject(CampaignService);
   private readonly routeState = inject(RouteStateService);
   private readonly router = inject(Router);
-  private readonly reload = new Subject<void>();
+  private readonly auth = inject(AuthService);
+  protected readonly reload = new Subject<void>();
 
   protected readonly campaign = signal<CampaignDetail | null>(null);
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
+  protected readonly notFound = signal(false);
   protected readonly tab = signal<DetailTab>('overview');
   protected readonly batchOpen = signal(false);
   protected readonly notice = signal<string | null>(null);
+  protected readonly lifecycle = signal<'complete' | 'cancel' | null>(null);
+  protected readonly canManage = canManageCampaigns(this.auth.currentUser()?.permissions);
 
   protected readonly badgeClass = statusBadgeClass;
   protected readonly progress = worksProgress;
@@ -60,9 +71,14 @@ export class CampaignDetailComponent extends LocalizedComponent {
             switchMap(() => {
               this.loading.set(true);
               this.failed.set(false);
+              this.notFound.set(false);
               return this.api.detail(id).pipe(
-                catchError(() => {
+                catchError((error: unknown) => {
                   this.failed.set(true);
+                  this.notFound.set(
+                    error instanceof HttpErrorResponse &&
+                      (error.status === 404 || error.status === 403),
+                  );
                   return EMPTY;
                 }),
                 finalize(() => this.loading.set(false)),
@@ -96,6 +112,16 @@ export class CampaignDetailComponent extends LocalizedComponent {
   protected onGenerated(result: BatchWorkResult): void {
     this.batchOpen.set(false);
     this.notice.set(result.message || this.localization.campaign.batch.done);
+    this.reload.next();
+  }
+
+  protected onLifecycleDone(mode: 'complete' | 'cancel'): void {
+    this.lifecycle.set(null);
+    this.notice.set(
+      mode === 'complete'
+        ? this.localization.campaignCustomers.lifecycle.doneComplete
+        : this.localization.campaignCustomers.lifecycle.doneCancel,
+    );
     this.reload.next();
   }
 }

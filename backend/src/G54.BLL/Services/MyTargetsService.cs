@@ -449,6 +449,11 @@ public sealed class MyTargetsService(
         {
             var target = await uow.Employees.Query(false).AsNoTracking().FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken)
                 ?? throw new NotFoundException("Nhân viên", employeeId);
+            if (!await permissions.HasPermissionAsync(userId, "target", "manage", PermissionScopes.Dept, cancellationToken))
+            {
+                throw new ForbiddenException(DepartmentAccessGuard.AccessDenied);
+            }
+
             await DepartmentAccessGuard.EnsureDepartmentAccessAsync(uow, permissions, userId, target.DepartmentId, cancellationToken);
         }
 

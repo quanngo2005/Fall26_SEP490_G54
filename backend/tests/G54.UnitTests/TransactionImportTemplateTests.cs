@@ -332,6 +332,9 @@ public sealed class TransactionImportTemplateTests
         public Task<WorkTransactionsDto> AddAsync(Guid workId, Guid userId, AddWorkTransactionsRequestDto request, CancellationToken ct = default) =>
             throw new NotImplementedException();
 
+        public Task<WorkTransactionsDto> AddForLeadCloseAsync(Work work, IReadOnlyList<string> codes, CancellationToken ct = default) =>
+            throw new NotImplementedException();
+
         public Task<WorkTransactionsDto> ListAsync(Guid workId, Guid userId, CancellationToken ct = default) =>
             throw new NotImplementedException();
 

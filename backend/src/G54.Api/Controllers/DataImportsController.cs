@@ -1,4 +1,5 @@
 using G54.Api.Authorization;
+using G54.Api.Common;
 using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Models;
@@ -37,7 +38,7 @@ public sealed class DataImportsController(IEmployeeImportService service, IOptio
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Preview(IFormFile? file, CancellationToken cancellationToken)
     {
-        if (!await IsAcceptableAsync(file))
+        if (!await XlsxUploadValidator.IsAcceptableAsync(file, parameters.Value.ImportMaxFileMb))
         {
             return InvalidFile();
         }
@@ -56,7 +57,7 @@ public sealed class DataImportsController(IEmployeeImportService service, IOptio
     [ProducesResponseType<ApiResponse>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Commit(IFormFile? file, CancellationToken cancellationToken)
     {
-        if (!await IsAcceptableAsync(file))
+        if (!await XlsxUploadValidator.IsAcceptableAsync(file, parameters.Value.ImportMaxFileMb))
         {
             return InvalidFile();
         }
@@ -73,23 +74,4 @@ public sealed class DataImportsController(IEmployeeImportService service, IOptio
         $"File phải là .xlsx hợp lệ, không rỗng, tối đa {parameters.Value.ImportMaxFileMb} MB.",
         traceId: HttpContext.TraceIdentifier,
         status: StatusCodes.Status400BadRequest));
-
-    private async Task<bool> IsAcceptableAsync(IFormFile? file)
-    {
-        var maxBytes = parameters.Value.ImportMaxFileMb * 1024L * 1024;
-        return file is not null && file.Length > 0 && file.Length <= maxBytes && await IsValidXlsxAsync(file);
-    }
-
-    private static async Task<bool> IsValidXlsxAsync(IFormFile file)
-    {
-        if (!string.Equals(Path.GetExtension(file.FileName), XlsxExtension, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        var header = new byte[EvidenceFileValidator.HeaderLength];
-        await using var stream = file.OpenReadStream();
-        var read = await stream.ReadAsync(header);
-        return EvidenceFileValidator.HasValidSignature(XlsxExtension, header.AsSpan(0, read));
-    }
 }

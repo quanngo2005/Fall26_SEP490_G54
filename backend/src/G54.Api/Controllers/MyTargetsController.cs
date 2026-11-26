@@ -11,7 +11,7 @@ namespace G54.Api.Controllers;
 /// <summary>
 /// Employee-facing "my-targets" routes for Target Allocation v3 (BR-36): own year/quarter targets, year-level
 /// confirmation, feedback with an optional proposed value, DM reply, and quarter progress.
-/// Deliberately [Authorize]-only at the class level (like <see cref="MyTargetAssignmentsController"/>): the
+/// Deliberately [Authorize]-only at the controller level (like <see cref="MyTargetAssignmentsController"/>): the
 /// caller's employeeId is always derived server-side, so any authenticated employee can see/confirm their own
 /// data. The DM reply action additionally requires target:manage at Department scope.
 /// Contract: docs/api/TARGET_ALLOCATION_CONTRACT.md "Employee side".

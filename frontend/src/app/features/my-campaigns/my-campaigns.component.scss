@@ -1,0 +1,84 @@
+.breadcrumb a {
+  color: inherit;
+  text-decoration: none;
+}
+.campaign-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+.campaign-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+.campaign-card.needs-action {
+  border: 1px solid #fde68a;
+}
+.campaign-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.campaign-card h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.campaign-card p {
+  margin: 0;
+}
+.progress-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.status-counts {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.status-counts li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.campaign-card .button {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: #64748b;
+  cursor: pointer;
+  font:
+    500 14px 'Nunito Sans',
+    sans-serif;
+  padding: 10px 14px;
+}
+.tab:hover,
+.tab.is-active {
+  color: #002b49;
+}
+.tab.is-active {
+  border-bottom-color: #002b49;
+}
+.tab-count {
+  margin-left: 6px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  padding: 1px 8px;
+}

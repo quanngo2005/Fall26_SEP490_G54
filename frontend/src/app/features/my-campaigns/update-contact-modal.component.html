@@ -1,0 +1,165 @@
+@let t = text;
+<div
+  animate.leave="g54-leave-fade"
+  class="modal-backdrop"
+  (click)="closed.emit()"
+  (keydown.escape)="closed.emit()"
+  role="presentation"
+>
+  <div
+    animate.leave="g54-leave-pop"
+    class="modal-dialog update-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="update-contact-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    <div class="modal-header">
+      <h2 id="update-contact-title">{{t.title}}</h2>
+      <button type="button" class="modal-close" [attr.aria-label]="t.close" (click)="closed.emit()">
+        ×
+      </button>
+    </div>
+
+    <div class="modal-body">
+      @if (serverError(); as message) {
+        <div class="notice is-error" role="alert">
+          <span>{{message}}</span>
+        </div>
+      }
+
+      @let c = customer();
+      <section class="customer-card">
+        <strong>{{c.customerName}}</strong>
+        <span class="muted mono">CIF {{c.customerCif}}</span>
+        <span class="muted mono">{{c.phone ?? localization.campaign.noValue}}</span>
+        @if (c.note) {
+          <p class="muted">{{t.note}}: {{c.note}}</p>
+        }
+        <p class="current">
+          {{t.currentStatus}}:
+          <span class="status-badge" [class]="badge(c.contactStatus)">
+            {{statusLabel(c.contactStatus)}}
+          </span>
+          · {{c.resultText}}
+        </p>
+      </section>
+
+      @if (confirming()) {
+        <div class="notice is-warning" role="alert">
+          <span
+            ><strong>{{t.confirmTitle}}</strong> {{confirmBody()}}</span
+          >
+        </div>
+      } @else {
+        <div class="field">
+          <label for="contact-status">{{t.status}} *</label>
+          <select
+            id="contact-status"
+            class="select"
+            (change)="setStatus($any($event.target).value)"
+          >
+            @for (item of statuses; track item) {
+              <option [value]="item" [selected]="item === status()">{{statusLabel(item)}}</option>
+            }
+          </select>
+        </div>
+
+        @if (status() === 'CALLED') {
+          <fieldset class="field">
+            <legend>{{t.callResult}} *</legend>
+            <label class="check-row">
+              <input
+                type="radio"
+                name="call-result"
+                [checked]="answered() === true"
+                (change)="answered.set(true)"
+              />
+              {{t.answered}}
+            </label>
+            <label class="check-row">
+              <input
+                type="radio"
+                name="call-result"
+                [checked]="answered() === false"
+                (change)="answered.set(false)"
+              />
+              {{t.missed}}
+            </label>
+            @if (c.missedCallCount > 0) {
+              <p class="hint">{{missedText()}}</p>
+            }
+            @if (fieldError('answered'); as message) {
+              <p class="field-error" role="alert">{{message}}</p>
+            }
+          </fieldset>
+        }
+
+        @if (needsWhen()) {
+          <div class="field">
+            <label for="contact-when">
+              {{status() === 'MET' ? t.metAt : t.appointmentAt}} *
+            </label>
+            <input id="contact-when" class="input" type="datetime-local" [(ngModel)]="whenValue" />
+            @if (fieldError('when'); as message) {
+              <p class="field-error" role="alert">{{message}}</p>
+            }
+          </div>
+        }
+
+        @if (status() === 'CLOSED') {
+          <div class="notice is-warning" role="status">
+            <span>{{t.finalWarning}}</span>
+          </div>
+          <div class="field">
+            <label for="contact-codes">{{t.transactionCodes}} *</label>
+            <textarea
+              id="contact-codes"
+              class="textarea"
+              rows="3"
+              [ngModel]="codesText()"
+              (ngModelChange)="codesText.set($event)"
+            ></textarea>
+            <p class="hint">{{t.transactionCodesHint}}</p>
+            @if (fieldError('codes'); as message) {
+              <p class="field-error" role="alert">{{message}}</p>
+            }
+          </div>
+          <div class="field">
+            <label for="contact-note">{{t.closeNote}}</label>
+            <textarea
+              id="contact-note"
+              class="textarea"
+              rows="2"
+              maxlength="1000"
+              [(ngModel)]="closeNote"
+            ></textarea>
+            @if (fieldError('note'); as message) {
+              <p class="field-error" role="alert">{{message}}</p>
+            }
+          </div>
+        }
+      }
+    </div>
+
+    <div class="modal-footer">
+      @if (confirming()) {
+        <button type="button" class="button button-secondary" (click)="backFromConfirm()">
+          {{t.back}}
+        </button>
+        <button type="button" class="button button-primary" [disabled]="saving()" (click)="save()">
+          {{saving() ? t.saving : t.confirm}}
+        </button>
+      } @else {
+        <button type="button" class="button button-secondary" (click)="closed.emit()">
+          {{t.cancel}}
+        </button>
+        <button type="button" class="button button-primary" [disabled]="saving()" (click)="save()">
+          {{saving() ? t.saving : t.save}}
+        </button>
+      }
+    </div>
+  </div>
+</div>

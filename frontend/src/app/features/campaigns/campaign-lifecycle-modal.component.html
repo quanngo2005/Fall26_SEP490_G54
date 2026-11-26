@@ -1,0 +1,62 @@
+@let t = text;
+<div
+  animate.leave="g54-leave-fade"
+  class="modal-backdrop"
+  (click)="closed.emit()"
+  (keydown.escape)="closed.emit()"
+  role="presentation"
+>
+  <div
+    animate.leave="g54-leave-pop"
+    class="modal-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="campaign-lifecycle-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    <div class="modal-header">
+      <h2 id="campaign-lifecycle-title">{{title()}}</h2>
+      <button
+        type="button"
+        class="modal-close"
+        [attr.aria-label]="localization.common.close"
+        (click)="closed.emit()"
+      >
+        ×
+      </button>
+    </div>
+    <div class="modal-body">
+      @if (error(); as message) {
+        <div class="notice is-error" role="alert">
+          <span>{{message}}</span>
+        </div>
+      }
+      <p>{{body()}}</p>
+      @if (mode() === 'cancel') {
+        <div class="field">
+          <label for="campaign-cancel-reason">{{t.reason}} *</label>
+          <textarea
+            id="campaign-cancel-reason"
+            class="textarea"
+            rows="3"
+            maxlength="1000"
+            [(ngModel)]="reason"
+          ></textarea>
+          @if (reasonError(); as message) {
+            <p class="field-error" role="alert">{{message}}</p>
+          }
+        </div>
+      }
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="button button-secondary" (click)="closed.emit()">
+        {{t.keep}}
+      </button>
+      <button type="button" class="button button-primary" [disabled]="saving()" (click)="submit()">
+        {{saving() ? t.working : mode() === 'complete' ? t.confirmComplete : t.confirmCancel}}
+      </button>
+    </div>
+  </div>
+</div>
