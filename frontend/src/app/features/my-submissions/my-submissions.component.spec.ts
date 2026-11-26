@@ -114,9 +114,33 @@ describe('MySubmissionsComponent', () => {
         success: true,
         status: 200,
         data: [
-          { id: 'dec', code: '2026-12', name: 'Tháng 12', status: 'OPEN', isActive: true, startDate: '2026-12-01', endDate: '2026-12-31' },
-          { id: 'nov', code: '2026-11', name: 'Tháng 11', status: 'OPEN', isActive: false, startDate: '2026-11-01', endDate: '2026-11-30' },
-          { id: 'q4', code: '2026-Q4', name: 'Quý 4', status: 'OPEN', isActive: false, startDate: '2026-10-01', endDate: '2026-12-31' },
+          {
+            id: 'dec',
+            code: '2026-12',
+            name: 'Tháng 12',
+            status: 'OPEN',
+            isActive: true,
+            startDate: '2026-12-01',
+            endDate: '2026-12-31',
+          },
+          {
+            id: 'nov',
+            code: '2026-11',
+            name: 'Tháng 11',
+            status: 'OPEN',
+            isActive: false,
+            startDate: '2026-11-01',
+            endDate: '2026-11-30',
+          },
+          {
+            id: 'q4',
+            code: '2026-Q4',
+            name: 'Quý 4',
+            status: 'OPEN',
+            isActive: false,
+            startDate: '2026-10-01',
+            endDate: '2026-12-31',
+          },
         ],
       });
       const request = http.expectOne((r) => r.url === listUrl);

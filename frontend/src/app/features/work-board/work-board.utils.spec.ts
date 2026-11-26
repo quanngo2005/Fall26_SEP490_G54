@@ -86,9 +86,9 @@ describe('work board helpers', () => {
   });
 
   it('allows starting only from the statuses the API accepts', () => {
-    expect(['NEW', 'HANDED_OVER', 'REJECTED'].every((status) => canStart({ status } as never))).toBe(
-      true,
-    );
+    expect(
+      ['NEW', 'HANDED_OVER', 'REJECTED'].every((status) => canStart({ status } as never)),
+    ).toBe(true);
     expect(
       ['IN_PROGRESS', 'SUBMITTED', 'VERIFIED', 'OVERDUE', 'DONE', 'CANCELLED'].some((status) =>
         canStart({ status } as never),

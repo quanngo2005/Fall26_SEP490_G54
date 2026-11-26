@@ -77,7 +77,9 @@ describe('ReconciliationFlagModalComponent', () => {
 
     submit(fixture);
 
-    http.expectOne(`${environment.apiUrl}/submissions/s1/quality-flags`).flush({ success: true, data: { id: 'f1' } });
+    http
+      .expectOne(`${environment.apiUrl}/submissions/s1/quality-flags`)
+      .flush({ success: true, data: { id: 'f1' } });
     const request = http.expectOne(`${environment.apiUrl}/quality-flags/f1/request-rework`);
     expect(request.request.body).toEqual({ comment: 'Chứng từ không khớp với báo cáo.' });
     request.flush({ success: true, data: {} });
