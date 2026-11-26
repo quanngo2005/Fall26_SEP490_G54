@@ -15,7 +15,7 @@ import {
 } from '../../core/department.models';
 import { EvaluationService } from '../../core/evaluation.service';
 import { BranchEvaluationPeriodItem } from '../../core/evaluation.models';
-import { SelectOption, UiSelectComponent } from '../../shared/ui';
+import { CompareSliderComponent, SelectOption, UiSelectComponent } from '../../shared/ui';
 import { PerfCampaignPaceComponent } from '../performance-dashboard/performance-campaign-pace.component';
 import { PerfChildUnitsComponent } from '../performance-dashboard/performance-child-units.component';
 import {
@@ -43,6 +43,7 @@ const CAMPAIGN_CARD_SIZE = 5;
   selector: 'app-branch-performance',
   imports: [
     UiSelectComponent,
+    CompareSliderComponent,
     HeaderComponent,
     SidebarComponent,
     PerfMetricCardComponent,

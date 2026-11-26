@@ -8,6 +8,9 @@ export interface RankingBoardTierRow {
   headcount: number | null;
   actualCount: number;
   isFilled: boolean;
+  periodQuotaMax?: number | null;
+  isOverPeriodQuota?: boolean;
+  isFlex?: boolean;
 }
 
 @Component({

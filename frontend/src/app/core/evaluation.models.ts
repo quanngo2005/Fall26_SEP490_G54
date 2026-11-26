@@ -256,6 +256,9 @@ export interface DepartmentApprovalSummary {
   averageScore: number;
   tierACount: number;
   tierAPercent: number;
+  tierA1Count?: number;
+  tierA2Count?: number;
+  tierA3Count?: number;
   tierBCount: number;
   tierCCount: number;
   tierDCount: number;

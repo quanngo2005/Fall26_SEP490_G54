@@ -1,4 +1,4 @@
-﻿<div class="workspace-layout">
+<div class="workspace-layout">
   <app-sidebar />
   <div class="workspace-main">
     <app-header />
@@ -87,11 +87,13 @@
           [ariaLabel]="localization.evaluations.departmentRanking.periodAria"
           (valueChange)="onPeriodValueSelected($event)"
         />
-        <app-ui-select
-          [options]="comparePeriodOptions()"
-          [value]="selectedComparePeriodId() ?? ''"
-          [ariaLabel]="localization.evaluations.departmentRanking.compareAria"
-          (valueChange)="onComparePeriodSelected($event)"
+        <app-compare-slider
+          [mode]="compareMode()"
+          [hasPrevious]="hasPreviousPeriod()"
+          [hasSameLastYear]="hasSameLastYearPeriod()"
+          [previousTooltip]="previousPeriod()?.name ?? ''"
+          [sameLastYearTooltip]="sameLastYearPeriod()?.name ?? ''"
+          (modeChange)="onCompareModeChanged($event)"
         />
         @if (board(); as data) {
           <div

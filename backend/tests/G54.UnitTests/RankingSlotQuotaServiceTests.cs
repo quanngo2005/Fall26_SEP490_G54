@@ -17,7 +17,7 @@ public sealed class RankingSlotQuotaServiceTests : IDisposable
 
     public RankingSlotQuotaServiceTests()
     {
-        _db.Departments.Add(new Department { Id = _departmentId, Code = "DEP-SLOT", Name = "Phòng slot" });
+        _db.Departments.Add(new Department { Id = _departmentId, Code = "DEP-SLOT", Name = "Phòng slot", LevelType = DepartmentLevelType.Department, Status = RecordStatus.Active });
         _db.SaveChanges();
     }
 
@@ -148,6 +148,28 @@ public sealed class RankingSlotQuotaServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Update_WhenPeriodIsInThePast_ThrowsBusinessRuleExceptionWith409()
+    {
+        var pastPeriod = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "PER-PAST",
+            Name = "Kỳ quá khứ",
+            Status = PeriodStatus.Open,
+            StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-2)),
+            EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
+        };
+        _db.EvaluationPeriods.Add(pastPeriod);
+        await _db.SaveChangesAsync();
+
+        var service = new RankingSlotQuotaService(_db);
+        var request = Request(1, 2, 3, 4, 5) with { PeriodId = pastPeriod.Id };
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() => service.UpdateAsync(request));
+        Assert.Equal(409, ex.StatusCode);
+    }
+
+    [Fact]
     public async Task Get_WhenPeriodHasNoDirectQuotas_FallsBackToPriorPeriod()
     {
         var period1 = new EvaluationPeriod
@@ -165,8 +187,8 @@ public sealed class RankingSlotQuotaServiceTests : IDisposable
             Code = "PER-2",
             Name = "Kỳ 2",
             Status = PeriodStatus.Open,
-            StartDate = new DateOnly(2026, 2, 1),
-            EndDate = new DateOnly(2026, 2, 28),
+            StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(1)),
         };
         _db.EvaluationPeriods.AddRange(period1, period2);
         await _db.SaveChangesAsync();
@@ -194,6 +216,33 @@ public sealed class RankingSlotQuotaServiceTests : IDisposable
 
         var period2Quotas = await service.GetAsync(_departmentId, period2.Id);
         Assert.Equal(new int?[] { 7, 7, 7, 7, 7 }, period2Quotas.Slots.Select(s => s.Headcount).ToArray());
+    }
+
+    [Fact]
+    public async Task BranchQuota_GetsAndUpdatesCorrectly()
+    {
+        var branch = new Department { Id = Guid.NewGuid(), Code = "BR-01", Name = "Chi nhánh", LevelType = DepartmentLevelType.Branch, Status = RecordStatus.Active };
+        var period = new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2026-P1", Name = "Kỳ 1", PeriodType = PeriodType.Month, StartDate = DateOnly.FromDateTime(DateTime.UtcNow), EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(1)), Status = PeriodStatus.Open };
+        _db.Departments.Add(branch);
+        _db.EvaluationPeriods.Add(period);
+        await _db.SaveChangesAsync();
+
+        var service = new RankingSlotQuotaService(_db);
+        var slots = new List<RankingSlotQuotaDto>
+        {
+            new("A1", 2),
+            new("A2", 3),
+            new("A3", 4),
+            new("B", 8),
+            new("C", 3),
+        };
+
+        var updated = await service.UpdateBranchQuotaAsync(period.Id, slots);
+        Assert.Equal(branch.Id, updated.DepartmentId);
+        Assert.Equal(new int?[] { 2, 3, 4, 8, 3 }, updated.Slots.Select(s => s.Headcount).ToArray());
+
+        var fetched = await service.GetBranchQuotaAsync(period.Id);
+        Assert.Equal(new int?[] { 2, 3, 4, 8, 3 }, fetched.Slots.Select(s => s.Headcount).ToArray());
     }
 
     private UpdateRankingSlotQuotasDto Request(int a1, int a2, int a3, int b, int c = 5) => new(_departmentId,

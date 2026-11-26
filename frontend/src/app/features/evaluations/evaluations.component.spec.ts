@@ -7,7 +7,7 @@ import { By } from '@angular/platform-browser';
 import { EvaluationsComponent } from './evaluations.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
-import { UiSelectComponent } from '../../shared/ui';
+import { CompareSliderComponent } from '../../shared/ui';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { DepartmentEvaluationDashboard } from '../../core/evaluation.models';
 import { environment } from '../../../environments/environment';
@@ -385,11 +385,8 @@ describe('EvaluationsComponent', () => {
   });
 
   it('reloads dashboard when compare period changes', () => {
-    const compareLabel = i18n.translate('evaluations.dashboard.periodCompareAria');
-    const compareSelect = fixture.debugElement
-      .queryAll(By.directive(UiSelectComponent))
-      .find((el) => el.componentInstance.ariaLabel() === compareLabel);
-    compareSelect!.componentInstance.valueChange.emit('period-10');
+    const compareSlider = fixture.debugElement.query(By.directive(CompareSliderComponent));
+    compareSlider.componentInstance.modeChange.emit('PREVIOUS');
 
     const req = httpMock.expectOne(
       `${environment.apiUrl}/evaluations/department-dashboard?periodId=period-11&comparePeriodId=period-10`,

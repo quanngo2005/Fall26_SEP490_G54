@@ -157,7 +157,8 @@ describe('BranchPerformanceComponent', () => {
     const { fixture, root } = open();
 
     const selects = root.querySelectorAll('app-ui-select');
-    expect(selects.length).toBe(3); // branch, period, compare mode
+    expect(selects.length).toBe(2); // branch, period
+    expect(root.querySelectorAll('app-compare-slider').length).toBe(1); // compare slider
 
     const comp = fixture.componentInstance;
     expect(comp['branchOptions']().length).toBe(2);

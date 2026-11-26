@@ -8,13 +8,21 @@
   box-sizing: border-box;
   padding: 18px 20px;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   box-shadow: 0 1px 3px 0 rgb(15 23 42 / 5%);
+  transition:
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
 }
 .card.is-clickable {
-  border-color: #93c5fd;
-  box-shadow: 0 2px 6px 0 rgb(37 99 235 / 10%);
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 4px 0 rgb(15 23 42 / 6%);
+
+  &:hover {
+    border-color: #93c5fd;
+    box-shadow: 0 4px 12px 0 rgb(37 99 235 / 10%);
+  }
 }
 .card-head {
   display: flex;
@@ -89,6 +97,8 @@
 .warn {
   color: #c2410c;
 }
+.font-mono,
 .mono {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Nunito Sans', sans-serif;
+  font-variant-numeric: tabular-nums;
 }

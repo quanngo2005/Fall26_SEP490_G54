@@ -473,6 +473,43 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     }
 
     /// <summary>
+    /// Gets ranking slot quotas for the entire branch/period (SCR-EVL-03 - UC106).
+    /// </summary>
+    [HttpGet("approvals/period-quota")]
+    [ProducesResponseType<ApiResponse<RankingSlotQuotasDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Branch")]
+    public async Task<ActionResult<ApiResponse<RankingSlotQuotasDto>>> GetBranchPeriodSlotQuotas(
+        [FromQuery] Guid periodId,
+        [FromServices] IRankingSlotQuotaService quotaService,
+        CancellationToken cancellationToken)
+    {
+        RequireIds(("periodId", periodId));
+        var result = await quotaService.GetBranchQuotaAsync(periodId, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Updates ranking slot quotas for the entire branch/period by Branch Manager (SCR-EVL-03 - UC106).
+    /// </summary>
+    [HttpPut("approvals/period-quota")]
+    [ProducesResponseType<ApiResponse<RankingSlotQuotasDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "finalize", "Branch")]
+    public async Task<ActionResult<ApiResponse<RankingSlotQuotasDto>>> UpdateBranchPeriodSlotQuotas(
+        [FromQuery] Guid periodId,
+        [FromBody] UpdateRankingSlotQuotasDto request,
+        [FromServices] IRankingSlotQuotaService quotaService,
+        CancellationToken cancellationToken)
+    {
+        RequireIds(("periodId", periodId));
+        var result = await quotaService.UpdateBranchQuotaAsync(periodId, request.Slots.ToList(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
     /// Pre-close operational checklist before finalizing/locking an evaluation period (SCR-EVL-03-M1).
     /// </summary>
     [HttpGet("pre-close-check")]

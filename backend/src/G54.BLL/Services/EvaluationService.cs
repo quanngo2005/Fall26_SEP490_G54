@@ -1252,7 +1252,7 @@ public sealed partial class EvaluationService(
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
 
         var period = await db.EvaluationPeriods
             .AsNoTracking()
@@ -1260,10 +1260,11 @@ public sealed partial class EvaluationService(
             ?? throw new NotFoundException("Kỳ đánh giá", periodId);
 
         var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var branchDeptIds = hierarchy.Subtree(reviewer.DepartmentId);
 
         var departments = await db.Departments
             .AsNoTracking()
-            .Where(d => d.Status == RecordStatus.Active && d.LevelType == DepartmentLevelType.Department)
+            .Where(d => d.Status == RecordStatus.Active && d.LevelType == DepartmentLevelType.Department && branchDeptIds.Contains(d.Id))
             .OrderBy(d => d.Name)
             .ToListAsync(cancellationToken);
 
@@ -1322,6 +1323,9 @@ public sealed partial class EvaluationService(
             }
 
             int tierA = 0;
+            int tierA1 = 0;
+            int tierA2 = 0;
+            int tierA3 = 0;
             int tierB = 0;
             int tierC = 0;
             int tierD = 0;
@@ -1346,7 +1350,9 @@ public sealed partial class EvaluationService(
                     ?? (pe.TotalScore.HasValue
                         ? TierDeterminer.DetermineTier(pe.TotalScore.Value, empRisks, downgradeConfiguration)
                         : "B");
-                if (tier is "A1" or "A2" or "A3") tierA++;
+                if (tier == "A1") { tierA++; tierA1++; }
+                else if (tier == "A2") { tierA++; tierA2++; }
+                else if (tier == "A3") { tierA++; tierA3++; }
                 else if (tier == "B") tierB++;
                 else if (tier == "C") tierC++;
                 else tierD++;
@@ -1390,7 +1396,10 @@ public sealed partial class EvaluationService(
                 tierD,
                 isCompliant,
                 reviewerComment,
-                latestSubmit));
+                latestSubmit,
+                tierA1,
+                tierA2,
+                tierA3));
         }
 
         var branchQuotaPct = Params.TierAQuotaPercent;

@@ -51,7 +51,8 @@ public sealed partial class EvaluationService
         {
             int? headcount = slots.TryGetValue(code, out var value) ? value : null;
             var actual = rows.Count(r => r.CalibratedTier == code);
-            return new RankingBoardTierDto(code, headcount, actual, headcount == actual);
+            var isTierA = code.StartsWith('A');
+            return new RankingBoardTierDto(code, headcount, actual, isTierA ? (headcount == actual) : true);
         }).ToList();
 
         var comparePeriod = comparePeriodId is { } requestedCompare
@@ -428,7 +429,7 @@ public sealed partial class EvaluationService
         var blockers = new List<string>();
         foreach (var tier in tiers)
         {
-            if (tier.Headcount is null)
+            if (tier.Headcount is null && tier.TierCode.StartsWith('A'))
             {
                 blockers.Add($"Hạng {tier.TierCode} chưa cấu hình slot.");
             }

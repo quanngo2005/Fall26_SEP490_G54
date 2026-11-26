@@ -621,6 +621,52 @@ public sealed partial class DepartmentService(
             .OrderBy(a => a.Code, StringComparer.Ordinal)
             .ToList();
 
+        // If monthly period has no direct target assignments, fall back to parent quarter targets prorated by days
+        if (latest.Count == 0 && period.PeriodType == PeriodType.Month && period.ParentPeriodId.HasValue)
+        {
+            var parentPeriod = await db.EvaluationPeriods.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == period.ParentPeriodId.Value, cancellationToken);
+
+            if (parentPeriod != null)
+            {
+                var parentAssignments = await db.TargetAssignments.AsNoTracking()
+                    .Where(t => t.DepartmentId == departmentId
+                        && t.EvaluationPeriodId == period.ParentPeriodId.Value
+                        && t.Status == TargetAssignmentStatus.Active)
+                    .Select(t => new TargetRow(
+                        t.KpiDefinitionId,
+                        t.Version,
+                        t.TargetValue,
+                        t.KpiDefinition.Code,
+                        t.KpiDefinition.Name,
+                        t.KpiDefinition.Unit,
+                        t.KpiDefinition.Direction,
+                        t.KpiDefinition.AggregationType,
+                        t.KpiDefinition.MaxAchievementPercent))
+                    .ToListAsync(cancellationToken);
+
+                if (parentAssignments.Count > 0)
+                {
+                    var parentDays = parentPeriod.EndDate.DayNumber - parentPeriod.StartDate.DayNumber + 1;
+                    var monthDays = period.EndDate.DayNumber - period.StartDate.DayNumber + 1;
+                    var ratio = parentDays > 0 ? (decimal)monthDays / parentDays : 1m / 3m;
+
+                    latest = parentAssignments
+                        .GroupBy(a => a.KpiDefinitionId)
+                        .Select(g =>
+                        {
+                            var row = g.OrderByDescending(a => a.Version).First();
+                            var targetVal = row.AggregationType == KpiAggregationType.Sum
+                                ? Math.Round(row.TargetValue * ratio, 2, MidpointRounding.AwayFromZero)
+                                : row.TargetValue;
+                            return row with { TargetValue = targetVal };
+                        })
+                        .OrderBy(a => a.Code, StringComparer.Ordinal)
+                        .ToList();
+                }
+            }
+        }
+
         if (latest.Count == 0)
         {
             return [];

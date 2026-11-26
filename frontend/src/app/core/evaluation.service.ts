@@ -31,6 +31,7 @@ import {
   AutoAssignRankingBoardRequest,
   SubmitEvaluationRequest,
   RankingSlotQuotas,
+  RankingSlotQuotaItem,
   UpdateRankingSlotQuotasRequest,
 } from './evaluation.models';
 
@@ -150,6 +151,27 @@ export class EvaluationService {
       .put<ApiResponse<RankingSlotQuotas>>(
         `${this.url}/approvals/departments/${departmentId}/quotas`,
         request,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  getBranchPeriodQuota(periodId: string): Observable<RankingSlotQuotas> {
+    const params = new HttpParams().set('periodId', periodId);
+    return this.http
+      .get<ApiResponse<RankingSlotQuotas>>(`${this.url}/approvals/period-quota`, { params })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  updateBranchPeriodQuota(
+    periodId: string,
+    slots: RankingSlotQuotaItem[],
+  ): Observable<RankingSlotQuotas> {
+    const params = new HttpParams().set('periodId', periodId);
+    return this.http
+      .put<ApiResponse<RankingSlotQuotas>>(
+        `${this.url}/approvals/period-quota`,
+        { departmentId: '00000000-0000-0000-0000-000000000000', periodId, slots },
+        { params },
       )
       .pipe(map((response) => this.unwrap(response)));
   }

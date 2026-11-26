@@ -16,7 +16,14 @@ import { I18nService } from '../../../core/i18n/i18n.service';
 import { HeaderComponent, SidebarComponent } from '../../../shared/layout';
 import { LayoutIconComponent } from '../../../shared/layout/layout-icon.component';
 import { PreCloseCheckModalComponent } from '../pre-close-check-modal/pre-close-check-modal.component';
-import { SelectOption, StatusBadgeComponent, UiSelectComponent } from '../../../shared/ui';
+import {
+  ComparePeriodMode,
+  CompareSliderComponent,
+  SelectOption,
+  StatusBadgeComponent,
+  UiSelectComponent,
+} from '../../../shared/ui';
+import { findPreviousPeriod, findSameLastYearPeriod } from '../../../core/period-options';
 import {
   DepartmentRankingTierTableComponent,
   RankingBoardTierRow,
@@ -43,6 +50,7 @@ import { RouteStateService } from '../../../core/route-state.service';
     PreCloseCheckModalComponent,
     StatusBadgeComponent,
     UiSelectComponent,
+    CompareSliderComponent,
     DepartmentRankingTierTableComponent,
   ],
   templateUrl: './department-ranking-approval.component.html',
@@ -75,6 +83,24 @@ export class DepartmentRankingApprovalComponent implements OnInit {
   departmentQuotas = signal<RankingSlotQuotaItem[]>([]);
   savingQuota = signal<boolean>(false);
 
+  // View Mode: 'single' (từng phòng) vs 'all' (tất cả phòng)
+  viewMode = signal<'single' | 'all'>('single');
+  expandedDeptIds = signal<Set<string>>(new Set<string>());
+  deptCalibrations = signal<Map<string, CalibrationOverview>>(new Map());
+  loadingDeptCalibrations = signal<Set<string>>(new Set<string>());
+
+  // Period Total Quota (Quota tổng của kỳ)
+  periodQuota = signal<RankingSlotQuotaItem[]>([]);
+  periodQuotaDraft = signal<Record<string, number | null>>({
+    A1: null,
+    A2: null,
+    A3: null,
+    B: null,
+    C: null,
+  });
+  isEditingPeriodQuota = signal<boolean>(false);
+  savingPeriodQuota = signal<boolean>(false);
+
   currentPeriod = computed<EvaluationPeriodOption | undefined>(() => {
     const pid = this.periodId();
     return this.periods().find((p) => p.id === pid);
@@ -83,7 +109,14 @@ export class DepartmentRankingApprovalComponent implements OnInit {
   isPeriodLocked = computed<boolean>(() => {
     const period = this.currentPeriod();
     if (!period) return false;
-    return period.status === 'LOCKED' || period.status === 'CLOSED';
+    if (period.status === 'LOCKED' || period.status === 'CLOSED') {
+      return true;
+    }
+    if (period.endDate) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      return period.endDate < todayStr;
+    }
+    return false;
   });
 
   loadingOverview = signal<boolean>(false);
@@ -157,6 +190,19 @@ export class DepartmentRankingApprovalComponent implements OnInit {
     this.filteredPeriods().map((p) => ({ value: p.id, label: p.name })),
   );
 
+  readonly compareMode = signal<ComparePeriodMode>('PREVIOUS');
+
+  readonly previousPeriod = computed(() =>
+    findPreviousPeriod(this.currentPeriod(), this.comparePeriods()),
+  );
+
+  readonly sameLastYearPeriod = computed(() =>
+    findSameLastYearPeriod(this.currentPeriod(), this.periods()),
+  );
+
+  readonly hasPreviousPeriod = computed(() => !!this.previousPeriod());
+  readonly hasSameLastYearPeriod = computed(() => !!this.sameLastYearPeriod());
+
   readonly comparePeriods = computed(() =>
     this.filteredPeriods().filter((p) => p.id !== this.periodId()),
   );
@@ -204,7 +250,15 @@ export class DepartmentRankingApprovalComponent implements OnInit {
       const headcount = slot ? slot.headcount : null;
       const actualCount = roster.filter((r) => r.calibratedTier === tier).length;
       const share = headcount != null && total > 0 ? (headcount / total) * 100 : null;
-      const isFilled = headcount != null ? actualCount <= headcount : true;
+
+      const isTierA = tier.startsWith('A');
+      // Tier A must not exceed headcount; B and C are flexible
+      const isFilled = isTierA ? (headcount != null ? actualCount <= headcount : true) : true;
+
+      // Only Tier A has quota cap from Quota Tổng; B and C are flex
+      const periodQuotaMax = isTierA ? this.getPeriodQuotaHeadcount(tier) : null;
+      const isOverPeriodQuota =
+        isTierA && headcount != null && periodQuotaMax != null && headcount > periodQuotaMax;
 
       return {
         tier,
@@ -212,6 +266,9 @@ export class DepartmentRankingApprovalComponent implements OnInit {
         headcount,
         actualCount,
         isFilled,
+        periodQuotaMax,
+        isOverPeriodQuota,
+        isFlex: !isTierA,
       };
     });
   });
@@ -228,7 +285,7 @@ export class DepartmentRankingApprovalComponent implements OnInit {
 
   allSlotsFilled = computed<boolean>(() => {
     const rows = this.tierTableRows();
-    return rows.length > 0 && rows.every((r) => r.isFilled);
+    return rows.length > 0 && rows.filter((r) => !r.isFlex).every((r) => r.isFilled);
   });
 
   tierBlockers = computed<string[]>(() => {
@@ -293,6 +350,14 @@ export class DepartmentRankingApprovalComponent implements OnInit {
     return dept != null && dept.status === 'IN_REVIEW';
   });
 
+  isDepartmentSubmitted = computed<boolean>(() => {
+    const dept = this.selectedDepartment();
+    return (
+      dept != null &&
+      (dept.status === 'IN_REVIEW' || dept.status === 'APPROVED' || dept.status === 'FINAL')
+    );
+  });
+
   canRejectCurrentDept = computed<boolean>(() => {
     const dept = this.selectedDepartment();
     return dept != null && dept.status === 'IN_REVIEW';
@@ -312,6 +377,65 @@ export class DepartmentRankingApprovalComponent implements OnInit {
       .replace('{total}', String(total));
   });
 
+  totalBranchEmployees = computed<number>(() => {
+    return this.branchOverview()?.totalEmployees ?? 0;
+  });
+
+  totalBranchTierASlots = computed<number>(() => {
+    if (this.isEditingPeriodQuota()) {
+      const draft = this.periodQuotaDraft();
+      return ['A1', 'A2', 'A3'].reduce((sum, tier) => sum + (draft[tier] ?? 0), 0);
+    }
+    return this.periodQuota()
+      .filter((s) => s.tierCode.startsWith('A'))
+      .reduce((sum, s) => sum + (s.headcount ?? 0), 0);
+  });
+
+  totalBranchQuotaSlots = computed<number>(() => {
+    if (this.isEditingPeriodQuota()) {
+      const draft = this.periodQuotaDraft();
+      return ['A1', 'A2', 'A3', 'B', 'C'].reduce((sum, tier) => sum + (draft[tier] ?? 0), 0);
+    }
+    return this.periodQuota().reduce((sum, s) => sum + (s.headcount ?? 0), 0);
+  });
+
+  totalDeptQuotaHeadcount = computed<number>(() => {
+    return this.departmentQuotas().reduce((sum, s) => sum + (s.headcount ?? 0), 0);
+  });
+
+  selectedDeptEmployeesCount = computed<number>(() => {
+    return (
+      this.selectedDepartment()?.totalEmployees ?? this.calibrationData()?.rankedRoster?.length ?? 0
+    );
+  });
+
+  deptQuotaTierExceededErrors = computed<string[]>(() => {
+    const errors: string[] = [];
+    const rows = this.tierTableRows();
+    for (const r of rows) {
+      if (
+        r.tier.startsWith('A') &&
+        r.isOverPeriodQuota &&
+        r.headcount != null &&
+        r.periodQuotaMax != null
+      ) {
+        errors.push(
+          `Hạng ${r.tier}: ${r.headcount} slot vượt trần Quota tổng (${r.periodQuotaMax} slot).`,
+        );
+      }
+    }
+    return errors;
+  });
+
+  isDeptQuotaExceeded = computed<boolean>(() => {
+    return this.deptQuotaTierExceededErrors().length > 0;
+  });
+
+  deptQuotaIndicatorState = computed<'balanced' | 'under' | 'over'>(() => {
+    if (this.isDeptQuotaExceeded()) return 'over';
+    return 'balanced';
+  });
+
   onPeriodTypeSelected(type: string): void {
     this.selectedPeriodType.set(type);
     const first = this.periods().find((p) => p.periodType === type);
@@ -322,6 +446,7 @@ export class DepartmentRankingApprovalComponent implements OnInit {
 
   onPeriodValueSelected(newPeriodId: string): void {
     if (!newPeriodId || newPeriodId === this.periodId()) return;
+    this.isEditingPeriodQuota.set(false);
     this.periodId.set(newPeriodId);
     this.selectedComparePeriodId.set(null);
     void this.router.navigate(['/branch-performance/evaluations/approval'], {
@@ -332,6 +457,12 @@ export class DepartmentRankingApprovalComponent implements OnInit {
 
   onComparePeriodSelected(comparePeriodId: string): void {
     this.selectedComparePeriodId.set(comparePeriodId || null);
+  }
+
+  onCompareModeChanged(mode: ComparePeriodMode): void {
+    this.compareMode.set(mode);
+    const target = mode === 'SAME_LAST_YEAR' ? this.sameLastYearPeriod() : this.previousPeriod();
+    this.selectedComparePeriodId.set(target?.id ?? null);
   }
 
   ngOnInit(): void {
@@ -381,6 +512,7 @@ export class DepartmentRankingApprovalComponent implements OnInit {
 
     this.loadingOverview.set(true);
     this.errorMessage.set(null);
+    this.loadBranchPeriodQuota(pid);
 
     this.evaluationService.getBranchApprovals(pid).subscribe({
       next: (overview) => {
@@ -446,7 +578,8 @@ export class DepartmentRankingApprovalComponent implements OnInit {
 
   submitDepartmentQuota(): void {
     const deptId = this.selectedDepartmentId();
-    if (!deptId || this.savingQuota() || this.isPeriodLocked()) return;
+    if (!deptId || this.savingQuota() || this.isPeriodLocked() || this.isDeptQuotaExceeded())
+      return;
     this.savingQuota.set(true);
 
     const slots = this.departmentQuotas();
@@ -486,6 +619,138 @@ export class DepartmentRankingApprovalComponent implements OnInit {
       error: () => {
         this.calibrationData.set(null);
         this.loadingCalibration.set(false);
+      },
+    });
+  }
+
+  setViewMode(mode: 'single' | 'all'): void {
+    this.viewMode.set(mode);
+  }
+
+  toggleExpandDepartment(deptId: string): void {
+    const set = new Set(this.expandedDeptIds());
+    if (set.has(deptId)) {
+      set.delete(deptId);
+    } else {
+      set.add(deptId);
+      if (!this.deptCalibrations().has(deptId)) {
+        this.loadDepartmentCalibrationForExpand(deptId);
+      }
+    }
+    this.expandedDeptIds.set(set);
+  }
+
+  isDepartmentExpanded(deptId: string): boolean {
+    return this.expandedDeptIds().has(deptId);
+  }
+
+  isDeptSubmitted(status: string): boolean {
+    return status === 'IN_REVIEW' || status === 'APPROVED' || status === 'FINAL';
+  }
+
+  getDeptRoster(deptId: string): CalibrationEmployeeRow[] {
+    return this.deptCalibrations().get(deptId)?.rankedRoster ?? [];
+  }
+
+  isDeptRosterLoading(deptId: string): boolean {
+    return this.loadingDeptCalibrations().has(deptId);
+  }
+
+  loadDepartmentCalibrationForExpand(deptId: string): void {
+    const pid = this.periodId();
+    if (!pid || !deptId) return;
+
+    this.loadingDeptCalibrations.update((s) => new Set(s).add(deptId));
+    this.evaluationService.getCalibration(pid, deptId, undefined, true).subscribe({
+      next: (calib) => {
+        this.deptCalibrations.update((map) => new Map(map).set(deptId, calib));
+        this.loadingDeptCalibrations.update((s) => {
+          const next = new Set(s);
+          next.delete(deptId);
+          return next;
+        });
+      },
+      error: () => {
+        this.loadingDeptCalibrations.update((s) => {
+          const next = new Set(s);
+          next.delete(deptId);
+          return next;
+        });
+      },
+    });
+  }
+
+  loadBranchPeriodQuota(periodId: string): void {
+    if (!periodId) return;
+    this.evaluationService.getBranchPeriodQuota(periodId).subscribe({
+      next: (res) => {
+        if (res?.slots && res.slots.length > 0) {
+          this.periodQuota.set(res.slots);
+          const draft: Record<string, number | null> = {};
+          res.slots.forEach((s) => {
+            draft[s.tierCode] = s.headcount;
+          });
+          this.periodQuotaDraft.set(draft);
+        } else {
+          this.periodQuota.set([]);
+          this.periodQuotaDraft.set({ A1: null, A2: null, A3: null, B: null, C: null });
+        }
+      },
+      error: () => {
+        this.periodQuota.set([]);
+        this.periodQuotaDraft.set({ A1: null, A2: null, A3: null, B: null, C: null });
+      },
+    });
+  }
+
+  startEditPeriodQuota(): void {
+    if (this.isPeriodLocked()) return;
+    const current = this.periodQuota();
+    const draft: Record<string, number | null> = { A1: null, A2: null, A3: null, B: null, C: null };
+    current.forEach((s) => {
+      draft[s.tierCode] = s.headcount;
+    });
+    this.periodQuotaDraft.set(draft);
+    this.isEditingPeriodQuota.set(true);
+  }
+
+  cancelEditPeriodQuota(): void {
+    this.isEditingPeriodQuota.set(false);
+  }
+
+  onPeriodQuotaInputChange(tier: string, value: string): void {
+    const val = value.trim() === '' ? null : Math.max(0, parseInt(value, 10) || 0);
+    this.periodQuotaDraft.update((d) => ({ ...d, [tier]: val }));
+  }
+
+  getPeriodQuotaHeadcount(tier: string): number | null {
+    const slot = this.periodQuota().find((s) => s.tierCode === tier);
+    return slot?.headcount ?? null;
+  }
+
+  savePeriodQuota(): void {
+    const pid = this.periodId();
+    if (!pid || this.savingPeriodQuota() || this.isPeriodLocked()) return;
+    this.savingPeriodQuota.set(true);
+
+    const draft = this.periodQuotaDraft();
+    const slots: RankingSlotQuotaItem[] = ['A1', 'A2', 'A3', 'B', 'C'].map((tier) => ({
+      tierCode: tier,
+      headcount: draft[tier] != null && draft[tier]! >= 0 ? Number(draft[tier]) : 0,
+    }));
+
+    this.evaluationService.updateBranchPeriodQuota(pid, slots).subscribe({
+      next: (res) => {
+        this.savingPeriodQuota.set(false);
+        this.isEditingPeriodQuota.set(false);
+        if (res?.slots) {
+          this.periodQuota.set(res.slots);
+        }
+        this.showToast('Lưu tổng Quota của kỳ thành công.', 'success');
+      },
+      error: (err: { error?: { message?: string } }) => {
+        this.savingPeriodQuota.set(false);
+        this.showToast(err?.error?.message || 'Lỗi khi lưu tổng Quota của kỳ.', 'error');
       },
     });
   }

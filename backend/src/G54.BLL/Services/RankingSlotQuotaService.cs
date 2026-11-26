@@ -93,11 +93,12 @@ public sealed class RankingSlotQuotaService(AppDbContext db) : IRankingSlotQuota
             var period = await db.EvaluationPeriods.FirstOrDefaultAsync(p => p.Id == request.PeriodId.Value, ct)
                 ?? throw new NotFoundException("Kỳ đánh giá", request.PeriodId.Value);
 
-            if (period.Status is PeriodStatus.Locked or PeriodStatus.Closed)
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (period.Status is PeriodStatus.Locked or PeriodStatus.Closed || period.EndDate < today)
             {
                 throw new BusinessRuleException(
                     ErrorCodes.PeriodLocked,
-                    "Không thể cập nhật hạn ngạch quota cho kỳ đánh giá đã khóa hoặc đã chốt.",
+                    "Không thể cập nhật hạn ngạch quota cho kỳ đánh giá đã khóa hoặc đã qua.",
                     StatusCodes.Status409Conflict);
             }
 
@@ -161,6 +162,28 @@ public sealed class RankingSlotQuotaService(AppDbContext db) : IRankingSlotQuota
             await db.SaveChangesAsync(ct);
             return await GetAsync(request.DepartmentId, null, ct);
         }
+    }
+
+    public async Task<RankingSlotQuotasDto> GetBranchQuotaAsync(Guid periodId, CancellationToken ct = default)
+    {
+        var branch = await db.Departments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.LevelType == DepartmentLevelType.Branch && d.Status == RecordStatus.Active, ct)
+            ?? await db.Departments.AsNoTracking().FirstOrDefaultAsync(d => d.LevelType == DepartmentLevelType.Branch, ct)
+            ?? throw new NotFoundException("Không tìm thấy chi nhánh đang hoạt động.");
+
+        return await GetAsync(branch.Id, periodId, ct);
+    }
+
+    public async Task<RankingSlotQuotasDto> UpdateBranchQuotaAsync(Guid periodId, List<RankingSlotQuotaDto> slots, CancellationToken ct = default)
+    {
+        var branch = await db.Departments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.LevelType == DepartmentLevelType.Branch && d.Status == RecordStatus.Active, ct)
+            ?? await db.Departments.AsNoTracking().FirstOrDefaultAsync(d => d.LevelType == DepartmentLevelType.Branch, ct)
+            ?? throw new NotFoundException("Không tìm thấy chi nhánh đang hoạt động.");
+
+        return await UpdateAsync(new UpdateRankingSlotQuotasDto(branch.Id, slots, periodId), ct);
     }
 
     private async Task EnsureDepartmentExistsAsync(Guid departmentId, CancellationToken ct)

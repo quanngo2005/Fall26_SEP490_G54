@@ -15,7 +15,13 @@ import {
 import { LocalizedComponent } from '../../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../../shared/layout';
 import { LayoutIconComponent } from '../../../shared/layout/layout-icon.component';
-import { StatusBadgeComponent, UiSelectComponent } from '../../../shared/ui';
+import {
+  StatusBadgeComponent,
+  UiSelectComponent,
+  CompareSliderComponent,
+  ComparePeriodMode,
+} from '../../../shared/ui';
+import { findPreviousPeriod, findSameLastYearPeriod } from '../../../core/period-options';
 import { saveFile } from '../../performance-dashboard/performance-page';
 import {
   DepartmentRankingStaffTableComponent,
@@ -29,6 +35,7 @@ interface TierTableRow {
   actualCount: number;
   isFilled: boolean;
   share: number | null;
+  isFlex?: boolean;
 }
 
 const TIER_CLASS: Record<RankingTierCode, string> = {
@@ -68,6 +75,7 @@ function compositeSortKey(row: RankingBoardStaffRow, sort: CompositeSort): numbe
     LayoutIconComponent,
     StatusBadgeComponent,
     UiSelectComponent,
+    CompareSliderComponent,
     DepartmentRankingStaffTableComponent,
     DepartmentRankingTierTableComponent,
   ],
@@ -198,6 +206,23 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
     this.filteredPeriods().filter((p) => p.id !== this.selectedPeriodId()),
   );
 
+  readonly compareMode = signal<ComparePeriodMode>('PREVIOUS');
+
+  readonly currentPeriod = computed(
+    () => this.periods().find((p) => p.id === this.selectedPeriodId()) ?? null,
+  );
+
+  readonly previousPeriod = computed(() =>
+    findPreviousPeriod(this.currentPeriod(), this.comparePeriods()),
+  );
+
+  readonly sameLastYearPeriod = computed(() =>
+    findSameLastYearPeriod(this.currentPeriod(), this.periods()),
+  );
+
+  readonly hasPreviousPeriod = computed(() => !!this.previousPeriod());
+  readonly hasSameLastYearPeriod = computed(() => !!this.sameLastYearPeriod());
+
   readonly staffRows = computed<RankingBoardStaffRow[]>(() => this.board()?.staffRows ?? []);
 
   readonly scoreOrder = signal<ScoreOrder>('desc');
@@ -244,13 +269,17 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
   /** Tier table rows: A1–B from the board, plus C as the remaining eligible employees (no slot). */
   readonly tierTableRows = computed<TierTableRow[]>(() => {
     const total = this.staffRows().length;
-    return (this.board()?.tiers ?? []).map((tier) => ({
-      tier: tier.tierCode,
-      headcount: tier.headcount,
-      actualCount: tier.actualCount,
-      isFilled: tier.isFilled,
-      share: tier.headcount === null || total === 0 ? null : (tier.headcount / total) * 100,
-    }));
+    return (this.board()?.tiers ?? []).map((tier) => {
+      const isTierA = tier.tierCode.startsWith('A');
+      return {
+        tier: tier.tierCode,
+        headcount: tier.headcount,
+        actualCount: tier.actualCount,
+        isFilled: isTierA ? tier.isFilled : true,
+        share: tier.headcount === null || total === 0 ? null : (tier.headcount / total) * 100,
+        isFlex: !isTierA,
+      };
+    });
   });
 
   readonly totalSlots = computed(() =>
@@ -263,7 +292,7 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
 
   readonly allSlotsFilled = computed(() => {
     const rows = this.tierTableRows();
-    return rows.length > 0 && rows.every((row) => row.isFilled);
+    return rows.length > 0 && rows.filter((row) => !row.isFlex).every((row) => row.isFilled);
   });
 
   readonly lockReached = computed(() => this.board()?.isLocked ?? false);
@@ -333,6 +362,16 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
 
   onComparePeriodSelected(value: string): void {
     const comparePeriodId = value || null;
+    const periodId = this.selectedPeriodId();
+    if (!periodId) return;
+    this.selectedComparePeriodId.set(comparePeriodId);
+    this.loadBoard(periodId, comparePeriodId);
+  }
+
+  onCompareModeChanged(mode: ComparePeriodMode): void {
+    this.compareMode.set(mode);
+    const target = mode === 'SAME_LAST_YEAR' ? this.sameLastYearPeriod() : this.previousPeriod();
+    const comparePeriodId = target?.id ?? null;
     const periodId = this.selectedPeriodId();
     if (!periodId) return;
     this.selectedComparePeriodId.set(comparePeriodId);

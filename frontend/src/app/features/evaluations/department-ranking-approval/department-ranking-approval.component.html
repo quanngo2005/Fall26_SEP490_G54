@@ -61,14 +61,35 @@
         </div>
       </header>
 
-      <!-- Filter Bar: Department, Period Type, Period, Compare Period -->
+      <!-- Filter Bar: View Mode, Department, Period Type, Period, Compare Period -->
       <div class="ui-filter-bar">
-        <app-ui-select
-          [options]="departmentSelectOptions()"
-          [value]="selectedDepartmentId() ?? ''"
-          ariaLabel="Chọn phòng ban"
-          (valueChange)="selectDepartment($event)"
-        />
+        <div class="view-mode-toggle" role="group" aria-label="Chế độ hiển thị">
+          <button
+            type="button"
+            class="view-mode-btn"
+            [class.active]="viewMode() === 'single'"
+            (click)="setViewMode('single')"
+          >
+            Từng phòng
+          </button>
+          <button
+            type="button"
+            class="view-mode-btn"
+            [class.active]="viewMode() === 'all'"
+            (click)="setViewMode('all')"
+          >
+            Tất cả phòng
+          </button>
+        </div>
+
+        @if (viewMode() === 'single') {
+          <app-ui-select
+            [options]="departmentSelectOptions()"
+            [value]="selectedDepartmentId() ?? ''"
+            ariaLabel="Chọn phòng ban"
+            (valueChange)="selectDepartment($event)"
+          />
+        }
         <app-ui-select
           [options]="periodTypeOptions()"
           [value]="selectedPeriodType()"
@@ -81,11 +102,13 @@
           [ariaLabel]="localization.evaluations.departmentRanking.periodAria"
           (valueChange)="onPeriodValueSelected($event)"
         />
-        <app-ui-select
-          [options]="comparePeriodOptions()"
-          [value]="selectedComparePeriodId() ?? ''"
-          [ariaLabel]="localization.evaluations.departmentRanking.compareAria"
-          (valueChange)="onComparePeriodSelected($event)"
+        <app-compare-slider
+          [mode]="compareMode()"
+          [hasPrevious]="hasPreviousPeriod()"
+          [hasSameLastYear]="hasSameLastYearPeriod()"
+          [previousTooltip]="previousPeriod()?.name ?? ''"
+          [sameLastYearTooltip]="sameLastYearPeriod()?.name ?? ''"
+          (modeChange)="onCompareModeChanged($event)"
         />
       </div>
 
@@ -124,153 +147,382 @@
         <section class="ranking-grid">
           <!-- Left: Staff Panel -->
           <article class="panel staff-panel">
-            <div class="panel-head-row">
-              <div class="panel-head-col">
-                <h2 class="panel-title">
-                  {{selectedDepartment()?.departmentName || 'Danh sách nhân sự'}}
+            @if (viewMode() === 'single') {
+              <div class="panel-head-row">
+                <div class="panel-head-col">
+                  <h2 class="panel-title">
+                    {{selectedDepartment()?.departmentName || 'Danh sách nhân sự'}}
+                    @if (selectedDepartment(); as curDept) {
+                      <span class="dept-sub-info font-mono">
+                        ({{curDept.totalEmployees}} NV ·
+                        {{curDept.managerName || 'Trưởng phòng'}})
+                      </span>
+                    }
+                  </h2>
                   @if (selectedDepartment(); as curDept) {
-                    <span class="dept-sub-info font-mono">
-                      ({{curDept.totalEmployees}} NV ·
-                      {{curDept.managerName || 'Trưởng phòng'}})
-                    </span>
+                    <div class="dept-status-row">
+                      @if (curDept.status === 'APPROVED' || curDept.status === 'FINAL') {
+                        <span class="status-badge badge-approved">
+                          <app-layout-icon name="check" class="badge-icon" />
+                          {{t()['statusApproved'] || 'Đã duyệt'}}
+                        </span>
+                      } @else if (curDept.status === 'IN_REVIEW') {
+                        <span class="status-badge badge-pending">
+                          {{t()['statusPending'] || 'Chờ duyệt'}} ·
+                          {{t()['statusSubmittedAt'] || 'gửi'}}
+                          {{formatDate(curDept.submittedAt)}}
+                        </span>
+                      } @else {
+                        <span class="status-badge badge-not-submitted">
+                          {{t()['statusNotSubmitted'] || 'Chưa gửi'}}
+                        </span>
+                      }
+                    </div>
                   }
-                </h2>
-                @if (selectedDepartment(); as curDept) {
-                  <div class="dept-status-row">
-                    @if (curDept.status === 'APPROVED' || curDept.status === 'FINAL') {
-                      <span class="status-badge badge-approved">
-                        <app-layout-icon name="check" class="badge-icon" />
-                        {{t()['statusApproved'] || 'Đã duyệt'}}
-                      </span>
-                    } @else if (curDept.status === 'IN_REVIEW') {
-                      <span class="status-badge badge-pending">
-                        {{t()['statusPending'] || 'Chờ duyệt'}} ·
-                        {{t()['statusSubmittedAt'] || 'gửi'}}
-                        {{formatDate(curDept.submittedAt)}}
-                      </span>
-                    } @else {
-                      <span class="status-badge badge-not-submitted">
-                        {{t()['statusNotSubmitted'] || 'Chưa gửi'}}
-                      </span>
+                </div>
+
+                <!-- Position Filter Tabs -->
+                @if (positionTabs().length > 1) {
+                  <div class="position-tabs-nav" role="tablist">
+                    @for (tab of positionTabs(); track tab.id ?? 'all') {
+                      <button
+                        type="button"
+                        role="tab"
+                        class="position-tab-btn"
+                        [class.active]="tab.id === selectedPositionId()"
+                        [attr.aria-selected]="tab.id === selectedPositionId()"
+                        (click)="selectPosition(tab.id)"
+                      >
+                        <span>{{tab.title}} · {{tab.count}}</span>
+                        @if (tab.hiddenCount > 0) {
+                          <span class="dispute-hidden-tag">
+                            + {{tab.hiddenCount}} {{t()['tabHiddenSuffix'] || 'ẩn'}}
+                          </span>
+                        }
+                      </button>
                     }
                   </div>
                 }
               </div>
 
-              <!-- Position Filter Tabs -->
-              @if (positionTabs().length > 1) {
-                <div class="position-tabs-nav" role="tablist">
-                  @for (tab of positionTabs(); track tab.id ?? 'all') {
-                    <button
-                      type="button"
-                      role="tab"
-                      class="position-tab-btn"
-                      [class.active]="tab.id === selectedPositionId()"
-                      [attr.aria-selected]="tab.id === selectedPositionId()"
-                      (click)="selectPosition(tab.id)"
-                    >
-                      <span>{{tab.title}} · {{tab.count}}</span>
-                      @if (tab.hiddenCount > 0) {
-                        <span class="dispute-hidden-tag">
-                          + {{tab.hiddenCount}} {{t()['tabHiddenSuffix'] || 'ẩn'}}
-                        </span>
+              <!-- Roster Table -->
+              @if (loadingCalibration()) {
+                <div class="loading-state inner">
+                  <div class="spinner"></div>
+                  <span>{{t()['loading'] || 'Đang tải dữ liệu xếp hạng...'}}</span>
+                </div>
+              } @else {
+                <div class="staff-scroll">
+                  <table class="ranking-table staff-table">
+                    <thead>
+                      <tr>
+                        <th class="stt-col">{{t()['colIndex'] || '#'}}</th>
+                        <th>{{localization.evaluations.departmentRanking.colId || 'MÃ NV'}}</th>
+                        <th>
+                          {{localization.evaluations.departmentRanking.colName || 'HỌ VÀ TÊN'}}
+                        </th>
+                        <th>
+                          {{localization.evaluations.departmentRanking.colStatus || 'TRẠNG THÁI'}}
+                        </th>
+                        <th class="num-col penalty-col">
+                          {{localization.evaluations.departmentRanking.colPenalty || 'ĐIỂM PHẠT'}}
+                        </th>
+                        <th class="score-col text-right">{{t()['colTotalPe'] || 'ĐIỂM PE'}}</th>
+                        @if (isDepartmentSubmitted()) {
+                          <th class="tier-col text-center">
+                            {{t()['colFinalized'] || 'TP CHỐT'}}
+                          </th>
+                          <th>{{t()['colManagerReason'] || 'LÝ DO TRƯỞNG PHÒNG'}}</th>
+                        }
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (emp of filteredRoster(); track emp.employeeId; let i = $index) {
+                        <tr class="roster-row">
+                          <td class="stt-col font-mono">{{i + 1}}</td>
+                          <td class="font-mono">{{emp.employeeCode}}</td>
+                          <td>
+                            <button
+                              type="button"
+                              class="staff-name staff-link"
+                              (click)="navigateToTraceability(emp.employeeId)"
+                              [title]="'Xem chi tiết điểm của ' + emp.fullName"
+                            >
+                              {{emp.fullName}}
+                            </button>
+                          </td>
+                          <td>
+                            @switch (emp.evaluationStatus) {
+                              @case ('DRAFT') {
+                                <app-status-badge tone="warning">{{localization.evaluationForm.statusDraft}}</app-status-badge>
+                              }
+                              @case ('CALCULATED') {
+                                <app-status-badge tone="info">{{localization.evaluationForm.statusCalculated}}</app-status-badge>
+                              }
+                              @case ('SUBMITTED') {
+                                <app-status-badge tone="info">{{localization.evaluationForm.statusSubmitted}}</app-status-badge>
+                              }
+                              @case ('DISPUTED') {
+                                <app-status-badge tone="danger">{{localization.evaluationForm.statusDisputed}}</app-status-badge>
+                              }
+                              @case ('FINAL') {
+                                <app-status-badge tone="success">{{localization.evaluationForm.statusFinal}}</app-status-badge>
+                              }
+                              @default {
+                                <app-status-badge tone="neutral">{{emp.evaluationStatus}}</app-status-badge>
+                              }
+                            }
+                          </td>
+                          <td class="num-col penalty-col font-mono">
+                            {{emp.riskPenalty === null || emp.riskPenalty === undefined
+                                ? '-'
+                                : formatNumber(emp.riskPenalty, 1)}}
+                          </td>
+                          <td class="score-col text-right font-mono font-bold">
+                            {{formatScore(emp.totalScore)}}
+                          </td>
+                          @if (isDepartmentSubmitted()) {
+                            <td class="tier-col text-center">
+                              <span
+                                class="tier-badge"
+                                [class]="'tier-' + (emp.calibratedTier || '').toLowerCase()"
+                              >
+                                {{emp.calibratedTier || '-'}}
+                              </span>
+                            </td>
+                            <td>
+                              <span class="reason-text" [title]="emp.adjustmentReason || ''">
+                                {{emp.adjustmentReason || '-'}}
+                              </span>
+                            </td>
+                          }
+                        </tr>
+                      } @empty {
+                        <tr>
+                          <td
+                            [attr.colspan]="isDepartmentSubmitted() ? 8 : 6"
+                            class="empty-table-cell"
+                          >
+                            {{t()['emptyEmployees'] || 'Không có nhân viên nào trong danh mục này.'}}
+                          </td>
+                        </tr>
                       }
-                    </button>
-                  }
+                    </tbody>
+                  </table>
                 </div>
               }
-            </div>
-
-            <!-- Roster Table -->
-            @if (loadingCalibration()) {
-              <div class="loading-state inner">
-                <div class="spinner"></div>
-                <span>{{t()['loading'] || 'Đang tải dữ liệu xếp hạng...'}}</span>
-              </div>
             } @else {
+              <!-- All departments view: Accordion Table -->
+              <div class="panel-head-row">
+                <div class="panel-head-col">
+                  <h2 class="panel-title">
+                    Tất cả phòng ban
+                    <span class="dept-sub-info font-mono">
+                      ({{branchOverview()?.departments?.length ?? 0}} phòng ·
+                      {{totalBranchEmployees()}} NV)
+                    </span>
+                  </h2>
+                </div>
+              </div>
+
               <div class="staff-scroll">
-                <table class="ranking-table staff-table">
+                <table class="ranking-table all-depts-table">
                   <thead>
                     <tr>
-                      <th class="stt-col">{{t()['colIndex'] || '#'}}</th>
-                      <th>{{localization.evaluations.departmentRanking.colId || 'MÃ NV'}}</th>
-                      <th>
-                        {{localization.evaluations.departmentRanking.colName || 'HỌ VÀ TÊN'}}
-                      </th>
-                      <th>
-                        {{localization.evaluations.departmentRanking.colStatus || 'TRẠNG THÁI'}}
-                      </th>
-                      <th class="num-col penalty-col">
-                        {{localization.evaluations.departmentRanking.colPenalty || 'ĐIỂM PHẠT'}}
-                      </th>
-                      <th class="score-col text-right">{{t()['colTotalPe'] || 'ĐIỂM PE'}}</th>
-                      <th class="tier-col text-center">{{t()['colFinalized'] || 'TP CHỐT'}}</th>
-                      <th>{{t()['colManagerReason'] || 'LÝ DO TRƯỞNG PHÒNG'}}</th>
+                      <th class="stt-col">#</th>
+                      <th>PHÒNG BAN</th>
+                      <th>TRƯỞNG PHÒNG</th>
+                      <th class="num-col">SỐ NV</th>
+                      <th>TRẠNG THÁI</th>
+                      <th class="num-col tier-col-head">A1</th>
+                      <th class="num-col tier-col-head">A2</th>
+                      <th class="num-col tier-col-head">A3</th>
+                      <th class="num-col tier-col-head">B</th>
+                      <th class="num-col tier-col-head">C</th>
+                      <th class="text-center">NHÂN VIÊN</th>
                     </tr>
                   </thead>
                   <tbody>
-                    @for (emp of filteredRoster(); track emp.employeeId; let i = $index) {
-                      <tr class="roster-row">
+                    @for (
+                      dept of branchOverview()?.departments ?? [];
+                      track dept.departmentId;
+                      let i = $index
+                    ) {
+                      <tr
+                        class="dept-row"
+                        [class.expanded]="isDepartmentExpanded(dept.departmentId)"
+                        (click)="toggleExpandDepartment(dept.departmentId)"
+                      >
                         <td class="stt-col font-mono">{{i + 1}}</td>
-                        <td class="font-mono">{{emp.employeeCode}}</td>
-                        <td>
-                          <button
-                            type="button"
-                            class="staff-name staff-link"
-                            (click)="navigateToTraceability(emp.employeeId)"
-                            [title]="'Xem chi tiết điểm của ' + emp.fullName"
-                          >
-                            {{emp.fullName}}
-                          </button>
+                        <td class="font-bold">
+                          {{dept.departmentCode}} · {{dept.departmentName}}
                         </td>
+                        <td>{{dept.managerName || '-'}}</td>
+                        <td class="num-col font-mono">{{dept.totalEmployees}}</td>
                         <td>
-                          @switch (emp.evaluationStatus) {
-                            @case ('DRAFT') {
-                              <app-status-badge tone="warning">{{localization.evaluationForm.statusDraft}}</app-status-badge>
-                            }
-                            @case ('CALCULATED') {
-                              <app-status-badge tone="info">{{localization.evaluationForm.statusCalculated}}</app-status-badge>
-                            }
-                            @case ('SUBMITTED') {
-                              <app-status-badge tone="info">{{localization.evaluationForm.statusSubmitted}}</app-status-badge>
-                            }
-                            @case ('DISPUTED') {
-                              <app-status-badge tone="danger">{{localization.evaluationForm.statusDisputed}}</app-status-badge>
-                            }
-                            @case ('FINAL') {
-                              <app-status-badge tone="success">{{localization.evaluationForm.statusFinal}}</app-status-badge>
-                            }
-                            @default {
-                              <app-status-badge tone="neutral">{{emp.evaluationStatus}}</app-status-badge>
-                            }
+                          @if (dept.status === 'APPROVED' || dept.status === 'FINAL') {
+                            <span class="status-badge badge-approved">
+                              <app-layout-icon name="check" class="badge-icon" />
+                              {{t()['statusApproved'] || 'Đã duyệt'}}
+                            </span>
+                          } @else if (dept.status === 'IN_REVIEW') {
+                            <span class="status-badge badge-pending">
+                              {{t()['statusPending'] || 'Chờ duyệt'}}
+                            </span>
+                          } @else {
+                            <span class="status-badge badge-not-submitted">
+                              {{t()['statusNotSubmitted'] || 'Chưa gửi'}}
+                            </span>
                           }
                         </td>
-                        <td class="num-col penalty-col font-mono">
-                          {{emp.riskPenalty === null || emp.riskPenalty === undefined
-                              ? '-'
-                              : formatNumber(emp.riskPenalty, 1)}}
+                        <td class="num-col font-mono font-bold tier-val">
+                          {{dept.tierA1Count ?? 0}}
                         </td>
-                        <td class="score-col text-right font-mono font-bold">
-                          {{formatScore(emp.totalScore)}}
+                        <td class="num-col font-mono font-bold tier-val">
+                          {{dept.tierA2Count ?? 0}}
                         </td>
-                        <td class="tier-col text-center">
-                          <span
-                            class="tier-badge"
-                            [class]="'tier-' + (emp.calibratedTier || '').toLowerCase()"
+                        <td class="num-col font-mono font-bold tier-val">
+                          {{dept.tierA3Count ?? 0}}
+                        </td>
+                        <td class="num-col font-mono font-bold tier-val">
+                          {{dept.tierBCount ?? 0}}
+                        </td>
+                        <td class="num-col font-mono font-bold tier-val">
+                          {{dept.tierCCount ?? 0}}
+                        </td>
+                        <td class="text-center">
+                          <button
+                            type="button"
+                            class="button button-secondary button-xs expand-btn"
+                            [title]="
+                              isDepartmentExpanded(dept.departmentId) ? 'Thu gọn' : 'Xem nhân viên'
+                            "
+                            (click)="
+                              $event.stopPropagation(); toggleExpandDepartment(dept.departmentId)
+                            "
                           >
-                            {{emp.calibratedTier || '-'}}
-                          </span>
-                        </td>
-                        <td>
-                          <span class="reason-text" [title]="emp.adjustmentReason || ''">
-                            {{emp.adjustmentReason || '-'}}
-                          </span>
+                            <span>{{isDepartmentExpanded(dept.departmentId) ? '▲ Thu gọn' : '▼ Xem NV'}}</span>
+                          </button>
                         </td>
                       </tr>
+
+                      @if (isDepartmentExpanded(dept.departmentId)) {
+                        <tr class="expanded-detail-row">
+                          <td colspan="11" class="nested-roster-container">
+                            @if (isDeptRosterLoading(dept.departmentId)) {
+                              <div class="loading-state inner">
+                                <div class="spinner"></div>
+                                <span>Đang tải nhân sự phòng {{dept.departmentName}}...</span>
+                              </div>
+                            } @else {
+                              <div class="nested-table-wrap">
+                                <table class="ranking-table staff-table nested-staff-table">
+                                  <thead>
+                                    <tr>
+                                      <th class="stt-col">#</th>
+                                      <th>MÃ NV</th>
+                                      <th>HỌ VÀ TÊN</th>
+                                      <th>TRẠNG THÁI</th>
+                                      <th class="num-col penalty-col">ĐIỂM PHẠT</th>
+                                      <th class="score-col text-right">ĐIỂM PE</th>
+                                      @if (isDeptSubmitted(dept.status)) {
+                                        <th class="tier-col text-center">TP CHỐT</th>
+                                        <th>LÝ DO TRƯỞNG PHÒNG</th>
+                                      }
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    @for (
+                                      emp of getDeptRoster(dept.departmentId);
+                                      track emp.employeeId;
+                                      let idx = $index
+                                    ) {
+                                      <tr class="roster-row">
+                                        <td class="stt-col font-mono">{{idx + 1}}</td>
+                                        <td class="font-mono">{{emp.employeeCode}}</td>
+                                        <td>
+                                          <button
+                                            type="button"
+                                            class="staff-name staff-link"
+                                            (click)="navigateToTraceability(emp.employeeId)"
+                                            [title]="'Xem chi tiết điểm của ' + emp.fullName"
+                                          >
+                                            {{emp.fullName}}
+                                          </button>
+                                        </td>
+                                        <td>
+                                          @switch (emp.evaluationStatus) {
+                                            @case ('DRAFT') {
+                                              <app-status-badge tone="warning">{{localization.evaluationForm.statusDraft}}</app-status-badge>
+                                            }
+                                            @case ('CALCULATED') {
+                                              <app-status-badge tone="info">{{localization.evaluationForm.statusCalculated}}</app-status-badge>
+                                            }
+                                            @case ('SUBMITTED') {
+                                              <app-status-badge tone="info">{{localization.evaluationForm.statusSubmitted}}</app-status-badge>
+                                            }
+                                            @case ('DISPUTED') {
+                                              <app-status-badge tone="danger">{{localization.evaluationForm.statusDisputed}}</app-status-badge>
+                                            }
+                                            @case ('FINAL') {
+                                              <app-status-badge tone="success">{{localization.evaluationForm.statusFinal}}</app-status-badge>
+                                            }
+                                            @default {
+                                              <app-status-badge tone="neutral">{{emp.evaluationStatus}}</app-status-badge>
+                                            }
+                                          }
+                                        </td>
+                                        <td class="num-col penalty-col font-mono">
+                                          {{emp.riskPenalty === null ||
+                                            emp.riskPenalty === undefined
+                                              ? '-'
+                                              : formatNumber(emp.riskPenalty, 1)}}
+                                        </td>
+                                        <td class="score-col text-right font-mono font-bold">
+                                          {{formatScore(emp.totalScore)}}
+                                        </td>
+                                        @if (isDeptSubmitted(dept.status)) {
+                                          <td class="tier-col text-center">
+                                            <span
+                                              class="tier-badge"
+                                              [class]="
+                                                'tier-' + (emp.calibratedTier || '').toLowerCase()
+                                              "
+                                            >
+                                              {{emp.calibratedTier || '-'}}
+                                            </span>
+                                          </td>
+                                          <td>
+                                            <span
+                                              class="reason-text"
+                                              [title]="emp.adjustmentReason || ''"
+                                            >
+                                              {{emp.adjustmentReason || '-'}}
+                                            </span>
+                                          </td>
+                                        }
+                                      </tr>
+                                    } @empty {
+                                      <tr>
+                                        <td
+                                          [attr.colspan]="isDeptSubmitted(dept.status) ? 8 : 6"
+                                          class="empty-table-cell"
+                                        >
+                                          Không có nhân viên nào trong phòng này.
+                                        </td>
+                                      </tr>
+                                    }
+                                  </tbody>
+                                </table>
+                              </div>
+                            }
+                          </td>
+                        </tr>
+                      }
                     } @empty {
                       <tr>
-                        <td colspan="8" class="empty-table-cell">
-                          {{t()['emptyEmployees'] || 'Không có nhân viên nào trong danh mục này.'}}
+                        <td colspan="11" class="empty-table-cell">
+                          Không có phòng ban nào trong chi nhánh.
                         </td>
                       </tr>
                     }
@@ -282,6 +534,121 @@
 
           <!-- Right: Tier Panel (Reusing component app-department-ranking-tier-table) -->
           <article class="panel tier-panel">
+            <!-- Period Total Quota Card -->
+            <section class="period-quota-card">
+              <div class="period-quota-header">
+                <div class="period-quota-title-wrap">
+                  <div class="period-quota-title-row">
+                    <h3 class="period-quota-title">Quota Tổng của Kỳ</h3>
+                    <span class="quota-indicator-badge font-mono badge-balanced">
+                      <app-layout-icon name="check" class="indicator-icon" />
+                      <span>Quota A: {{totalBranchTierASlots()}} slot</span>
+                    </span>
+                  </div>
+                  <div class="period-quota-meta">
+                    <span class="meta-item">
+                      <strong>Tổng số lượng nhân viên:</strong> {{totalBranchEmployees()}} NV
+                    </span>
+                    <span class="meta-separator">·</span>
+                    <span class="meta-item font-mono text-muted">
+                      <strong>Hạng B, C:</strong> Linh hoạt (Flex)
+                    </span>
+                  </div>
+                </div>
+                <div class="period-quota-actions">
+                  @if (!isEditingPeriodQuota()) {
+                    <button
+                      type="button"
+                      class="button button-secondary button-sm"
+                      [disabled]="isPeriodLocked()"
+                      (click)="startEditPeriodQuota()"
+                      [title]="
+                        isPeriodLocked()
+                          ? 'Kỳ đánh giá đã qua hoặc đã khóa/chốt'
+                          : 'Điều chỉnh Quota tổng của kỳ'
+                      "
+                    >
+                      <span>Điều chỉnh</span>
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="button button-secondary button-sm"
+                      [disabled]="savingPeriodQuota()"
+                      (click)="cancelEditPeriodQuota()"
+                    >
+                      <span>Hủy</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="button button-primary button-sm"
+                      [disabled]="savingPeriodQuota() || isPeriodLocked()"
+                      (click)="savePeriodQuota()"
+                    >
+                      <span>{{savingPeriodQuota() ? 'Đang lưu...' : 'Lưu'}}</span>
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <table class="period-quota-table">
+                <thead>
+                  <tr>
+                    <th class="tier-th">A1</th>
+                    <th class="tier-th">A2</th>
+                    <th class="tier-th">A3</th>
+                    <th class="tier-th">B</th>
+                    <th class="tier-th">C</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    @for (tier of ['A1', 'A2', 'A3']; track tier) {
+                      <td class="tier-td">
+                        @if (isEditingPeriodQuota()) {
+                          <input
+                            type="number"
+                            min="0"
+                            class="period-quota-input"
+                            [value]="periodQuotaDraft()[tier] ?? ''"
+                            (input)="onPeriodQuotaInputChange(tier, $any($event.target).value)"
+                          />
+                        } @else {
+                          <span class="period-quota-val font-mono">
+                            {{getPeriodQuotaHeadcount(tier) !== null
+                                ? getPeriodQuotaHeadcount(tier)
+                                : '-'}}
+                          </span>
+                        }
+                      </td>
+                    }
+                    @for (tier of ['B', 'C']; track tier) {
+                      <td class="tier-td">
+                        <span class="quota-flex-pill">Flex</span>
+                      </td>
+                    }
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+
+            <!-- Department Quota Status Indicator Row -->
+            <div class="dept-quota-header-row">
+              <span
+                class="quota-indicator-badge font-mono"
+                [class.badge-balanced]="!isDeptQuotaExceeded()"
+                [class.badge-over]="isDeptQuotaExceeded()"
+              >
+                @if (!isDeptQuotaExceeded()) {
+                  <app-layout-icon name="check" class="indicator-icon" />
+                  <span>Chỉ tiêu phòng hợp lệ (Hạng B, C linh hoạt)</span>
+                } @else {
+                  <app-layout-icon name="riskEvents" class="indicator-icon" />
+                  <span>Chỉ tiêu vượt quá Quota tổng</span>
+                }
+              </span>
+            </div>
+
             <app-department-ranking-tier-table
               [title]="'Phân bổ chỉ tiêu (Slot Quota)'"
               [tierTableRows]="tierTableRows()"
@@ -296,13 +663,37 @@
               (headcountChange)="onQuotaHeadcountChange($event)"
             />
 
+            <!-- Warning banner if department quota exceeds Period Quota or Headcount -->
+            @if (isDeptQuotaExceeded()) {
+              <div class="quota-warning-banner" role="alert">
+                <app-layout-icon name="riskEvents" class="warning-icon" />
+                <div class="warning-body">
+                  <strong>Vượt giới hạn chỉ tiêu cho phép:</strong>
+                  <ul>
+                    @for (err of deptQuotaTierExceededErrors(); track err) {
+                      <li>{{err}}</li>
+                    }
+                  </ul>
+                </div>
+              </div>
+            }
+
             <div class="quota-actions">
               <button
                 type="button"
                 class="button button-primary quota-save-btn"
-                [disabled]="savingQuota() || !selectedDepartmentId() || isPeriodLocked()"
+                [disabled]="
+                  savingQuota() ||
+                  !selectedDepartmentId() ||
+                  isPeriodLocked() ||
+                  isDeptQuotaExceeded()
+                "
                 [title]="
-                  isPeriodLocked() ? 'Kỳ đánh giá đã khóa/chốt, không thể thay đổi quota' : ''
+                  isPeriodLocked()
+                    ? 'Kỳ đánh giá đã khóa/chốt hoặc đã qua'
+                    : isDeptQuotaExceeded()
+                      ? 'Chỉ tiêu vượt quá giới hạn Quota tổng'
+                      : ''
                 "
                 (click)="submitDepartmentQuota()"
               >
@@ -311,7 +702,7 @@
               </button>
               @if (isPeriodLocked()) {
                 <span class="quota-locked-hint"
-                  >Kỳ đánh giá đã chốt/khóa, không thể thay đổi quota.</span
+                  >Kỳ đánh giá đã qua hoặc đã chốt/khóa, không thể thay đổi quota.</span
                 >
               }
             </div>

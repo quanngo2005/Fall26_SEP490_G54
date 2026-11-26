@@ -122,6 +122,56 @@
   }
 }
 
+.quota-input-group,
+.quota-display-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.quota-max-pill {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1.2;
+  white-space: nowrap;
+
+  &.pill-over {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #dc2626;
+    font-weight: 700;
+  }
+}
+
+.quota-flex-pill {
+  font-size: 11px;
+  font-weight: 600;
+  color: #0284c7;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  padding: 1px 5px;
+  border-radius: 3px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.input-over-quota {
+  border-color: #ef4444 !important;
+  background-color: #fef2f2 !important;
+  color: #b91c1c !important;
+}
+
+.text-over-quota {
+  color: #dc2626;
+  font-weight: 700;
+}
+
 .alert-banner {
   margin-top: 14px;
   padding: 10px 12px;

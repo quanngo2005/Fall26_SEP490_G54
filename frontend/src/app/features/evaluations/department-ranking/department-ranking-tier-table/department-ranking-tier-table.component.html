@@ -17,18 +17,47 @@
         <td class="num-col font-mono">
           {{row.share === null ? emptyValue() : formatNumber(row.share, 0) + '%'}}
         </td>
-        <td class="num-col font-mono">
+        <td class="num-col font-mono" [class.cell-over-quota]="row.isOverPeriodQuota">
           @if (editable()) {
-            <input
-              type="number"
-              min="0"
-              class="quota-input font-mono text-right"
-              [value]="row.headcount ?? ''"
-              (input)="onHeadcountInput(row.tier, $event)"
-              [attr.aria-label]="'Chỉ tiêu hạng ' + row.tier"
-            />
+            <div class="quota-input-group">
+              <input
+                type="number"
+                min="0"
+                class="quota-input font-mono text-right"
+                [class.input-over-quota]="row.isOverPeriodQuota"
+                [value]="row.headcount ?? ''"
+                (input)="onHeadcountInput(row.tier, $event)"
+                [attr.aria-label]="'Chỉ tiêu hạng ' + row.tier"
+              />
+              @if (row.periodQuotaMax !== undefined && row.periodQuotaMax !== null) {
+                <span
+                  class="quota-max-pill font-mono"
+                  [class.pill-over]="row.isOverPeriodQuota"
+                  [title]="'Tối đa theo Quota tổng của kỳ: ' + row.periodQuotaMax"
+                >
+                  /{{row.periodQuotaMax}}
+                </span>
+              } @else if (row.isFlex) {
+                <span class="quota-flex-pill font-mono" title="Linh hoạt theo thực tế">Flex</span>
+              }
+            </div>
           } @else {
-            {{row.headcount ?? emptyValue()}}
+            <div class="quota-display-group">
+              <span [class.text-over-quota]="row.isOverPeriodQuota">
+                {{row.headcount ?? emptyValue()}}
+              </span>
+              @if (row.periodQuotaMax !== undefined && row.periodQuotaMax !== null) {
+                <span
+                  class="quota-max-pill font-mono"
+                  [class.pill-over]="row.isOverPeriodQuota"
+                  [title]="'Tối đa theo Quota tổng của kỳ: ' + row.periodQuotaMax"
+                >
+                  /{{row.periodQuotaMax}}
+                </span>
+              } @else if (row.isFlex) {
+                <span class="quota-flex-pill font-mono" title="Linh hoạt theo thực tế">Flex</span>
+              }
+            </div>
           }
         </td>
         <td class="num-col font-mono">

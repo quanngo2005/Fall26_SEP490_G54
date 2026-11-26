@@ -7,4 +7,8 @@ public interface IRankingSlotQuotaService
     Task<RankingSlotQuotasDto> GetAsync(Guid departmentId, Guid? periodId = null, CancellationToken ct = default);
 
     Task<RankingSlotQuotasDto> UpdateAsync(UpdateRankingSlotQuotasDto request, CancellationToken ct = default);
+
+    Task<RankingSlotQuotasDto> GetBranchQuotaAsync(Guid periodId, CancellationToken ct = default);
+
+    Task<RankingSlotQuotasDto> UpdateBranchQuotaAsync(Guid periodId, List<RankingSlotQuotaDto> slots, CancellationToken ct = default);
 }

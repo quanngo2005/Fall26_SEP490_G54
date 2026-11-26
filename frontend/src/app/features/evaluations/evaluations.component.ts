@@ -30,7 +30,8 @@ import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
 import { AppNumberPipe } from '../../shared/pipes';
-import { UiSelectComponent } from '../../shared/ui';
+import { ComparePeriodMode, CompareSliderComponent, UiSelectComponent } from '../../shared/ui';
+import { findPreviousPeriod, findSameLastYearPeriod } from '../../core/period-options';
 import { toneOf, TRACK_HEADROOM } from '../performance-dashboard/performance-display';
 import { saveFile } from '../performance-dashboard/performance-page';
 
@@ -161,6 +162,7 @@ function sumKpiScores(scores: (number | null | undefined)[]): number | null {
     LayoutIconComponent,
     AppNumberPipe,
     UiSelectComponent,
+    CompareSliderComponent,
   ],
   templateUrl: './evaluations.component.html',
   styleUrls: [
@@ -253,6 +255,21 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
     const matching = this.availablePeriods().filter((p) => p.periodType === type);
     return matching.length > 0 ? matching : this.availablePeriods();
   });
+
+  readonly compareMode = signal<ComparePeriodMode>('PREVIOUS');
+
+  readonly previousPeriod = computed(() => {
+    const current = this.currentPeriod();
+    return findPreviousPeriod(current, this.compareOptions());
+  });
+
+  readonly sameLastYearPeriod = computed(() => {
+    const current = this.currentPeriod();
+    return findSameLastYearPeriod(current, this.availablePeriods());
+  });
+
+  readonly hasPreviousPeriod = computed(() => !!this.previousPeriod());
+  readonly hasSameLastYearPeriod = computed(() => !!this.sameLastYearPeriod());
 
   readonly compareOptions = computed<EvaluationPeriodOption[]>(() => {
     const currentType = this.currentPeriod()?.periodType ?? this.selectedPeriodType();
@@ -917,6 +934,15 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
 
   onCompareValueSelected(value: string): void {
     const compareId = value || null;
+    this.selectedComparePeriodId.set(compareId);
+    this.loadDashboard(this.selectedPeriodId(), compareId, this.selectedDepartmentId());
+  }
+
+  onCompareModeChanged(mode: ComparePeriodMode): void {
+    this.compareMode.set(mode);
+    const targetPeriod =
+      mode === 'SAME_LAST_YEAR' ? this.sameLastYearPeriod() : this.previousPeriod();
+    const compareId = targetPeriod?.id ?? null;
     this.selectedComparePeriodId.set(compareId);
     this.loadDashboard(this.selectedPeriodId(), compareId, this.selectedDepartmentId());
   }

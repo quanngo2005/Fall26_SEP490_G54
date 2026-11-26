@@ -44,11 +44,13 @@
             [ariaLabel]="localization.evaluations.dashboard.periodAria"
             (valueChange)="onPeriodValueSelected($event)"
           />
-          <app-ui-select
-            [options]="compareSelectOptions()"
-            [value]="selectedComparePeriodId() ?? ''"
-            [ariaLabel]="localization.evaluations.dashboard.periodCompareAria"
-            (valueChange)="onCompareValueSelected($event)"
+          <app-compare-slider
+            [mode]="compareMode()"
+            [hasPrevious]="hasPreviousPeriod()"
+            [hasSameLastYear]="hasSameLastYearPeriod()"
+            [previousTooltip]="previousPeriod()?.name ?? ''"
+            [sameLastYearTooltip]="sameLastYearPeriod()?.name ?? ''"
+            (modeChange)="onCompareModeChanged($event)"
           />
           @if (isBranchMode()) {
             <button type="button" class="button button-secondary" (click)="openDepartmentRanking()">
