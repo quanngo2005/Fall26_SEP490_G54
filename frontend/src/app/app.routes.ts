@@ -8,6 +8,7 @@ import { qaQueueGuard } from './core/qa-queue.guard';
 import { riskEventGuard } from './core/risk-event.guard';
 import { appealQueueGuard, appealsHomeRedirect, ownAppealsGuard } from './core/appeal-queue.guard';
 import { departmentEvaluationGuard } from './core/department-evaluation.guard';
+import { myCampaignsGuard } from './core/my-campaigns.guard';
 import { personalEvaluationGuard } from './core/personal-evaluation.guard';
 import { reconciliationGuard } from './core/reconciliation.guard';
 import { transactionImportGuard } from './core/transaction-import.guard';
@@ -430,14 +431,14 @@ export const routes: Routes = [
   },
   {
     path: 'my-campaigns',
-    canActivate: [authGuard],
+    canActivate: [authGuard, myCampaignsGuard],
     title: 'Chiến dịch của tôi',
     loadComponent: () =>
       import('./features/my-campaigns/my-campaigns.component').then((m) => m.MyCampaignsComponent),
   },
   {
     path: 'my-campaigns/:id',
-    canActivate: [authGuard],
+    canActivate: [authGuard, myCampaignsGuard],
     title: 'Khách hàng của tôi',
     loadComponent: () =>
       import('./features/my-campaigns/my-campaign-customers.component').then(

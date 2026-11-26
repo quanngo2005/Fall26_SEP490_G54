@@ -3154,6 +3154,8 @@
           "title": "Chi tiết chiến dịch",
           "back": "Quay lại danh sách",
           "notFound": "Không tìm thấy chiến dịch.",
+          "loadFailed": "Không tải được chiến dịch.",
+          "retry": "Thử lại",
           "statProgress": "Tiến độ công việc",
           "statParticipants": "Người tham gia",
           "statParticipantsUnit": "cán bộ",
@@ -3445,6 +3447,7 @@
         "readOnly": "Chiến dịch không còn chạy, chỉ xem. Bạn vẫn đọc được khách hàng của mình nhưng không cập nhật được.",
         "orderHint": "Khách chưa liên hệ được xếp lên trước, đã chốt xuống cuối.",
         "emptyCustomers": "Không có khách hàng phù hợp.",
+        "campaignNotFound": "Không tìm thấy chiến dịch hoặc bạn không có khách hàng trong chiến dịch này.",
         "range": "{from}–{to} / {total} khách hàng",
         "campaignStatus": {
           "PLANNED": "Chờ duyệt",
@@ -7865,6 +7868,8 @@
           "title": "Campaign details",
           "back": "Back to list",
           "notFound": "Campaign not found.",
+          "loadFailed": "Could not load the campaign.",
+          "retry": "Retry",
           "statProgress": "Work progress",
           "statParticipants": "Participants",
           "statParticipantsUnit": "staff",
@@ -8156,6 +8161,7 @@
         "readOnly": "The campaign is no longer running, view only. You can still read your customers but cannot update them.",
         "orderHint": "Customers not yet contacted come first, closed ones last.",
         "emptyCustomers": "No customers match.",
+        "campaignNotFound": "Campaign not found, or you have no customers in this campaign.",
         "range": "{from}–{to} / {total} customers",
         "campaignStatus": {
           "PLANNED": "Pending approval",

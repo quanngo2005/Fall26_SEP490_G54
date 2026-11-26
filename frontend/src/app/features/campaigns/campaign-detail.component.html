@@ -8,6 +8,13 @@
           <span class="spinner" aria-hidden="true"></span>
           <p>{{localization.campaign.loading}}</p>
         </div>
+      } @else if (failed() && !notFound()) {
+        <div class="state-card state-error" role="alert">
+          <p>{{localization.campaign.detail.loadFailed}}</p>
+          <button type="button" class="button button-secondary" (click)="reload.next()">
+            {{localization.campaign.detail.retry}}
+          </button>
+        </div>
       } @else if (failed() || !campaign()) {
         <div class="state-card state-error" role="alert">
           <p>{{localization.campaign.detail.notFound}}</p>

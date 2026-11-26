@@ -64,6 +64,7 @@ export class MyCampaignCustomersComponent extends LocalizedComponent {
   protected readonly totalCount = signal(0);
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
+  protected readonly campaignMissing = signal(false);
   protected readonly notice = signal<string | null>(null);
   protected readonly editing = signal<CampaignCustomer | null>(null);
 
@@ -170,7 +171,9 @@ export class MyCampaignCustomersComponent extends LocalizedComponent {
   private loadCampaign(id: string): void {
     this.api.myCampaigns().subscribe({
       next: (items) => {
-        this.campaign.set(items.find((item) => item.campaignId === id) ?? null);
+        const found = items.find((item) => item.campaignId === id) ?? null;
+        this.campaign.set(found);
+        this.campaignMissing.set(found === null);
       },
       error: () => this.failed.set(true),
     });

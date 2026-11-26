@@ -13,3 +13,7 @@ function has(permissions: readonly string[] | null | undefined, wanted: string):
 
 export const canManageCampaigns = (permissions: readonly string[] | null | undefined) =>
   has(permissions, 'CAMPAIGN_MANAGE');
+
+/** `campaign_customer:update` (code CAMPAIGN_CONTACT) opens "My campaigns"; the API rejects everybody else. */
+export const canUpdateMyCampaigns = (permissions: readonly string[] | null | undefined) =>
+  has(permissions, 'CAMPAIGN_CONTACT');

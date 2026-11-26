@@ -53,8 +53,8 @@ describe('MyCampaignCustomersComponent', () => {
     'myCustomers',
   ]);
 
-  const open = async (status = 'RUNNING') => {
-    api.myCampaigns.and.returnValue(of([mine(status)]));
+  const open = async (status = 'RUNNING', campaigns = [mine(status)]) => {
+    api.myCampaigns.and.returnValue(of(campaigns));
     api.myCustomers.and.returnValue(
       of({
         items: [
@@ -112,5 +112,15 @@ describe('MyCampaignCustomersComponent', () => {
 
     expect(root.textContent).toContain('chỉ xem');
     expect(root.querySelector<HTMLButtonElement>('tbody button')!.disabled).toBe(true);
+  });
+
+  it('shows a not-found message instead of an empty table when the campaign is not mine', async () => {
+    TestBed.resetTestingModule();
+    const root = await open('RUNNING', []);
+
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'Không tìm thấy chiến dịch',
+    );
+    expect(root.querySelector('table')).toBeNull();
   });
 });

@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -47,6 +48,7 @@ export class CampaignDetailComponent extends LocalizedComponent {
   protected readonly campaign = signal<CampaignDetail | null>(null);
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
+  protected readonly notFound = signal(false);
   protected readonly tab = signal<DetailTab>('overview');
   protected readonly batchOpen = signal(false);
   protected readonly notice = signal<string | null>(null);
@@ -67,9 +69,14 @@ export class CampaignDetailComponent extends LocalizedComponent {
             switchMap(() => {
               this.loading.set(true);
               this.failed.set(false);
+              this.notFound.set(false);
               return this.api.detail(id).pipe(
-                catchError(() => {
+                catchError((error: unknown) => {
                   this.failed.set(true);
+                  this.notFound.set(
+                    error instanceof HttpErrorResponse &&
+                      (error.status === 404 || error.status === 403),
+                  );
                   return EMPTY;
                 }),
                 finalize(() => this.loading.set(false)),
