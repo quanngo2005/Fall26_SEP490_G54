@@ -256,6 +256,9 @@ export interface DepartmentApprovalSummary {
   averageScore: number;
   tierACount: number;
   tierAPercent: number;
+  tierA1Count?: number;
+  tierA2Count?: number;
+  tierA3Count?: number;
   tierBCount: number;
   tierCCount: number;
   tierDCount: number;
@@ -344,6 +347,7 @@ export interface RankingBoardOverview {
   tiers: RankingBoardTier[];
   staffRows: RankingBoardStaffRow[];
   generatedAt: string;
+  isTeam?: boolean;
 }
 
 export interface RankingBoardAdjustmentItem {
@@ -394,6 +398,24 @@ export interface CalibrationEmployeeRow {
   evaluationStatus: string;
   evaluationId: string | null;
   calculatedAt: string | null;
+  riskPenalty?: number | null;
+}
+
+export interface RankingSlotQuotaItem {
+  tierCode: string;
+  headcount: number | null;
+}
+
+export interface RankingSlotQuotas {
+  departmentId: string;
+  slots: RankingSlotQuotaItem[];
+  periodId?: string | null;
+}
+
+export interface UpdateRankingSlotQuotasRequest {
+  departmentId: string;
+  slots: RankingSlotQuotaItem[];
+  periodId?: string | null;
 }
 
 export interface CalibrationQuota {
@@ -562,6 +584,8 @@ export interface DepartmentEvaluationDepartment {
   code: string;
   name: string;
   managerName: string | null;
+  levelType?: string | null;
+  isTeam?: boolean;
 }
 
 export interface DepartmentEvaluationGroupKpi {
@@ -681,6 +705,12 @@ export interface DepartmentEvaluationStaffRow {
   overdueCount?: number;
 }
 
+export interface DepartmentEvaluationSelectOption {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export interface DepartmentEvaluationDashboard {
   department: DepartmentEvaluationDepartment;
   period: EvaluationPeriodOption | null;
@@ -693,4 +723,5 @@ export interface DepartmentEvaluationDashboard {
   profileGroups: DepartmentEvaluationProfileGroupColumn[];
   staffRows: DepartmentEvaluationStaffRow[];
   generatedAt: string;
+  availableDepartments?: DepartmentEvaluationSelectOption[];
 }

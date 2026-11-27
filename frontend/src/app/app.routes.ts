@@ -192,10 +192,10 @@ export const routes: Routes = [
   {
     path: 'branch-performance/evaluations',
     canActivate: [authGuard, branchEvaluationGuard],
-    title: 'Kỳ đánh giá chi nhánh',
+    title: 'Đánh giá Chi nhánh',
     loadComponent: () =>
-      import('./features/evaluations/branch-evaluation-list.component').then(
-        (m) => m.BranchEvaluationListComponent,
+      import('./features/evaluations/branch-evaluations.component').then(
+        (m) => m.BranchEvaluationsComponent,
       ),
   },
   {
@@ -206,6 +206,10 @@ export const routes: Routes = [
       import('./features/evaluations/department-ranking-approval/department-ranking-approval.component').then(
         (m) => m.DepartmentRankingApprovalComponent,
       ),
+  },
+  {
+    path: 'branch-performance/evaluations/:periodId/approval',
+    redirectTo: 'branch-performance/evaluations/approval',
   },
   {
     path: 'employees',

@@ -7,7 +7,7 @@ import { By } from '@angular/platform-browser';
 import { EvaluationsComponent } from './evaluations.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
-import { UiSelectComponent } from '../../shared/ui';
+import { CompareSliderComponent } from '../../shared/ui';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { DepartmentEvaluationDashboard } from '../../core/evaluation.models';
 import { environment } from '../../../environments/environment';
@@ -385,11 +385,8 @@ describe('EvaluationsComponent', () => {
   });
 
   it('reloads dashboard when compare period changes', () => {
-    const compareLabel = i18n.translate('evaluations.dashboard.periodCompareAria');
-    const compareSelect = fixture.debugElement
-      .queryAll(By.directive(UiSelectComponent))
-      .find((el) => el.componentInstance.ariaLabel() === compareLabel);
-    compareSelect!.componentInstance.valueChange.emit('period-10');
+    const compareSlider = fixture.debugElement.query(By.directive(CompareSliderComponent));
+    compareSlider.componentInstance.modeChange.emit('PREVIOUS');
 
     const req = httpMock.expectOne(
       `${environment.apiUrl}/evaluations/department-dashboard?periodId=period-11&comparePeriodId=period-10`,
@@ -548,5 +545,41 @@ describe('EvaluationsComponent', () => {
       `${environment.apiUrl}/evaluations/department-dashboard?periodId=curr-month`,
     );
     req.flush({ success: true, data: MOCK_DASHBOARD });
+  });
+
+  it('renders department select in branch mode when multiple departments are available and switches department', () => {
+    fixture.componentRef.setInput('isBranchMode', true);
+    component.dashboard.set({
+      ...MOCK_DASHBOARD,
+      availableDepartments: [
+        { id: 'dept-1', code: 'KHCN', name: 'Phòng Khách hàng Cá nhân' },
+        { id: 'dept-2', code: 'KHDN', name: 'Phòng Khách hàng Doanh nghiệp' },
+      ],
+    });
+    fixture.detectChanges();
+
+    expect(component.departmentOptions().length).toBe(2);
+    expect(fixture.nativeElement.textContent).toContain('KHCN · Phòng Khách hàng Cá nhân');
+
+    component.onDepartmentSelected('dept-2');
+    expect(component.selectedDepartmentId()).toBe('dept-2');
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/evaluations/branch-dashboard?periodId=period-11&comparePeriodId=period-10&departmentId=dept-2`,
+    );
+    req.flush({
+      success: true,
+      data: {
+        ...MOCK_DASHBOARD,
+        department: {
+          id: 'dept-2',
+          code: 'KHDN',
+          name: 'Phòng Khách hàng Doanh nghiệp',
+          managerName: 'Nguyễn Văn B',
+        },
+      },
+    });
+    fixture.detectChanges();
+    expect(component.departmentName()).toBe('Phòng Khách hàng Doanh nghiệp');
   });
 });

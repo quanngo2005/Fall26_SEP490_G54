@@ -899,6 +899,8 @@ public sealed partial class EvaluationService(
 
             var evalStatus = pe != null ? pe.Status.ToEnumString() : "NOT_STARTED";
 
+            var empRiskPenalty = empRisks is { Count: > 0 } ? empRisks.Sum(r => RiskPenalty(r, parameters?.Value)) : 0m;
+
             unrankedRows.Add(new CalibrationEmployeeRowDto(
                 emp.Id,
                 emp.EmployeeCode,
@@ -922,7 +924,8 @@ public sealed partial class EvaluationService(
                 evalStatus,
                 pe?.Id,
                 pe?.CalculatedAt,
-                explanation));
+                explanation,
+                RiskPenalty: empRiskPenalty));
         }
 
         List<CalibrationEmployeeRowDto> rankedRoster;
@@ -1038,6 +1041,19 @@ public sealed partial class EvaluationService(
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == request.DepartmentId, cancellationToken)
             ?? throw new NotFoundException("Phòng ban", request.DepartmentId);
+
+        if (!request.IsDraft)
+        {
+            var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+            hierarchy.Nodes.TryGetValue(reviewer.DepartmentId, out var reviewerNode);
+            if (department.LevelType == DepartmentLevelType.Team || reviewerNode?.Level == DepartmentLevelType.Team)
+            {
+                throw new BusinessRuleException(
+                    ErrorCodes.Conflict,
+                    "Cấp nhóm (Team Lead) chỉ được phép lưu bản ghi đề xuất hiệu chuẩn (nháp) cho Trưởng phòng xem xét, không được gửi trực tiếp lên Giám đốc chi nhánh.",
+                    409);
+            }
+        }
 
         var rosterDepartments = await RosterDepartmentIdsAsync(request.DepartmentId, includeSubDepartments, cancellationToken);
         var employees = await db.Employees
@@ -1236,28 +1252,32 @@ public sealed partial class EvaluationService(
         Guid currentUserId,
         CancellationToken cancellationToken = default)
     {
-        await ResolveEmployeeAsync(currentUserId, cancellationToken);
+        var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
 
         var period = await db.EvaluationPeriods
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
             ?? throw new NotFoundException("Kỳ đánh giá", periodId);
 
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var branchDeptIds = hierarchy.Subtree(reviewer.DepartmentId);
+
         var departments = await db.Departments
             .AsNoTracking()
-            .Where(d => d.Status == RecordStatus.Active && d.LevelType == DepartmentLevelType.Department)
+            .Where(d => d.Status == RecordStatus.Active && d.LevelType == DepartmentLevelType.Department && branchDeptIds.Contains(d.Id))
             .OrderBy(d => d.Name)
             .ToListAsync(cancellationToken);
 
-        var deptIds = departments.Select(d => d.Id).ToList();
+        var deptSubtreeMap = departments.ToDictionary(
+            d => d.Id,
+            d => hierarchy.Nodes.ContainsKey(d.Id) ? hierarchy.Subtree(d.Id) : (IReadOnlyCollection<Guid>)[d.Id]);
+
+        var allSubtreeDeptIds = deptSubtreeMap.Values.SelectMany(x => x).Distinct().ToList();
 
         var employees = await db.Employees
             .AsNoTracking()
-            .Where(e => deptIds.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
+            .Where(e => allSubtreeDeptIds.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
             .ToListAsync(cancellationToken);
-
-        var empDeptMap = employees.GroupBy(e => e.DepartmentId)
-            .ToDictionary(g => g.Key, g => g.ToList());
 
         var allEmpIds = employees.Select(e => e.Id).ToList();
 
@@ -1277,8 +1297,8 @@ public sealed partial class EvaluationService(
 
         foreach (var dept in departments)
         {
-            empDeptMap.TryGetValue(dept.Id, out var deptEmps);
-            deptEmps ??= new();
+            var subtreeDeptIds = deptSubtreeMap[dept.Id];
+            var deptEmps = employees.Where(e => subtreeDeptIds.Contains(e.DepartmentId)).ToList();
 
             // BR-31: scores under dispute (Disputed_Pending) are hidden from ranking, averages and tier counts.
             var activeDeptEmps = deptEmps.Where(e => !disputedEmployeeIds.Contains(e.Id)).ToList();
@@ -1303,6 +1323,9 @@ public sealed partial class EvaluationService(
             }
 
             int tierA = 0;
+            int tierA1 = 0;
+            int tierA2 = 0;
+            int tierA3 = 0;
             int tierB = 0;
             int tierC = 0;
             int tierD = 0;
@@ -1327,7 +1350,9 @@ public sealed partial class EvaluationService(
                     ?? (pe.TotalScore.HasValue
                         ? TierDeterminer.DetermineTier(pe.TotalScore.Value, empRisks, downgradeConfiguration)
                         : "B");
-                if (tier is "A1" or "A2" or "A3") tierA++;
+                if (tier == "A1") { tierA++; tierA1++; }
+                else if (tier == "A2") { tierA++; tierA2++; }
+                else if (tier == "A3") { tierA++; tierA3++; }
                 else if (tier == "B") tierB++;
                 else if (tier == "C") tierC++;
                 else tierD++;
@@ -1371,7 +1396,10 @@ public sealed partial class EvaluationService(
                 tierD,
                 isCompliant,
                 reviewerComment,
-                latestSubmit));
+                latestSubmit,
+                tierA1,
+                tierA2,
+                tierA3));
         }
 
         var branchQuotaPct = Params.TierAQuotaPercent;
@@ -1447,9 +1475,12 @@ public sealed partial class EvaluationService(
             .FirstOrDefaultAsync(d => d.Id == departmentId, cancellationToken)
             ?? throw new NotFoundException("Phòng ban", departmentId);
 
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var rosterDepts = hierarchy.Nodes.ContainsKey(departmentId) ? hierarchy.Subtree(departmentId) : [departmentId];
+
         var deptEmployeeIds = await db.Employees
             .AsNoTracking()
-            .Where(e => e.DepartmentId == departmentId)
+            .Where(e => rosterDepts.Contains(e.DepartmentId))
             .Select(e => e.Id)
             .ToListAsync(cancellationToken);
 
@@ -1526,9 +1557,12 @@ public sealed partial class EvaluationService(
             .FirstOrDefaultAsync(d => d.Id == departmentId, cancellationToken)
             ?? throw new NotFoundException("Phòng ban", departmentId);
 
+        var hierarchy = await DepartmentHierarchy.LoadAsync(db.Departments.AsNoTracking(), cancellationToken);
+        var rosterDepts = hierarchy.Nodes.ContainsKey(departmentId) ? hierarchy.Subtree(departmentId) : [departmentId];
+
         var deptEmployeeIds = await db.Employees
             .AsNoTracking()
-            .Where(e => e.DepartmentId == departmentId && e.Status == EmployeeStatus.Active)
+            .Where(e => rosterDepts.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active)
             .Select(e => e.Id)
             .ToListAsync(cancellationToken);
 
@@ -1605,7 +1639,7 @@ public sealed partial class EvaluationService(
 
         var departments = await db.Departments
             .AsNoTracking()
-            .Where(d => d.Status == RecordStatus.Active && d.LevelType == DepartmentLevelType.Department)
+            .Where(d => d.Status == RecordStatus.Active && (d.LevelType == DepartmentLevelType.Department || d.LevelType == DepartmentLevelType.Team))
             .Where(d => inScope == null || inScope.Contains(d.Id))
             .ToListAsync(cancellationToken);
 
@@ -1935,7 +1969,7 @@ public sealed partial class EvaluationService(
 
         var branchDepartmentIds = hierarchy.Subtree(branch.Id).ToHashSet();
         var departments = hierarchy.Nodes.Values
-            .Where(n => n.Level == DepartmentLevelType.Department
+            .Where(n => (n.Level == DepartmentLevelType.Department || n.Level == DepartmentLevelType.Team)
                 && n.Status == RecordStatus.Active
                 && branchDepartmentIds.Contains(n.Id)
                 && (inScope is null || inScope.Contains(n.Id)))

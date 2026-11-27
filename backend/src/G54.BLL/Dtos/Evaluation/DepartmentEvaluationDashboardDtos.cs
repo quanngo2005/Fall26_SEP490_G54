@@ -4,7 +4,9 @@ public sealed record DepartmentEvaluationDepartmentDto(
     Guid Id,
     string Code,
     string Name,
-    string? ManagerName);
+    string? ManagerName,
+    string? LevelType = null,
+    bool IsTeam = false);
 
 public sealed record DepartmentEvaluationGroupKpiDto(
     Guid KpiDefinitionId,
@@ -108,6 +110,11 @@ public sealed record DepartmentEvaluationStaffRowDto(
     int OverdueCount = 0,
     decimal? PreviousOnTimeSlaPercent = null);
 
+public sealed record DepartmentEvaluationSelectOptionDto(
+    Guid Id,
+    string Code,
+    string Name);
+
 public sealed record DepartmentEvaluationDashboardDto(
     DepartmentEvaluationDepartmentDto Department,
     EvaluationPeriodOptionDto? Period,
@@ -119,7 +126,8 @@ public sealed record DepartmentEvaluationDashboardDto(
     DepartmentEvaluationTierDistributionDto TierDistribution,
     IReadOnlyList<DepartmentEvaluationProfileGroupColumnDto> ProfileGroups,
     IReadOnlyList<DepartmentEvaluationStaffRowDto> StaffRows,
-    DateTimeOffset GeneratedAt);
+    DateTimeOffset GeneratedAt,
+    IReadOnlyList<DepartmentEvaluationSelectOptionDto>? AvailableDepartments = null);
 
 public sealed record DepartmentEvaluationDashboardExportDto(
     byte[] Content,

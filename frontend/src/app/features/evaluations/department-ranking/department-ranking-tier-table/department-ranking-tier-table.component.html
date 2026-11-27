@@ -1,0 +1,98 @@
+<h2 class="panel-title">{{title()}}</h2>
+<table class="ranking-table tier-table">
+  <thead>
+    <tr>
+      <th>Hạng</th>
+      <th class="num-col">Tỷ lệ</th>
+      <th class="num-col">Chỉ tiêu</th>
+      <th class="num-col">Thực tế</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (row of tierTableRows(); track row.tier) {
+      <tr>
+        <td>
+          <span class="tier-badge" [ngClass]="tierClass(row.tier)">{{row.tier}}</span>
+        </td>
+        <td class="num-col font-mono">
+          {{row.share === null ? emptyValue() : formatNumber(row.share, 0) + '%'}}
+        </td>
+        <td class="num-col font-mono" [class.cell-over-quota]="row.isOverPeriodQuota">
+          @if (editable()) {
+            <div class="quota-input-group">
+              <input
+                type="number"
+                min="0"
+                class="quota-input font-mono text-right"
+                [class.input-over-quota]="row.isOverPeriodQuota"
+                [value]="row.headcount ?? ''"
+                (input)="onHeadcountInput(row.tier, $event)"
+                [attr.aria-label]="'Chỉ tiêu hạng ' + row.tier"
+              />
+              @if (row.periodQuotaMax !== undefined && row.periodQuotaMax !== null) {
+                <span
+                  class="quota-max-pill font-mono"
+                  [class.pill-over]="row.isOverPeriodQuota"
+                  [title]="'Tối đa theo Quota tổng của kỳ: ' + row.periodQuotaMax"
+                >
+                  /{{row.periodQuotaMax}}
+                </span>
+              } @else if (row.isFlex) {
+                <span class="quota-flex-pill font-mono" title="Linh hoạt theo thực tế">Flex</span>
+              }
+            </div>
+          } @else {
+            <div class="quota-display-group">
+              <span [class.text-over-quota]="row.isOverPeriodQuota">
+                {{row.headcount ?? emptyValue()}}
+              </span>
+              @if (row.periodQuotaMax !== undefined && row.periodQuotaMax !== null) {
+                <span
+                  class="quota-max-pill font-mono"
+                  [class.pill-over]="row.isOverPeriodQuota"
+                  [title]="'Tối đa theo Quota tổng của kỳ: ' + row.periodQuotaMax"
+                >
+                  /{{row.periodQuotaMax}}
+                </span>
+              } @else if (row.isFlex) {
+                <span class="quota-flex-pill font-mono" title="Linh hoạt theo thực tế">Flex</span>
+              }
+            </div>
+          }
+        </td>
+        <td class="num-col font-mono">
+          {{row.actualCount}}
+          @if (row.isFilled) {
+            <span class="tick" aria-label="Đã đủ chỉ tiêu">✓</span>
+          }
+        </td>
+      </tr>
+    }
+  </tbody>
+  <tfoot>
+    <tr>
+      <td>Tổng cộng</td>
+      <td class="num-col font-mono">
+        {{tierTableRows().length ? '100%' : emptyValue()}}
+      </td>
+      <td class="num-col font-mono">{{totalSlots()}}</td>
+      <td class="num-col font-mono">
+        {{totalActual()}}
+        @if (allSlotsFilled()) {
+          <span class="tick" aria-label="Đã đủ chỉ tiêu">✓</span>
+        }
+      </td>
+    </tr>
+  </tfoot>
+</table>
+
+@if (showBlockers() && !canSend() && sendBlockers().length > 0) {
+  <div class="alert-banner error" role="alert">
+    <app-layout-icon name="riskEvents" class="alert-icon" />
+    <ul class="blocker-list">
+      @for (blocker of sendBlockers(); track blocker) {
+        <li>{{blocker}}</li>
+      }
+    </ul>
+  </div>
+}

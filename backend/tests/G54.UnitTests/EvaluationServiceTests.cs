@@ -3225,4 +3225,53 @@ public sealed class EvaluationServiceTests
         Assert.Null(csatRow.WeightedScore);
         Assert.True(csatRow.HasDrilldown);
     }
+
+    [Fact]
+    public async Task RankingBoard_TeamLevel_BlocksSendingToDirector_AllowsDraft()
+    {
+        var (context, service) = CreateTestEnvironment(seedDowngradeConfiguration: true);
+        var (dept, position, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var now = DateTimeOffset.UtcNow;
+
+        var teamDept = new Department
+        {
+            Id = Guid.NewGuid(),
+            Code = "TEAM-KD-1",
+            Name = "Nhóm Kinh doanh 1",
+            LevelType = DepartmentLevelType.Team,
+            ParentDepartmentId = dept.Id,
+            Status = RecordStatus.Active,
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        await context.Departments.AddAsync(teamDept);
+
+        staff.DepartmentId = teamDept.Id;
+        manager.DepartmentId = teamDept.Id;
+        await context.SaveChangesAsync();
+
+        var board = await service.GetRankingBoardAsync(period.Id, teamDept.Id, null, manager.Account!.Id);
+        Assert.True(board.IsTeam);
+        Assert.False(board.CanSendToDirector);
+        Assert.Contains(board.SendBlockers, b => b.Contains("Cấp nhóm (Team Lead) chỉ được phép lưu đề xuất"));
+
+        var sendEx = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            service.SendRankingBoardToDirectorAsync(
+                new SaveRankingBoardRequestDto(teamDept.Id, period.Id, []),
+                manager.Account!.Id));
+        Assert.Equal(409, sendEx.StatusCode);
+        Assert.Contains("Cấp nhóm (Team Lead) chỉ được phép lưu đề xuất", sendEx.Message);
+
+        var calibEx = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            service.SubmitDepartmentCalibrationAsync(
+                new SubmitCalibrationRequestDto(teamDept.Id, period.Id, [], null, false),
+                manager.Account!.Id));
+        Assert.Equal(409, calibEx.StatusCode);
+
+        var draftBoard = await service.SaveRankingBoardDraftAsync(
+            new SaveRankingBoardRequestDto(teamDept.Id, period.Id, []),
+            manager.Account!.Id);
+        Assert.NotNull(draftBoard);
+        Assert.True(draftBoard.IsTeam);
+    }
 }

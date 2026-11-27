@@ -11,7 +11,6 @@ import { hasRole, ROLE, RoleCode } from './role-codes';
  * Department managers are evaluated by the branch manager, so they can access their personal evaluation.
  */
 export const MANAGER_ROLES: readonly RoleCode[] = [ROLE.branchManager, ROLE.systemAdmin];
-
 export function canViewPersonalEvaluation(
   roles: readonly string[] | null | undefined,
   permissions: readonly string[] | null | undefined,

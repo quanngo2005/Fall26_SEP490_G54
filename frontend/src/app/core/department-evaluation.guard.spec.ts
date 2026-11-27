@@ -37,7 +37,7 @@ describe('departmentEvaluationGuard', () => {
     expect(run()).toBeTrue();
   });
 
-  it('rejects branch managers and redirects to /branch-performance/evaluations', () => {
+  it('redirects branch managers to /branch-performance/evaluations', () => {
     as(['BRANCH_MANAGER'], ['EVALUATION_READ', 'EVALUATION_FINALIZE']);
     expect(String(run())).toBe(router.parseUrl('/branch-performance/evaluations').toString());
   });

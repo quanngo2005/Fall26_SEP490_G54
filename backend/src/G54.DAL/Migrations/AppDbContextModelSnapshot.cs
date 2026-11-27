@@ -2641,6 +2641,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("department_id");
 
+                    b.Property<Guid?>("EvaluationPeriodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evaluation_period_id");
+
                     b.Property<int>("Headcount")
                         .HasColumnType("integer")
                         .HasColumnName("headcount");
@@ -2669,7 +2673,12 @@ namespace G54.DAL.Migrations
                         .HasName("ranking_slot_quota_pkey");
 
                     b.HasIndex(new[] { "DepartmentId", "TierCode" }, "uq_ranking_slot_quota_department_tier")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("evaluation_period_id IS NULL");
+
+                    b.HasIndex(new[] { "EvaluationPeriodId", "DepartmentId", "TierCode" }, "uq_ranking_slot_quota_period_department_tier")
+                        .IsUnique()
+                        .HasFilter("evaluation_period_id IS NOT NULL");
 
                     b.ToTable("ranking_slot_quota", null, t =>
                         {
@@ -5064,7 +5073,15 @@ namespace G54.DAL.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_ranking_slot_quota_department");
 
+                    b.HasOne("G54.DAL.Entities.EvaluationPeriod", "EvaluationPeriod")
+                        .WithMany()
+                        .HasForeignKey("EvaluationPeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_ranking_slot_quota_evaluation_period");
+
                     b.Navigation("Department");
+
+                    b.Navigation("EvaluationPeriod");
                 });
 
             modelBuilder.Entity("G54.DAL.Entities.ResultSubmission", b =>

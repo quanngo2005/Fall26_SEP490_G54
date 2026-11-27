@@ -86,6 +86,7 @@ describe('DepartmentRankingComponent', () => {
     ],
     staffRows: [row],
     generatedAt: '2026-10-01T00:00:00Z',
+    isTeam: false,
   };
 
   beforeEach(async () => {
@@ -154,6 +155,16 @@ describe('DepartmentRankingComponent', () => {
     expect(component.canSend()).toBeTrue();
   });
 
+  it('should hide send to director button and show save proposal when isTeam is true', () => {
+    component.board.set({ ...board, isTeam: true });
+    fixture.detectChanges();
+    expect(component.isTeam()).toBeTrue();
+    const sendButton = findButton(fixture, 'Gửi giám đốc chi nhánh');
+    expect(sendButton).toBeUndefined();
+    const saveButton = findButton(fixture, 'Lưu đề xuất xếp loại');
+    expect(saveButton).toBeDefined();
+  });
+
   it('should not open the send confirmation when the board cannot be sent', () => {
     component.openConfirmSend();
     expect(component.confirmSendOpen()).toBeFalse();
@@ -184,11 +195,11 @@ describe('DepartmentRankingComponent', () => {
   });
 
   it('should require a reason when a tier is changed', () => {
-    component.setFinalTier(row, { target: { value: 'B' } } as unknown as Event);
+    component.setFinalTier(row, 'B');
     expect(component.isTierChanged(row)).toBeTrue();
     expect(component.isReasonMissing(row)).toBeTrue();
 
-    component.setReason(row, { target: { value: 'Hoàn thành vượt chỉ tiêu' } } as unknown as Event);
+    component.setReason(row, 'Hoàn thành vượt chỉ tiêu');
     expect(component.isReasonMissing(row)).toBeFalse();
   });
 

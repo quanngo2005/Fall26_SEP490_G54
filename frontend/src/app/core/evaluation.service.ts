@@ -30,6 +30,9 @@ import {
   SaveRankingBoardRequest,
   AutoAssignRankingBoardRequest,
   SubmitEvaluationRequest,
+  RankingSlotQuotas,
+  RankingSlotQuotaItem,
+  UpdateRankingSlotQuotasRequest,
 } from './evaluation.models';
 
 @Injectable({ providedIn: 'root' })
@@ -87,10 +90,14 @@ export class EvaluationService {
     periodId: string,
     departmentId?: string,
     positionId?: string,
+    includeSubDepartments?: boolean,
   ): Observable<CalibrationOverview> {
     let params = new HttpParams().set('periodId', periodId);
     if (departmentId) params = params.set('departmentId', departmentId);
     if (positionId) params = params.set('positionId', positionId);
+    if (includeSubDepartments !== undefined) {
+      params = params.set('includeSubDepartments', String(includeSubDepartments));
+    }
     return this.http
       .get<ApiResponse<CalibrationOverview>>(`${this.url}/calibration`, { params })
       .pipe(map((response) => this.unwrap(response)));
@@ -116,6 +123,55 @@ export class EvaluationService {
       .post<ApiResponse<CalibrationDecisionResult>>(
         `${this.url}/approvals/${departmentId}/recalibrate`,
         request,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  getDepartmentSlotQuotas(
+    departmentId: string,
+    periodId?: string | null,
+  ): Observable<RankingSlotQuotas> {
+    let params = new HttpParams();
+    if (periodId) {
+      params = params.set('periodId', periodId);
+    }
+    return this.http
+      .get<ApiResponse<RankingSlotQuotas>>(
+        `${this.url}/approvals/departments/${departmentId}/quotas`,
+        { params },
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  updateDepartmentSlotQuotas(
+    departmentId: string,
+    request: UpdateRankingSlotQuotasRequest,
+  ): Observable<RankingSlotQuotas> {
+    return this.http
+      .put<ApiResponse<RankingSlotQuotas>>(
+        `${this.url}/approvals/departments/${departmentId}/quotas`,
+        request,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  getBranchPeriodQuota(periodId: string): Observable<RankingSlotQuotas> {
+    const params = new HttpParams().set('periodId', periodId);
+    return this.http
+      .get<ApiResponse<RankingSlotQuotas>>(`${this.url}/approvals/period-quota`, { params })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  updateBranchPeriodQuota(
+    periodId: string,
+    slots: RankingSlotQuotaItem[],
+  ): Observable<RankingSlotQuotas> {
+    const params = new HttpParams().set('periodId', periodId);
+    return this.http
+      .put<ApiResponse<RankingSlotQuotas>>(
+        `${this.url}/approvals/period-quota`,
+        { departmentId: '00000000-0000-0000-0000-000000000000', periodId, slots },
+        { params },
       )
       .pipe(map((response) => this.unwrap(response)));
   }
@@ -162,6 +218,37 @@ export class EvaluationService {
     if (periodId) params = params.set('periodId', periodId);
     if (comparePeriodId) params = params.set('comparePeriodId', comparePeriodId);
     return this.http.get(`${this.url}/department-dashboard/export`, {
+      params,
+      responseType: 'blob',
+    });
+  }
+
+  branchDashboard(
+    periodId?: string | null,
+    comparePeriodId?: string | null,
+    departmentId?: string | null,
+  ): Observable<DepartmentEvaluationDashboard> {
+    let params = new HttpParams();
+    if (periodId) params = params.set('periodId', periodId);
+    if (comparePeriodId) params = params.set('comparePeriodId', comparePeriodId);
+    if (departmentId) params = params.set('departmentId', departmentId);
+    return this.http
+      .get<ApiResponse<DepartmentEvaluationDashboard>>(`${this.url}/branch-dashboard`, {
+        params,
+      })
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  exportBranchDashboard(
+    periodId?: string | null,
+    comparePeriodId?: string | null,
+    departmentId?: string | null,
+  ): Observable<Blob> {
+    let params = new HttpParams();
+    if (periodId) params = params.set('periodId', periodId);
+    if (comparePeriodId) params = params.set('comparePeriodId', comparePeriodId);
+    if (departmentId) params = params.set('departmentId', departmentId);
+    return this.http.get(`${this.url}/branch-dashboard/export`, {
       params,
       responseType: 'blob',
     });

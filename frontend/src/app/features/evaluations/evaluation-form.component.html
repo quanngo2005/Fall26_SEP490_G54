@@ -73,12 +73,14 @@
             }
 
             @if (compareOptions().length > 0) {
-              <app-ui-select
-                [options]="compareSelectOptions()"
-                [value]="selectedComparePeriodId() ?? ''"
+              <app-compare-slider
+                [mode]="compareMode()"
                 [disabled]="loading() || saving() || exporting()"
-                [ariaLabel]="localization.evaluationForm.periodCompareAria"
-                (valueChange)="onCompareChange($event)"
+                [hasPrevious]="hasPreviousPeriod()"
+                [hasSameLastYear]="hasSameLastYearPeriod()"
+                [previousTooltip]="previousPeriod()?.name ?? ''"
+                [sameLastYearTooltip]="sameLastYearPeriod()?.name ?? ''"
+                (modeChange)="onCompareModeChanged($event)"
               />
             }
 

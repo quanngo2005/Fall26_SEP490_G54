@@ -275,17 +275,20 @@ public sealed class EvaluationScopeTests
     }
 
     [Fact]
-    public async Task GetDepartmentEvaluationDashboard_BranchManagerOrAdmin_ThrowsForbidden()
+    public async Task GetBranchEvaluationDashboard_BranchManagerOrAdmin_Succeeds()
     {
         using var context = CreateContext();
         var s = await SeedAsync(context);
         var branchService = CreateService(context, Grant("read", PermissionScopes.Branch));
         var adminService = CreateService(context, new UserPermissionDto("*", "*", PermissionScopes.All, "FULL_ACCESS"));
 
-        await Assert.ThrowsAsync<ForbiddenException>(() =>
-            branchService.GetDepartmentEvaluationDashboardAsync(null, null, s.ManagerAAccount.Id));
-        await Assert.ThrowsAsync<ForbiddenException>(() =>
-            adminService.GetDepartmentEvaluationDashboardAsync(null, null, s.ManagerAAccount.Id));
+        var branchDashboard = await branchService.GetBranchEvaluationDashboardAsync(null, null, null, s.ManagerAAccount.Id);
+        var adminDashboard = await adminService.GetBranchEvaluationDashboardAsync(null, null, s.DeptBId, s.ManagerAAccount.Id);
+
+        Assert.NotNull(branchDashboard);
+        Assert.NotNull(adminDashboard);
+        Assert.Equal(s.DeptBId, adminDashboard.Department.Id);
+        Assert.NotNull(branchDashboard.AvailableDepartments);
     }
 
     [Fact]
@@ -408,7 +411,7 @@ public sealed class EvaluationScopeTests
         using var workbook = new XLWorkbook(stream);
         Assert.Equal(["Tong quan", "KPI", "Xu huong", "Xep loai", "Cong viec & SLA", "Can bo"], workbook.Worksheets.Select(w => w.Name).ToArray());
         Assert.Equal("33.33", workbook.Worksheet("Tong quan").Cell(17, 2).GetValue<string>());
-        Assert.Equal("Hoàn thành đúng hạn SLA (%)", workbook.Worksheet("Tong quan").Cell(17, 1).GetString());
+        Assert.Equal("Trễ hạn (%)", workbook.Worksheet("Tong quan").Cell(17, 1).GetString());
     }
 
     [Fact]
@@ -712,5 +715,173 @@ public sealed class EvaluationScopeTests
         Assert.NotNull(dashboard.Period);
         Assert.Equal(monthPeriod.Id, dashboard.Period.Id);
         Assert.Equal(PeriodType.Month.ToString().ToUpperInvariant(), dashboard.Period.PeriodType);
+    }
+
+    [Fact]
+    public async Task GetDepartmentEvaluationDashboard_RejectsBranchScope()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+
+        var service = CreateService(context, Grant("read", PermissionScopes.Branch));
+        await Assert.ThrowsAsync<ForbiddenException>(
+            () => service.GetDepartmentEvaluationDashboardAsync(null, null, s.ManagerAAccount.Id));
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationDashboard_AllowsBranchScopeAndReturnsDepartments()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+
+        var service = CreateService(context, Grant("read", PermissionScopes.Branch));
+        var dashboard = await service.GetBranchEvaluationDashboardAsync(null, null, null, s.ManagerAAccount.Id);
+
+        Assert.NotNull(dashboard);
+        Assert.NotNull(dashboard.Department);
+    }
+
+    [Fact]
+    public async Task GetBranchEvaluationDashboard_RejectsDeptScope()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+
+        var service = CreateService(context, Grant("read", PermissionScopes.Dept));
+        await Assert.ThrowsAsync<ForbiddenException>(
+            () => service.GetBranchEvaluationDashboardAsync(null, null, null, s.ManagerAAccount.Id));
+    }
+
+    [Fact]
+    public async Task GetRankingBoard_ForTeam_SetsIsTeamTrue_AndDisablesSendToDirector()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var now = DateTimeOffset.UtcNow;
+
+        var team = new Department
+        {
+            Id = Guid.NewGuid(),
+            Code = "TEAM-1",
+            Name = "Nhóm 1",
+            LevelType = DepartmentLevelType.Team,
+            ParentDepartmentId = s.DeptAId,
+            Status = RecordStatus.Active,
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        context.Departments.Add(team);
+
+        var teamLead = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "TL-1",
+            FullName = "Trưởng nhóm 1",
+            Email = "tl1@bpms.com",
+            DepartmentId = team.Id,
+            JobPositionId = s.ManagerA.JobPositionId,
+            Status = EmployeeStatus.Active,
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        context.Employees.Add(teamLead);
+
+        var teamLeadAccount = new Account
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = teamLead.Id,
+            Username = teamLead.Email,
+            PasswordHash = "hash",
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        context.Accounts.Add(teamLeadAccount);
+
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "2026-M11",
+            Name = "Tháng 11/2026",
+            PeriodType = PeriodType.Month,
+            StartDate = new DateOnly(2026, 11, 1),
+            EndDate = new DateOnly(2026, 11, 30),
+            Status = PeriodStatus.Open,
+        };
+        context.EvaluationPeriods.Add(period);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, Grant("read", PermissionScopes.Dept), Grant("calibrate", PermissionScopes.Dept));
+        var board = await service.GetRankingBoardAsync(period.Id, team.Id, null, teamLeadAccount.Id);
+
+        Assert.True(board.IsTeam);
+        Assert.False(board.CanSendToDirector);
+        Assert.Contains(board.SendBlockers, b => b.Contains("Cấp nhóm (Team Lead) chỉ được phép lưu đề xuất xếp loại"));
+    }
+
+    [Fact]
+    public async Task SendRankingBoardToDirector_RejectsWhenCallerIsTeamLead()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var now = DateTimeOffset.UtcNow;
+
+        var team = new Department
+        {
+            Id = Guid.NewGuid(),
+            Code = "TEAM-2",
+            Name = "Nhóm 2",
+            LevelType = DepartmentLevelType.Team,
+            ParentDepartmentId = s.DeptAId,
+            Status = RecordStatus.Active,
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        context.Departments.Add(team);
+
+        var teamLead = new Employee
+        {
+            Id = Guid.NewGuid(),
+            EmployeeCode = "TL-2",
+            FullName = "Trưởng nhóm 2",
+            Email = "tl2@bpms.com",
+            DepartmentId = team.Id,
+            JobPositionId = s.ManagerA.JobPositionId,
+            Status = EmployeeStatus.Active,
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        context.Employees.Add(teamLead);
+
+        var teamLeadAccount = new Account
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = teamLead.Id,
+            Username = teamLead.Email,
+            PasswordHash = "hash",
+            LastSyncAt = now,
+            UpdatedAt = now,
+        };
+        context.Accounts.Add(teamLeadAccount);
+
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "2026-M11",
+            Name = "Tháng 11/2026",
+            PeriodType = PeriodType.Month,
+            StartDate = new DateOnly(2026, 11, 1),
+            EndDate = new DateOnly(2026, 11, 30),
+            Status = PeriodStatus.Open,
+        };
+        context.EvaluationPeriods.Add(period);
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, Grant("read", PermissionScopes.Dept), Grant("calibrate", PermissionScopes.Dept));
+        var request = new SaveRankingBoardRequestDto(team.Id, period.Id, []);
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(
+            () => service.SendRankingBoardToDirectorAsync(request, teamLeadAccount.Id));
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Contains("Cấp nhóm (Team Lead) chỉ được phép lưu đề xuất xếp loại", ex.Message);
     }
 }

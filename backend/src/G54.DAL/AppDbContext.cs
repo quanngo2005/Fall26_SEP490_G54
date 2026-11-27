@@ -1509,10 +1509,17 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_ranking_slot_quota_tier_code", "tier_code IN ('A1', 'A2', 'A3', 'B', 'C')");
             });
 
-            entity.HasIndex(e => new { e.DepartmentId, e.TierCode }, "uq_ranking_slot_quota_department_tier").IsUnique();
+            entity.HasIndex(e => new { e.EvaluationPeriodId, e.DepartmentId, e.TierCode }, "uq_ranking_slot_quota_period_department_tier")
+                .IsUnique()
+                .HasFilter("evaluation_period_id IS NOT NULL");
+
+            entity.HasIndex(e => new { e.DepartmentId, e.TierCode }, "uq_ranking_slot_quota_department_tier")
+                .IsUnique()
+                .HasFilter("evaluation_period_id IS NULL");
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.DepartmentId).HasColumnName("department_id");
+            entity.Property(e => e.EvaluationPeriodId).HasColumnName("evaluation_period_id");
             entity.Property(e => e.TierCode)
                 .HasMaxLength(10)
                 .HasColumnName("tier_code");
@@ -1527,6 +1534,11 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.DepartmentId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_ranking_slot_quota_department");
+
+            entity.HasOne(d => d.EvaluationPeriod).WithMany()
+                .HasForeignKey(d => d.EvaluationPeriodId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_ranking_slot_quota_evaluation_period");
         });
 
         modelBuilder.Entity<Downgrade>(entity =>

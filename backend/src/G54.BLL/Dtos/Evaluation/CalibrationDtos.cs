@@ -67,7 +67,8 @@ public sealed record CalibrationEmployeeRowDto(
     string EvaluationStatus,
     Guid? EvaluationId,
     DateTimeOffset? CalculatedAt,
-    IReadOnlyList<string>? ProposedTierExplanation = null);
+    IReadOnlyList<string>? ProposedTierExplanation = null,
+    decimal? RiskPenalty = null);
 
 public sealed record CalibrationOverviewDto(
     CalibrationDepartmentDto Department,
@@ -122,7 +123,10 @@ public sealed record DepartmentApprovalSummaryDto(
     int TierDCount,
     bool IsQuotaCompliant,
     string? ReviewerComment,
-    DateTimeOffset? SubmittedAt);
+    DateTimeOffset? SubmittedAt,
+    int TierA1Count = 0,
+    int TierA2Count = 0,
+    int TierA3Count = 0);
 
 public sealed record BranchApprovalOverviewDto(
     EvaluationPeriodDto Period,

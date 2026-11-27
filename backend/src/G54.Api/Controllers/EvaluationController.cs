@@ -2,6 +2,7 @@ using G54.Api.Authorization;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Models;
 using G54.BLL.Dtos.Evaluation;
+using G54.BLL.Dtos.SystemParameter;
 using G54.BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -166,6 +167,58 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     }
 
     /// <summary>
+    /// Gets the Branch Manager's Evaluation Dashboard overview across departments in the branch (`/branch-performance/evaluations`).
+    /// Only accessible to Branch Managers (`evaluation:read` at `Branch` or `All` scope).
+    /// </summary>
+    [HttpGet("branch-dashboard")]
+    [ProducesResponseType<ApiResponse<DepartmentEvaluationDashboardDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Branch")]
+    public async Task<ActionResult<ApiResponse<DepartmentEvaluationDashboardDto>>> GetBranchDashboard(
+        [FromQuery] Guid? periodId,
+        [FromQuery] Guid? comparePeriodId,
+        [FromQuery] Guid? departmentId,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GetBranchEvaluationDashboardAsync(
+            periodId,
+            comparePeriodId,
+            departmentId,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Exports the Branch Manager's Evaluation Dashboard to an Excel workbook (`.xlsx`).
+    /// Only accessible to Branch Managers (`evaluation:read` at `Branch` or `All` scope).
+    /// </summary>
+    [HttpGet("branch-dashboard/export")]
+    [ProducesResponseType<FileContentResult>(StatusCodes.Status200OK, ExcelContentType)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Branch")]
+    public async Task<IActionResult> ExportBranchDashboard(
+        [FromQuery] Guid? periodId,
+        [FromQuery] Guid? comparePeriodId,
+        [FromQuery] Guid? departmentId,
+        CancellationToken cancellationToken)
+    {
+        var file = await service.ExportBranchEvaluationDashboardAsync(
+            periodId,
+            comparePeriodId,
+            departmentId,
+            User.GetRequiredUserId(),
+            cancellationToken);
+
+        return File(file.Content, ExcelContentType, file.FileName);
+    }
+
+    /// <summary>
     /// Gets the department ranking board for a period: tier slots, the staff ranking and the change against the compare period (SCR-EVAL-04).
     /// </summary>
     [HttpGet("ranking-board")]
@@ -282,7 +335,8 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
         [FromQuery] Guid periodId,
         [FromQuery] Guid? departmentId,
         [FromQuery] Guid? positionId,
-        CancellationToken cancellationToken)
+        [FromQuery] bool includeSubDepartments = false,
+        CancellationToken cancellationToken = default)
     {
         RequireIds(("periodId", periodId));
         var result = await service.GetDepartmentCalibrationAsync(
@@ -290,6 +344,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
             departmentId,
             positionId,
             User.GetRequiredUserId(),
+            includeSubDepartments: includeSubDepartments,
             cancellationToken: cancellationToken);
 
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
@@ -374,6 +429,83 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
             User.GetRequiredUserId(),
             cancellationToken);
 
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Gets ranking slot quotas for a department (SCR-EVL-03 - UC106).
+    /// </summary>
+    [HttpGet("approvals/departments/{departmentId:guid}/quotas")]
+    [ProducesResponseType<ApiResponse<RankingSlotQuotasDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Branch")]
+    public async Task<ActionResult<ApiResponse<RankingSlotQuotasDto>>> GetDepartmentSlotQuotas(
+        [FromRoute] Guid departmentId,
+        [FromQuery] Guid? periodId,
+        [FromServices] IRankingSlotQuotaService quotaService,
+        CancellationToken cancellationToken)
+    {
+        var result = await quotaService.GetAsync(departmentId, periodId, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Updates ranking slot quotas for a department by Branch Manager (SCR-EVL-03 - UC106).
+    /// </summary>
+    [HttpPut("approvals/departments/{departmentId:guid}/quotas")]
+    [ProducesResponseType<ApiResponse<RankingSlotQuotasDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "finalize", "Branch")]
+    public async Task<ActionResult<ApiResponse<RankingSlotQuotasDto>>> UpdateDepartmentSlotQuotas(
+        [FromRoute] Guid departmentId,
+        [FromBody] UpdateRankingSlotQuotasDto request,
+        [FromServices] IRankingSlotQuotaService quotaService,
+        CancellationToken cancellationToken)
+    {
+        if (departmentId != request.DepartmentId)
+        {
+            request = request with { DepartmentId = departmentId };
+        }
+        var result = await quotaService.UpdateAsync(request, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Gets ranking slot quotas for the entire branch/period (SCR-EVL-03 - UC106).
+    /// </summary>
+    [HttpGet("approvals/period-quota")]
+    [ProducesResponseType<ApiResponse<RankingSlotQuotasDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [HasPermission("evaluation", "read", "Branch")]
+    public async Task<ActionResult<ApiResponse<RankingSlotQuotasDto>>> GetBranchPeriodSlotQuotas(
+        [FromQuery] Guid periodId,
+        [FromServices] IRankingSlotQuotaService quotaService,
+        CancellationToken cancellationToken)
+    {
+        RequireIds(("periodId", periodId));
+        var result = await quotaService.GetBranchQuotaAsync(periodId, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Updates ranking slot quotas for the entire branch/period by Branch Manager (SCR-EVL-03 - UC106).
+    /// </summary>
+    [HttpPut("approvals/period-quota")]
+    [ProducesResponseType<ApiResponse<RankingSlotQuotasDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "finalize", "Branch")]
+    public async Task<ActionResult<ApiResponse<RankingSlotQuotasDto>>> UpdateBranchPeriodSlotQuotas(
+        [FromQuery] Guid periodId,
+        [FromBody] UpdateRankingSlotQuotasDto request,
+        [FromServices] IRankingSlotQuotaService quotaService,
+        CancellationToken cancellationToken)
+    {
+        RequireIds(("periodId", periodId));
+        var result = await quotaService.UpdateBranchQuotaAsync(periodId, request.Slots.ToList(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 
