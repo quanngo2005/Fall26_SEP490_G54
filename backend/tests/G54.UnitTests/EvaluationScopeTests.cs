@@ -629,7 +629,7 @@ public sealed class EvaluationScopeTests
             Code = "2026-M12",
             Name = "Tháng 12/2026",
             PeriodType = PeriodType.Month,
-            Status = EvaluationPeriodStatus.InProgress,
+            Status = PeriodStatus.Open,
             StartDate = new DateOnly(2026, 12, 1),
             EndDate = new DateOnly(2026, 12, 31),
             UpdatedAt = now,

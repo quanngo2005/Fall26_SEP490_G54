@@ -408,6 +408,9 @@ public sealed class EvaluationControllerTests
             return Task.FromResult(new CalibrationSubmitResultDto(request.DepartmentId, request.PeriodId, "DRAFT", 0, 0, true, DateTimeOffset.UtcNow, "saved"));
         }
 
+        public Task<CalibrationSubmitResultDto> SaveBranchCalibrationAdjustmentsAsync(SubmitCalibrationRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
         public Task<RankingBoardOverviewDto> GetRankingBoardAsync(Guid periodId, Guid? departmentId, Guid? comparePeriodId, Guid currentUserId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 

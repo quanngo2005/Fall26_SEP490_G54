@@ -140,10 +140,7 @@
             </span>
           </div>
           <div class="metric-body">
-            <span
-              class="metric-value font-mono"
-              [ngClass]="valueToneClass(totalScore(), 80, 60)"
-            >
+            <span class="metric-value font-mono" [ngClass]="valueToneClass(totalScore(), 80, 60)">
               {{totalScore() === null ? emptyValue : (totalScore()! | appNumber: 1)}}
             </span>
           </div>

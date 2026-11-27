@@ -14,59 +14,59 @@ import { formatValue } from './performance-display';
   imports: [RouterLink, AppDatePipe, StatusBadgeComponent],
   template: `
     @let text = localization.branchPerformance;
-    <section class="card is-clickable" aria-labelledby="campaign-title">
-      <div class="card-head">
-        <h2 id="campaign-title">{{text.campaignsTitle}}</h2>
-        <a class="card-link" routerLink="/campaigns"
-          >{{text.viewAll}}<span class="chevron" aria-hidden="true">›</span></a
-        >
+<section class="card is-clickable" aria-labelledby="campaign-title">
+  <div class="card-head">
+    <h2 id="campaign-title">{{text.campaignsTitle}}</h2>
+    <a class="card-link" routerLink="/campaigns"
+      >{{text.viewAll}}<span class="chevron" aria-hidden="true">›</span></a
+    >
+  </div>
+  @if (failed()) {
+    <div role="alert">
+      <p class="down">{{text.campaignLoadError}}</p>
+      <button type="button" class="card-link" (click)="retry.emit()">
+        {{localization.departmentPerformance.retry}}
+      </button>
+    </div>
+  } @else if (campaigns().length) {
+    <div class="table-wrap">
+      <div class="row head">
+        <span>{{text.colCampaign}}</span>
+        <span>{{text.colStartDate}}</span>
+        <span>{{text.colStatus}}</span>
+        <span>{{text.colProgress}}</span>
+        <span class="right">{{text.colCompletedWorks}}</span>
+        <span class="right">{{text.colDeadline}}</span>
       </div>
-      @if (failed()) {
-        <div role="alert">
-          <p class="down">{{text.campaignLoadError}}</p>
-          <button type="button" class="card-link" (click)="retry.emit()">
-            {{localization.departmentPerformance.retry}}
-          </button>
-        </div>
-      } @else if (campaigns().length) {
-        <div class="table-wrap">
-          <div class="row head">
-            <span>{{text.colCampaign}}</span>
-            <span>{{text.colStartDate}}</span>
-            <span>{{text.colStatus}}</span>
-            <span>{{text.colProgress}}</span>
-            <span class="right">{{text.colCompletedWorks}}</span>
-            <span class="right">{{text.colDeadline}}</span>
-          </div>
-          @for (campaign of campaigns(); track campaign.id) {
-            <a class="row item" routerLink="/campaigns/detail" [state]="{ campaignId: campaign.id }">
-              <span>
-                <b>{{campaign.name}}</b>
-                <small class="muted">{{subtitle(campaign)}}</small>
-              </span>
-              <span class="mono nowrap">{{campaign.startDate | appDate}}</span>
-              <span>
-                <app-status-badge [tone]="badgeTone(campaign.status)">
-                  {{statusLabel(campaign.status)}}
-                </app-status-badge>
-              </span>
-              <span class="progress">
-                <span class="track" aria-hidden="true">
-                  <span class="fill" [style.width.%]="clampedProgress(campaign.progressPercent)"></span>
-                </span>
-                <b class="mono percent">{{percent(campaign.progressPercent)}}</b>
-              </span>
-              <span class="mono right">
-                {{campaign.completedWorksCount}}/{{campaign.generatedWorksCount}}
-              </span>
-              <span class="mono right nowrap">{{campaign.endDate | appDate}}</span>
-            </a>
-          }
-        </div>
-      } @else {
-        <p class="empty">{{text.noCampaigns}}</p>
+      @for (campaign of campaigns(); track campaign.id) {
+        <a class="row item" routerLink="/campaigns/detail" [state]="{ campaignId: campaign.id }">
+          <span>
+            <b>{{campaign.name}}</b>
+            <small class="muted">{{subtitle(campaign)}}</small>
+          </span>
+          <span class="mono nowrap">{{campaign.startDate | appDate}}</span>
+          <span>
+            <app-status-badge [tone]="badgeTone(campaign.status)">
+              {{statusLabel(campaign.status)}}
+            </app-status-badge>
+          </span>
+          <span class="progress">
+            <span class="track" aria-hidden="true">
+              <span class="fill" [style.width.%]="clampedProgress(campaign.progressPercent)"></span>
+            </span>
+            <b class="mono percent">{{percent(campaign.progressPercent)}}</b>
+          </span>
+          <span class="mono right">
+            {{campaign.completedWorksCount}}/{{campaign.generatedWorksCount}}
+          </span>
+          <span class="mono right nowrap">{{campaign.endDate | appDate}}</span>
+        </a>
       }
-    </section>
+    </div>
+  } @else {
+    <p class="empty">{{text.noCampaigns}}</p>
+  }
+</section>
   `,
   styleUrl: './performance-card.scss',
   styles: `

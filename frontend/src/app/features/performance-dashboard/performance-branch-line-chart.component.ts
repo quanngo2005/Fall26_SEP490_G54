@@ -11,7 +11,20 @@ const TOP = 18;
 const BOTTOM = 32;
 const TICKS = 4;
 const MONTHS_VI = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
-const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_EN = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
 
 interface ChartPoint {
   month: number;
@@ -31,118 +44,118 @@ interface ChartPoint {
   selector: 'app-perf-branch-line-chart',
   template: `
     <section class="card" [attr.aria-label]="title()">
-      <div class="card-head">
-        <h2>{{ title() }} · {{ localization.branchPerformance.trendRange }}</h2>
-        @if (trend(); as t) {
-          <div class="legend" aria-hidden="true">
-            <span class="legend-item">
-              <span class="swatch current"></span>
-              <span>{{ t.currentYear }}</span>
-            </span>
-            <span class="legend-item">
-              <span class="swatch previous"></span>
-              <span>{{ t.previousYear }}</span>
-            </span>
-          </div>
-        }
+  <div class="card-head">
+    <h2>{{title()}} · {{localization.branchPerformance.trendRange}}</h2>
+    @if (trend(); as t) {
+      <div class="legend" aria-hidden="true">
+        <span class="legend-item">
+          <span class="swatch current"></span>
+          <span>{{t.currentYear}}</span>
+        </span>
+        <span class="legend-item">
+          <span class="swatch previous"></span>
+          <span>{{t.previousYear}}</span>
+        </span>
       </div>
+    }
+  </div>
 
-      @if (hasData()) {
-        <svg
-          [attr.viewBox]="'0 0 ' + width + ' ' + height"
-          role="img"
-          [attr.aria-label]="summary()"
-          (mouseleave)="activeMonth.set(null)"
-        >
-          @for (tick of ticks(); track tick.value) {
-            <line
-              [attr.x1]="left"
-              [attr.x2]="width - right"
-              [attr.y1]="tick.y"
-              [attr.y2]="tick.y"
-              class="grid"
-            />
-            <text [attr.x]="left - 6" [attr.y]="tick.y + 4" class="axis" text-anchor="end">
-              {{ tick.label }}
-            </text>
-          }
-
-          @if (hoveredPoint(); as active) {
-            <line
-              [attr.x1]="active.x"
-              [attr.x2]="active.x"
-              [attr.y1]="top"
-              [attr.y2]="baseY"
-              class="guide"
-            />
-          }
-
-          @for (area of currentAreas(); track $index) {
-            <path [attr.d]="area" class="area-current" />
-          }
-
-          @if (previousPath()) {
-            <path [attr.d]="previousPath()" class="line-previous" />
-          }
-
-          @if (currentPath()) {
-            <path [attr.d]="currentPath()" class="line-current" />
-          }
-
-          @for (pt of chartPoints(); track pt.month) {
-            @if (pt.previousY !== null) {
-              <circle
-                [attr.cx]="pt.x"
-                [attr.cy]="pt.previousY"
-                [attr.r]="activeMonth() === pt.month ? 4.5 : 3"
-                class="dot-previous"
-              />
-            }
-            @if (pt.currentY !== null) {
-              <circle
-                [attr.cx]="pt.x"
-                [attr.cy]="pt.currentY"
-                [attr.r]="activeMonth() === pt.month ? 5 : 3.5"
-                class="dot-current"
-              />
-            }
-            <text
-              [attr.x]="pt.x"
-              [attr.y]="height - 10"
-              class="axis"
-              [class.strong]="activeMonth() === pt.month"
-              text-anchor="middle"
-            >
-              {{ pt.label }}
-            </text>
-            <rect
-              [attr.x]="pt.x - slotWidth() / 2"
-              [attr.y]="top"
-              [attr.width]="slotWidth()"
-              [attr.height]="baseY - top"
-              class="hit-target"
-              tabindex="0"
-              [attr.aria-label]="pointTooltip(pt)"
-              (mouseenter)="activeMonth.set(pt.month)"
-              (focus)="activeMonth.set(pt.month)"
-              (blur)="activeMonth.set(null)"
-            >
-              <title>{{ pointTooltip(pt) }}</title>
-            </rect>
-          }
-        </svg>
-
-        @if (hoveredPoint(); as active) {
-          <p class="readout" aria-live="polite">
-            <strong>{{ active.label }}</strong>
-            <span>· {{ trend()!.currentYear }}: {{ formatScore(active.current) }}</span>
-            <span>· {{ trend()!.previousYear }}: {{ formatScore(active.previous) }}</span>
-          </p>
-        }
-      } @else {
-        <p class="empty">{{ localization.departmentPerformance.noTrend }}</p>
+  @if (hasData()) {
+    <svg
+      [attr.viewBox]="'0 0 ' + width + ' ' + height"
+      role="img"
+      [attr.aria-label]="summary()"
+      (mouseleave)="activeMonth.set(null)"
+    >
+      @for (tick of ticks(); track tick.value) {
+        <line
+          [attr.x1]="left"
+          [attr.x2]="width - right"
+          [attr.y1]="tick.y"
+          [attr.y2]="tick.y"
+          class="grid"
+        />
+        <text [attr.x]="left - 6" [attr.y]="tick.y + 4" class="axis" text-anchor="end">
+          {{tick.label}}
+        </text>
       }
-    </section>
+
+      @if (hoveredPoint(); as active) {
+        <line
+          [attr.x1]="active.x"
+          [attr.x2]="active.x"
+          [attr.y1]="top"
+          [attr.y2]="baseY"
+          class="guide"
+        />
+      }
+
+      @for (area of currentAreas(); track $index) {
+        <path [attr.d]="area" class="area-current" />
+      }
+
+      @if (previousPath()) {
+        <path [attr.d]="previousPath()" class="line-previous" />
+      }
+
+      @if (currentPath()) {
+        <path [attr.d]="currentPath()" class="line-current" />
+      }
+
+      @for (pt of chartPoints(); track pt.month) {
+        @if (pt.previousY !== null) {
+          <circle
+            [attr.cx]="pt.x"
+            [attr.cy]="pt.previousY"
+            [attr.r]="activeMonth() === pt.month ? 4.5 : 3"
+            class="dot-previous"
+          />
+        }
+        @if (pt.currentY !== null) {
+          <circle
+            [attr.cx]="pt.x"
+            [attr.cy]="pt.currentY"
+            [attr.r]="activeMonth() === pt.month ? 5 : 3.5"
+            class="dot-current"
+          />
+        }
+        <text
+          [attr.x]="pt.x"
+          [attr.y]="height - 10"
+          class="axis"
+          [class.strong]="activeMonth() === pt.month"
+          text-anchor="middle"
+        >
+          {{pt.label}}
+        </text>
+        <rect
+          [attr.x]="pt.x - slotWidth() / 2"
+          [attr.y]="top"
+          [attr.width]="slotWidth()"
+          [attr.height]="baseY - top"
+          class="hit-target"
+          tabindex="0"
+          [attr.aria-label]="pointTooltip(pt)"
+          (mouseenter)="activeMonth.set(pt.month)"
+          (focus)="activeMonth.set(pt.month)"
+          (blur)="activeMonth.set(null)"
+        >
+          <title>{{pointTooltip(pt)}}</title>
+        </rect>
+      }
+    </svg>
+
+    @if (hoveredPoint(); as active) {
+      <p class="readout" aria-live="polite">
+        <strong>{{active.label}}</strong>
+        <span>· {{trend()!.currentYear}}: {{formatScore(active.current)}}</span>
+        <span>· {{trend()!.previousYear}}: {{formatScore(active.previous)}}</span>
+      </p>
+    }
+  } @else {
+    <p class="empty">{{localization.departmentPerformance.noTrend}}</p>
+  }
+</section>
   `,
   styleUrl: './performance-card.scss',
   styles: `
@@ -304,11 +317,15 @@ export class PerfBranchLineChartComponent extends LocalizedComponent {
   });
 
   protected readonly currentPath = computed(() =>
-    this.buildLinePath(this.chartPoints().map((p) => (p.currentY == null ? null : { x: p.x, y: p.currentY }))),
+    this.buildLinePath(
+      this.chartPoints().map((p) => (p.currentY == null ? null : { x: p.x, y: p.currentY })),
+    ),
   );
 
   protected readonly previousPath = computed(() =>
-    this.buildLinePath(this.chartPoints().map((p) => (p.previousY == null ? null : { x: p.x, y: p.previousY }))),
+    this.buildLinePath(
+      this.chartPoints().map((p) => (p.previousY == null ? null : { x: p.x, y: p.previousY })),
+    ),
   );
 
   protected readonly currentAreas = computed(() => {
@@ -367,7 +384,9 @@ export class PerfBranchLineChartComponent extends LocalizedComponent {
   }
 
   private areaPath(segment: { x: number; y: number }[]): string {
-    const line = segment.map((pt, i) => `${i === 0 ? 'M' : 'L'}${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(' ');
+    const line = segment
+      .map((pt, i) => `${i === 0 ? 'M' : 'L'}${pt.x.toFixed(1)},${pt.y.toFixed(1)}`)
+      .join(' ');
     const last = segment[segment.length - 1];
     const first = segment[0];
     return `${line} L${last.x.toFixed(1)},${this.baseY.toFixed(1)} L${first.x.toFixed(1)},${this.baseY.toFixed(1)} Z`;
