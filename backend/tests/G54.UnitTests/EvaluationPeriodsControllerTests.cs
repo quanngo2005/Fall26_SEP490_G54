@@ -168,6 +168,12 @@ public sealed class EvaluationPeriodsControllerTests
         public Task<CreateYearPeriodsResultDto> CreateYearAsync(CreateYearPeriodsRequestDto request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new CreateYearPeriodsResultDto(Guid.NewGuid(), request.Year ?? 0, 7));
 
+        public Task<PeriodFocusKpisDto> GetFocusKpisAsync(Guid periodId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PeriodFocusKpisDto(periodId, []));
+
+        public Task<PeriodFocusKpisDto> UpdateFocusKpisAsync(Guid periodId, UpdatePeriodFocusKpisRequestDto request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PeriodFocusKpisDto(periodId, []));
+
         public Task<EvaluationPeriodStatusDto> CreateAsync(CreateEvaluationPeriodRequestDto request, CancellationToken cancellationToken = default)
         {
             PassedCreateRequest = request;

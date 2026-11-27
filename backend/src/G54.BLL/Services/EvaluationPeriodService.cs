@@ -1,3 +1,4 @@
+using System.Text.Json;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
@@ -263,6 +264,110 @@ public sealed class EvaluationPeriodService(AppDbContext db, TimeProvider time) 
         await db.SaveChangesAsync(cancellationToken);
 
         return new ClosePeriodResultDto(period.Id, period.Status.ToEnumString(), pendingResults, openDisputes);
+    }
+
+    public async Task<PeriodFocusKpisDto> GetFocusKpisAsync(Guid periodId, CancellationToken cancellationToken = default)
+    {
+        var period = await db.EvaluationPeriods
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
+            ?? throw new NotFoundException("Kỳ đánh giá", periodId);
+
+        var focusKpis = await ResolveFocusKpiSummariesAsync(db, period.FocusKpiIds, cancellationToken);
+        return new PeriodFocusKpisDto(period.Id, focusKpis);
+    }
+
+    public async Task<PeriodFocusKpisDto> UpdateFocusKpisAsync(
+        Guid periodId,
+        UpdatePeriodFocusKpisRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var period = await db.EvaluationPeriods
+            .FirstOrDefaultAsync(p => p.Id == periodId, cancellationToken)
+            ?? throw new NotFoundException("Kỳ đánh giá", periodId);
+
+        if (period.Status is PeriodStatus.Locked or PeriodStatus.Closed)
+        {
+            throw new BusinessRuleException(
+                ErrorCodes.PeriodLocked,
+                "Kỳ đánh giá đã khóa hoặc đóng, không thể thay đổi KPI trọng tâm.",
+                409);
+        }
+
+        var distinctIds = (request.KpiIds ?? [])
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
+
+        if (distinctIds.Count > 5)
+        {
+            throw new ValidationException("Chỉ được chọn tối đa 5 KPI trọng tâm cho mỗi kỳ đánh giá.");
+        }
+
+        if (distinctIds.Count > 0)
+        {
+            var validKpis = await db.KpiDefinitions
+                .AsNoTracking()
+                .Where(k => distinctIds.Contains(k.Id) && k.Status == KpiStatus.Active)
+                .Select(k => k.Id)
+                .ToListAsync(cancellationToken);
+
+            var missingOrInactive = distinctIds.Except(validKpis).ToList();
+            if (missingOrInactive.Count > 0)
+            {
+                throw new ValidationException("Một hoặc nhiều KPI được chọn không tồn tại hoặc chưa ở trạng thái hoạt động (Active).");
+            }
+        }
+
+        period.FocusKpiIds = distinctIds.Count > 0 ? JsonSerializer.Serialize(distinctIds) : null;
+        period.UpdatedAt = time.GetUtcNow();
+        await db.SaveChangesAsync(cancellationToken);
+
+        var focusKpis = await ResolveFocusKpiSummariesAsync(db, period.FocusKpiIds, cancellationToken);
+        return new PeriodFocusKpisDto(period.Id, focusKpis);
+    }
+
+    internal static IReadOnlyList<Guid> ParseFocusKpiIds(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<List<Guid>>(json);
+            return parsed?.Where(id => id != Guid.Empty).Distinct().ToList() ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    internal static async Task<IReadOnlyList<FocusKpiSummaryDto>> ResolveFocusKpiSummariesAsync(
+        AppDbContext db,
+        string? focusKpiIdsJson,
+        CancellationToken cancellationToken)
+    {
+        var ids = ParseFocusKpiIds(focusKpiIdsJson);
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var kpis = await db.KpiDefinitions
+            .AsNoTracking()
+            .Where(k => ids.Contains(k.Id))
+            .Select(k => new FocusKpiSummaryDto(k.Id, k.Code, k.Name, k.Unit))
+            .ToDictionaryAsync(k => k.Id, cancellationToken);
+
+        return ids
+            .Where(kpis.ContainsKey)
+            .Select(id => kpis[id])
+            .ToList();
     }
 
     private static void ValidateHierarchy(PeriodType type, EvaluationPeriod? parent, DateOnly start, DateOnly end)

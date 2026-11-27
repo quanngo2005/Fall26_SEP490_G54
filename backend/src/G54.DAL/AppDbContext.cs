@@ -595,6 +595,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.RankingPolicySnapshotJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("ranking_policy_snapshot_json");
+            entity.Property(e => e.FocusKpiIds)
+                .HasColumnType("jsonb")
+                .HasColumnName("focus_kpi_ids");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");

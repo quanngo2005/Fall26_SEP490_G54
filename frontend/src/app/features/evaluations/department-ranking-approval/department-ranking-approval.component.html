@@ -24,40 +24,63 @@
         </div>
 
         <div class="ui-page-actions">
-          <button type="button" class="button button-secondary" (click)="openPreCloseModal()">
-            <app-layout-icon name="tasks" />
-            <span>{{t()['btnPreCloseCheck'] || 'Kiểm tra trước khi đóng'}}</span>
-          </button>
+          @if (!isBranchFinalized()) {
+            @if (viewMode() === 'single') {
+              <button
+                type="button"
+                class="button button-secondary"
+                [disabled]="!canRejectCurrentDept()"
+                (click)="openRejectModal()"
+              >
+                <span>← {{t()['btnReject'] || 'Trả về'}}</span>
+              </button>
+            }
 
-          <button
-            type="button"
-            class="button button-secondary"
-            [disabled]="!canRejectCurrentDept()"
-            (click)="openRejectModal()"
-          >
-            <span>← {{t()['btnReject'] || 'Trả về'}}</span>
-          </button>
+            <button
+              type="button"
+              class="button button-secondary"
+              [disabled]="savingBranchDraft() || lockSubmitting() || !hasSubmittedDepartments()"
+              (click)="saveBranchDraft()"
+            >
+              <span>{{savingBranchDraft() ? 'Đang lưu...' : 'Lưu'}}</span>
+            </button>
 
-          <button
-            type="button"
-            class="button button-primary"
-            [disabled]="!canApproveCurrentDept()"
-            (click)="openApproveModal()"
-          >
-            <app-layout-icon name="check" />
-            <span>{{t()['btnApprove'] || 'Duyệt'}}</span>
-          </button>
+            <div class="approve-anchor-wrap">
+              <button
+                type="button"
+                class="button button-primary"
+                [disabled]="lockSubmitting() || savingBranchDraft()"
+                (click)="openApprovePopover()"
+              >
+                <app-layout-icon name="check" />
+                <span>{{t()['btnApprove'] || 'Duyệt'}}</span>
+              </button>
 
-          <button
-            type="button"
-            class="button button-primary"
-            [disabled]="!canPublish()"
-            (click)="openLockModal()"
-            [title]="publishHintText()"
-          >
-            <app-layout-icon name="accessPolicies" />
-            <span>{{t()['btnPublishResults'] || 'Publish kết quả'}}</span>
-          </button>
+              @if (approvePopoverOpen()) {
+                <div class="approve-confirm-popover" role="dialog" aria-modal="false">
+                  <p class="approve-confirm-text">Có chắc ghi nhận kết quả cuối cùng?</p>
+                  <div class="approve-confirm-actions">
+                    <button
+                      type="button"
+                      class="button button-secondary button-xs"
+                      [disabled]="lockSubmitting()"
+                      (click)="closeApprovePopover()"
+                    >
+                      <span>Hủy</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="button button-primary button-xs"
+                      [disabled]="lockSubmitting()"
+                      (click)="confirmFinalApprove()"
+                    >
+                      <span>{{lockSubmitting() ? 'Đang duyệt...' : 'Xác nhận'}}</span>
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
         </div>
       </header>
 
@@ -284,8 +307,9 @@
                           @if (isDepartmentSubmitted()) {
                             <td class="tier-col text-center">
                               <span
-                                class="tier-badge"
-                                [class]="'tier-' + (emp.calibratedTier || '').toLowerCase()"
+                                [class]="
+                                  'tier-badge tier-' + (emp.calibratedTier || '').toLowerCase()
+                                "
                               >
                                 {{emp.calibratedTier || '-'}}
                               </span>
@@ -323,6 +347,29 @@
                     </span>
                   </h2>
                 </div>
+                @if (!isBranchFinalized()) {
+                  <div class="all-depts-header-actions">
+                    @if (!isAdjustingBranch()) {
+                      <button
+                        type="button"
+                        class="button button-secondary button-sm"
+                        [disabled]="!hasSubmittedDepartments()"
+                        (click)="startBranchAdjusting()"
+                      >
+                        <span>Điều chỉnh</span>
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="button button-secondary button-sm"
+                        [disabled]="savingBranchDraft()"
+                        (click)="cancelBranchAdjusting()"
+                      >
+                        <span>Hủy điều chỉnh</span>
+                      </button>
+                    }
+                  </div>
+                }
               </div>
 
               <div class="staff-scroll">
@@ -376,19 +423,19 @@
                           }
                         </td>
                         <td class="num-col font-mono font-bold tier-val">
-                          {{dept.tierA1Count ?? 0}}
+                          {{isDeptSubmitted(dept.status) ? getDeptTierCount(dept, 'A1') : '-'}}
                         </td>
                         <td class="num-col font-mono font-bold tier-val">
-                          {{dept.tierA2Count ?? 0}}
+                          {{isDeptSubmitted(dept.status) ? getDeptTierCount(dept, 'A2') : '-'}}
                         </td>
                         <td class="num-col font-mono font-bold tier-val">
-                          {{dept.tierA3Count ?? 0}}
+                          {{isDeptSubmitted(dept.status) ? getDeptTierCount(dept, 'A3') : '-'}}
                         </td>
                         <td class="num-col font-mono font-bold tier-val">
-                          {{dept.tierBCount ?? 0}}
+                          {{isDeptSubmitted(dept.status) ? getDeptTierCount(dept, 'B') : '-'}}
                         </td>
                         <td class="num-col font-mono font-bold tier-val">
-                          {{dept.tierCCount ?? 0}}
+                          {{isDeptSubmitted(dept.status) ? getDeptTierCount(dept, 'C') : '-'}}
                         </td>
                         <td class="text-center">
                           <button
@@ -483,22 +530,63 @@
                                         </td>
                                         @if (isDeptSubmitted(dept.status)) {
                                           <td class="tier-col text-center">
-                                            <span
-                                              class="tier-badge"
-                                              [class]="
-                                                'tier-' + (emp.calibratedTier || '').toLowerCase()
-                                              "
-                                            >
-                                              {{emp.calibratedTier || '-'}}
-                                            </span>
+                                            @if (isAdjustingBranch() && !isBranchFinalized()) {
+                                              <select
+                                                class="branch-tier-select"
+                                                [value]="getEmpDraftTier(emp)"
+                                                (change)="
+                                                  onBranchEmpTierChange(
+                                                    emp.employeeId,
+                                                    $any($event.target).value
+                                                  )
+                                                "
+                                              >
+                                                @for (tier of tierChoices; track tier) {
+                                                  <option
+                                                    [value]="tier"
+                                                    [disabled]="isBranchEmpTierLocked(emp, tier)"
+                                                  >
+                                                    {{tier}}
+                                                  </option>
+                                                }
+                                              </select>
+                                            } @else {
+                                              <span
+                                                [class]="
+                                                  'tier-badge tier-' +
+                                                  (emp.calibratedTier || '').toLowerCase()
+                                                "
+                                              >
+                                                {{emp.calibratedTier || '-'}}
+                                              </span>
+                                            }
                                           </td>
                                           <td>
-                                            <span
-                                              class="reason-text"
-                                              [title]="emp.adjustmentReason || ''"
-                                            >
-                                              {{emp.adjustmentReason || '-'}}
-                                            </span>
+                                            @if (isAdjustingBranch() && !isBranchFinalized()) {
+                                              <input
+                                                type="text"
+                                                class="branch-reason-input"
+                                                [placeholder]="
+                                                  isEmpTierChanged(emp)
+                                                    ? 'Nhập lý do điều chỉnh...'
+                                                    : 'Không bắt buộc nếu giữ nguyên'
+                                                "
+                                                [value]="getEmpDraftReason(emp)"
+                                                (input)="
+                                                  onBranchEmpReasonChange(
+                                                    emp.employeeId,
+                                                    $any($event.target).value
+                                                  )
+                                                "
+                                              />
+                                            } @else {
+                                              <span
+                                                class="reason-text"
+                                                [title]="emp.adjustmentReason || ''"
+                                              >
+                                                {{emp.adjustmentReason || '-'}}
+                                              </span>
+                                            }
                                           </td>
                                         }
                                       </tr>
@@ -534,178 +622,331 @@
 
           <!-- Right: Tier Panel (Reusing component app-department-ranking-tier-table) -->
           <article class="panel tier-panel">
-            <!-- Period Total Quota Card -->
-            <section class="period-quota-card">
+            @if (viewMode() === 'all') {
+              <!-- Period Total Quota Card -->
+              <section class="period-quota-card">
+                <div class="period-quota-header">
+                  <div class="period-quota-title-wrap">
+                    <div class="period-quota-title-row">
+                      <h3 class="period-quota-title">Quota Tổng của Kỳ</h3>
+                      <span
+                        class="quota-indicator-badge font-mono"
+                        [class.badge-balanced]="!isPeriodTierAOverCap()"
+                        [class.badge-over]="isPeriodTierAOverCap()"
+                      >
+                        <app-layout-icon
+                          [name]="isPeriodTierAOverCap() ? 'riskEvents' : 'check'"
+                          class="indicator-icon"
+                        />
+                        <span>
+                          Quota A: {{totalBranchTierASlots()}}
+                          @if (recommendedTierASlots() > 0) {
+                            / {{recommendedTierASlots()}}
+                          }
+                          slot
+                        </span>
+                      </span>
+                    </div>
+                    <div class="period-quota-meta">
+                      <span class="meta-item">
+                        <strong>Tổng số lượng nhân viên:</strong> {{totalBranchEmployees()}} NV
+                      </span>
+                      <span class="meta-separator">·</span>
+                      <span class="meta-item font-mono text-muted">
+                        <strong>Tỉ lệ A/B/C:</strong> {{tierAPercent()}}% / {{tierBPercent()}}%
+                        / {{tierCPercent()}}%
+                      </span>
+                    </div>
+                  </div>
+                  <div class="period-quota-actions">
+                    @if (!isEditingPeriodQuota()) {
+                      <button
+                        type="button"
+                        class="button button-secondary button-sm"
+                        [disabled]="isPeriodLocked()"
+                        (click)="startEditPeriodQuota()"
+                        [title]="
+                          isPeriodLocked()
+                            ? 'Kỳ đánh giá đã qua hoặc đã khóa/chốt'
+                            : 'Điều chỉnh Quota tổng của kỳ'
+                        "
+                      >
+                        <span>Điều chỉnh</span>
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="button button-secondary button-sm"
+                        [disabled]="savingPeriodQuota() || totalBranchEmployees() <= 0"
+                        (click)="suggestPeriodQuotaFromRatios()"
+                        title="Tự tính số lượng slot theo tỉ lệ A/B/C trong tham số hệ thống"
+                      >
+                        <span>Gợi ý theo tỉ lệ</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="button button-secondary button-sm"
+                        [disabled]="savingPeriodQuota()"
+                        (click)="cancelEditPeriodQuota()"
+                      >
+                        <span>Hủy</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="button button-primary button-sm"
+                        [disabled]="
+                          savingPeriodQuota() || isPeriodLocked() || !!periodQuotaRatioError()
+                        "
+                        (click)="savePeriodQuota()"
+                      >
+                        <span>{{savingPeriodQuota() ? 'Đang lưu...' : 'Lưu'}}</span>
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                @if (periodQuotaRatioError(); as ratioErr) {
+                  <p class="quota-ratio-error" role="alert">{{ratioErr}}</p>
+                }
+
+                <table class="period-quota-table">
+                  <thead>
+                    <tr>
+                      <th class="tier-th">A1</th>
+                      <th class="tier-th">A2</th>
+                      <th class="tier-th">A3</th>
+                      <th class="tier-th">B</th>
+                      <th class="tier-th">C</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      @for (tier of ['A1', 'A2', 'A3', 'B', 'C']; track tier) {
+                        <td class="tier-td">
+                          @if (isEditingPeriodQuota()) {
+                            <input
+                              type="number"
+                              min="0"
+                              class="period-quota-input"
+                              [value]="periodQuotaDraft()[tier] ?? ''"
+                              (input)="onPeriodQuotaInputChange(tier, $any($event.target).value)"
+                            />
+                          } @else {
+                            <span class="period-quota-val font-mono">
+                              {{getPeriodQuotaHeadcount(tier) !== null
+                                  ? getPeriodQuotaHeadcount(tier)
+                                  : '-'}}
+                            </span>
+                          }
+                        </td>
+                      }
+                    </tr>
+                  </tbody>
+                </table>
+              </section>
+            }
+
+            <!-- Focus KPIs Card -->
+            <section class="period-quota-card focus-kpi-card">
               <div class="period-quota-header">
                 <div class="period-quota-title-wrap">
                   <div class="period-quota-title-row">
-                    <h3 class="period-quota-title">Quota Tổng của Kỳ</h3>
+                    <h3 class="period-quota-title">KPI Trọng tâm của Kỳ</h3>
                     <span class="quota-indicator-badge font-mono badge-balanced">
-                      <app-layout-icon name="check" class="indicator-icon" />
-                      <span>Quota A: {{totalBranchTierASlots()}} slot</span>
-                    </span>
-                  </div>
-                  <div class="period-quota-meta">
-                    <span class="meta-item">
-                      <strong>Tổng số lượng nhân viên:</strong> {{totalBranchEmployees()}} NV
-                    </span>
-                    <span class="meta-separator">·</span>
-                    <span class="meta-item font-mono text-muted">
-                      <strong>Hạng B, C:</strong> Linh hoạt (Flex)
+                      <span>
+                        {{viewMode() === 'single'
+                            ? displayedFocusKpis().length + ' KPI'
+                            : focusKpis().length + '/5 KPI'}}
+                      </span>
                     </span>
                   </div>
                 </div>
-                <div class="period-quota-actions">
-                  @if (!isEditingPeriodQuota()) {
-                    <button
-                      type="button"
-                      class="button button-secondary button-sm"
-                      [disabled]="isPeriodLocked()"
-                      (click)="startEditPeriodQuota()"
-                      [title]="
-                        isPeriodLocked()
-                          ? 'Kỳ đánh giá đã qua hoặc đã khóa/chốt'
-                          : 'Điều chỉnh Quota tổng của kỳ'
-                      "
-                    >
-                      <span>Điều chỉnh</span>
-                    </button>
-                  } @else {
-                    <button
-                      type="button"
-                      class="button button-secondary button-sm"
-                      [disabled]="savingPeriodQuota()"
-                      (click)="cancelEditPeriodQuota()"
-                    >
-                      <span>Hủy</span>
-                    </button>
-                    <button
-                      type="button"
-                      class="button button-primary button-sm"
-                      [disabled]="savingPeriodQuota() || isPeriodLocked()"
-                      (click)="savePeriodQuota()"
-                    >
-                      <span>{{savingPeriodQuota() ? 'Đang lưu...' : 'Lưu'}}</span>
-                    </button>
+                @if (viewMode() === 'all') {
+                  <div class="period-quota-actions">
+                    @if (!isEditingFocusKpis()) {
+                      <button
+                        type="button"
+                        class="button button-secondary button-sm"
+                        [disabled]="isPeriodLocked()"
+                        (click)="startEditFocusKpis()"
+                        [title]="
+                          isPeriodLocked()
+                            ? 'Kỳ đánh giá đã qua hoặc đã khóa/chốt'
+                            : 'Chọn KPI trọng tâm của kỳ'
+                        "
+                      >
+                        <span>Chỉnh sửa</span>
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="button button-secondary button-sm"
+                        [disabled]="savingFocusKpis()"
+                        (click)="cancelEditFocusKpis()"
+                      >
+                        <span>Hủy</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="button button-primary button-sm"
+                        [disabled]="savingFocusKpis() || isPeriodLocked()"
+                        (click)="saveFocusKpis()"
+                      >
+                        <span>{{savingFocusKpis() ? 'Đang lưu...' : 'Lưu'}}</span>
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+
+              @if (viewMode() === 'all' && isEditingFocusKpis()) {
+                <div class="focus-kpi-selector-list">
+                  @for (kpi of availableKpis(); track kpi.id) {
+                    <label class="focus-kpi-option">
+                      <input
+                        type="checkbox"
+                        [checked]="isFocusKpiSelected(kpi.id)"
+                        (change)="toggleFocusKpiDraft(kpi.id)"
+                      />
+                      <span class="focus-kpi-option-label">
+                        <strong class="font-mono">{{kpi.code}}</strong> — {{kpi.name}}
+                      </span>
+                    </label>
                   }
                 </div>
-              </div>
-
-              <table class="period-quota-table">
-                <thead>
-                  <tr>
-                    <th class="tier-th">A1</th>
-                    <th class="tier-th">A2</th>
-                    <th class="tier-th">A3</th>
-                    <th class="tier-th">B</th>
-                    <th class="tier-th">C</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    @for (tier of ['A1', 'A2', 'A3']; track tier) {
-                      <td class="tier-td">
-                        @if (isEditingPeriodQuota()) {
-                          <input
-                            type="number"
-                            min="0"
-                            class="period-quota-input"
-                            [value]="periodQuotaDraft()[tier] ?? ''"
-                            (input)="onPeriodQuotaInputChange(tier, $any($event.target).value)"
-                          />
-                        } @else {
-                          <span class="period-quota-val font-mono">
-                            {{getPeriodQuotaHeadcount(tier) !== null
-                                ? getPeriodQuotaHeadcount(tier)
-                                : '-'}}
-                          </span>
-                        }
-                      </td>
+              } @else {
+                @if (displayedFocusKpis().length === 0) {
+                  <p class="focus-kpi-empty text-muted">
+                    {{viewMode() === 'single'
+                        ? 'Phòng ban này chưa được giao target cho KPI trọng tâm nào trong kỳ.'
+                        : 'Chưa chọn KPI trọng tâm (không giới hạn điều kiện mở A2/A1).'}}
+                  </p>
+                } @else {
+                  <div class="focus-kpi-chips">
+                    @for (kpi of displayedFocusKpis(); track kpi.id) {
+                      <span class="focus-kpi-chip">
+                        <strong>{{kpi.code}}</strong> · {{kpi.name}}
+                      </span>
                     }
-                    @for (tier of ['B', 'C']; track tier) {
-                      <td class="tier-td">
-                        <span class="quota-flex-pill">Flex</span>
-                      </td>
-                    }
-                  </tr>
-                </tbody>
-              </table>
+                  </div>
+                }
+              }
             </section>
 
-            <!-- Department Quota Status Indicator Row -->
-            <div class="dept-quota-header-row">
-              <span
-                class="quota-indicator-badge font-mono"
-                [class.badge-balanced]="!isDeptQuotaExceeded()"
-                [class.badge-over]="isDeptQuotaExceeded()"
-              >
-                @if (!isDeptQuotaExceeded()) {
-                  <app-layout-icon name="check" class="indicator-icon" />
-                  <span>Chỉ tiêu phòng hợp lệ (Hạng B, C linh hoạt)</span>
+            @if (viewMode() === 'all') {
+              <!-- Branch Message Card -->
+              <section class="period-quota-card branch-message-card">
+                <div class="period-quota-header">
+                  <div class="period-quota-title-wrap">
+                    <div class="period-quota-title-row">
+                      <h3 class="period-quota-title">Message</h3>
+                      <span
+                        class="quota-indicator-badge font-mono"
+                        [class.badge-balanced]="branchFinalizeWarnings().length === 0"
+                        [class.badge-over]="branchFinalizeWarnings().length > 0"
+                      >
+                        <span>
+                          {{branchFinalizeWarnings().length === 0
+                              ? 'Sẵn sàng chốt'
+                              : branchFinalizeWarnings().length + ' cảnh báo'}}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                @if (branchFinalizeWarnings().length === 0) {
+                  <p class="branch-message-ok">
+                    {{isBranchFinalized()
+                        ? 'Kỳ đánh giá đã được ghi nhận kết quả cuối cùng và khóa chỉnh sửa.'
+                        : 'Tất cả điều kiện đã đạt. Có thể bấm Duyệt để ghi nhận kết quả cuối cùng.'}}
+                  </p>
                 } @else {
-                  <app-layout-icon name="riskEvents" class="indicator-icon" />
-                  <span>Chỉ tiêu vượt quá Quota tổng</span>
-                }
-              </span>
-            </div>
-
-            <app-department-ranking-tier-table
-              [title]="'Phân bổ chỉ tiêu (Slot Quota)'"
-              [tierTableRows]="tierTableRows()"
-              [totalSlots]="totalQuotaSlots()"
-              [totalActual]="totalQuotaActual()"
-              [allSlotsFilled]="allSlotsFilled()"
-              [sendBlockers]="tierBlockers()"
-              [canSend]="true"
-              [showBlockers]="false"
-              [editable]="!isPeriodLocked()"
-              [emptyValue]="'-'"
-              (headcountChange)="onQuotaHeadcountChange($event)"
-            />
-
-            <!-- Warning banner if department quota exceeds Period Quota or Headcount -->
-            @if (isDeptQuotaExceeded()) {
-              <div class="quota-warning-banner" role="alert">
-                <app-layout-icon name="riskEvents" class="warning-icon" />
-                <div class="warning-body">
-                  <strong>Vượt giới hạn chỉ tiêu cho phép:</strong>
-                  <ul>
-                    @for (err of deptQuotaTierExceededErrors(); track err) {
-                      <li>{{err}}</li>
+                  <ul class="branch-message-list">
+                    @for (warn of branchFinalizeWarnings(); track warn) {
+                      <li class="branch-message-item">{{warn}}</li>
                     }
                   </ul>
-                </div>
-              </div>
+                }
+              </section>
             }
 
-            <div class="quota-actions">
-              <button
-                type="button"
-                class="button button-primary quota-save-btn"
-                [disabled]="
-                  savingQuota() ||
-                  !selectedDepartmentId() ||
-                  isPeriodLocked() ||
-                  isDeptQuotaExceeded()
-                "
-                [title]="
-                  isPeriodLocked()
-                    ? 'Kỳ đánh giá đã khóa/chốt hoặc đã qua'
-                    : isDeptQuotaExceeded()
-                      ? 'Chỉ tiêu vượt quá giới hạn Quota tổng'
-                      : ''
-                "
-                (click)="submitDepartmentQuota()"
-              >
-                <app-layout-icon name="check" />
-                <span>{{savingQuota() ? 'Đang gửi...' : 'Gửi quota cho Trưởng phòng'}}</span>
-              </button>
-              @if (isPeriodLocked()) {
-                <span class="quota-locked-hint"
-                  >Kỳ đánh giá đã qua hoặc đã chốt/khóa, không thể thay đổi quota.</span
+            @if (viewMode() === 'single') {
+              <!-- Department Quota Status Indicator Row -->
+              <div class="dept-quota-header-row">
+                <span
+                  class="quota-indicator-badge font-mono"
+                  [class.badge-balanced]="!isDeptQuotaExceeded()"
+                  [class.badge-over]="isDeptQuotaExceeded()"
                 >
+                  @if (!isDeptQuotaExceeded()) {
+                    <app-layout-icon name="check" class="indicator-icon" />
+                    <span>Chỉ tiêu phòng hợp lệ</span>
+                  } @else {
+                    <app-layout-icon name="riskEvents" class="indicator-icon" />
+                    <span>Chỉ tiêu vượt quá Quota tổng</span>
+                  }
+                </span>
+              </div>
+
+              <app-department-ranking-tier-table
+                [title]="'Phân bố chỉ tiêu phòng'"
+                [tierTableRows]="tierTableRows()"
+                [totalSlots]="totalQuotaSlots()"
+                [totalActual]="totalQuotaActual()"
+                [allSlotsFilled]="allSlotsFilled()"
+                [sendBlockers]="tierBlockers()"
+                [canSend]="true"
+                [showBlockers]="false"
+                [editable]="!isPeriodLocked()"
+                [emptyValue]="'-'"
+                (headcountChange)="onQuotaHeadcountChange($event)"
+              />
+
+              <!-- Warning banner if department quota exceeds Period Quota or Headcount -->
+              @if (isDeptQuotaExceeded()) {
+                <div class="quota-warning-banner" role="alert">
+                  <app-layout-icon name="riskEvents" class="warning-icon" />
+                  <div class="warning-body">
+                    <strong>Vượt giới hạn chỉ tiêu cho phép:</strong>
+                    <ul>
+                      @for (err of deptQuotaTierExceededErrors(); track err) {
+                        <li>{{err}}</li>
+                      }
+                    </ul>
+                  </div>
+                </div>
               }
-            </div>
+
+              <div class="quota-actions">
+                <button
+                  type="button"
+                  class="button button-primary quota-save-btn"
+                  [disabled]="
+                    savingQuota() ||
+                    !selectedDepartmentId() ||
+                    isPeriodLocked() ||
+                    isDeptQuotaExceeded()
+                  "
+                  [title]="
+                    isPeriodLocked()
+                      ? 'Kỳ đánh giá đã khóa/chốt hoặc đã qua'
+                      : isDeptQuotaExceeded()
+                        ? 'Chỉ tiêu vượt quá giới hạn Quota tổng'
+                        : ''
+                  "
+                  (click)="submitDepartmentQuota()"
+                >
+                  <app-layout-icon name="check" />
+                  <span>{{savingQuota() ? 'Đang gửi...' : 'Gửi quota cho Trưởng phòng'}}</span>
+                </button>
+                @if (isPeriodLocked()) {
+                  <span class="quota-locked-hint"
+                    >Kỳ đánh giá đã qua hoặc đã chốt/khóa, không thể thay đổi quota.</span
+                  >
+                }
+              </div>
+            }
           </article>
         </section>
       }
@@ -964,11 +1205,3 @@
     </div>
   </div>
 }
-
-<!-- Pre-Close Check Modal Component -->
-<app-pre-close-check-modal
-  [isOpen]="isPreCloseModalOpen()"
-  [periodId]="periodId()"
-  (closeModal)="closePreCloseModal()"
-  (continuePublish)="onPreCloseContinuePublish()"
-/>

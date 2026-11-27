@@ -536,4 +536,72 @@ public sealed class EvaluationPeriodServiceTests : IDisposable
         await Assert.ThrowsAsync<ConflictException>(() => Service.CreateYearAsync(new CreateYearPeriodsRequestDto(2027)));
         await Assert.ThrowsAsync<ValidationException>(() => Service.CreateYearAsync(new CreateYearPeriodsRequestDto(1800)));
     }
+
+    [Fact]
+    public async Task UpdateFocusKpis_ValidActiveKpis_SavesAndReturnsOrderedSummaries()
+    {
+        var period = await AddPeriodAsync(PeriodStatus.Open);
+        var group = new KpiGroup { Id = Guid.NewGuid(), Code = "BIZ", Name = "Business" };
+        _db.KpiGroups.Add(group);
+        var kpi1 = new KpiDefinition
+        {
+            Id = Guid.NewGuid(),
+            KpiGroupId = group.Id,
+            Code = "KPI-CARD",
+            Name = "Mở thẻ ngân hàng",
+            Unit = "Thẻ",
+            Status = KpiStatus.Active,
+            UpdatedAt = Now,
+        };
+        var kpi2 = new KpiDefinition
+        {
+            Id = Guid.NewGuid(),
+            KpiGroupId = group.Id,
+            Code = "KPI-SAV",
+            Name = "Mở sổ tiết kiệm",
+            Unit = "Sổ",
+            Status = KpiStatus.Active,
+            UpdatedAt = Now,
+        };
+        _db.KpiDefinitions.AddRange(kpi1, kpi2);
+        await _db.SaveChangesAsync();
+
+        var updated = await Service.UpdateFocusKpisAsync(period.Id, new UpdatePeriodFocusKpisRequestDto([kpi1.Id, kpi2.Id, kpi1.Id]));
+
+        Assert.Equal(period.Id, updated.PeriodId);
+        Assert.Equal(2, updated.FocusKpis.Count);
+        Assert.Equal("KPI-CARD", updated.FocusKpis[0].Code);
+        Assert.Equal("KPI-SAV", updated.FocusKpis[1].Code);
+
+        var fetched = await Service.GetFocusKpisAsync(period.Id);
+        Assert.Equal(2, fetched.FocusKpis.Count);
+    }
+
+    [Fact]
+    public async Task UpdateFocusKpis_MoreThanFiveOrLockedOrInactive_Throws()
+    {
+        var lockedPeriod = await AddPeriodAsync(PeriodStatus.Locked);
+        var openPeriod = await AddPeriodAsync(PeriodStatus.Open);
+        var group = new KpiGroup { Id = Guid.NewGuid(), Code = "BIZ2", Name = "Business 2" };
+        _db.KpiGroups.Add(group);
+        var inactive = new KpiDefinition
+        {
+            Id = Guid.NewGuid(),
+            KpiGroupId = group.Id,
+            Code = "KPI-INACT",
+            Name = "Inactive KPI",
+            Unit = "Lần",
+            Status = KpiStatus.Draft,
+            UpdatedAt = Now,
+        };
+        _db.KpiDefinitions.Add(inactive);
+        await _db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            Service.UpdateFocusKpisAsync(lockedPeriod.Id, new UpdatePeriodFocusKpisRequestDto([])));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            Service.UpdateFocusKpisAsync(openPeriod.Id, new UpdatePeriodFocusKpisRequestDto(Enumerable.Range(0, 6).Select(_ => Guid.NewGuid()).ToList())));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            Service.UpdateFocusKpisAsync(openPeriod.Id, new UpdatePeriodFocusKpisRequestDto([inactive.Id])));
+    }
 }

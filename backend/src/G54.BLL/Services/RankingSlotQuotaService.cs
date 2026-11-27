@@ -1,3 +1,4 @@
+using G54.BLL.Common;
 using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.SystemParameter;
@@ -8,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace G54.BLL.Services;
 
-public sealed class RankingSlotQuotaService(AppDbContext db) : IRankingSlotQuotaService
+public sealed class RankingSlotQuotaService(AppDbContext db, SystemParameterStore? parameters = null) : IRankingSlotQuotaService
 {
     public async Task<RankingSlotQuotasDto> GetAsync(Guid departmentId, Guid? periodId = null, CancellationToken ct = default)
     {
@@ -182,6 +183,46 @@ public sealed class RankingSlotQuotaService(AppDbContext db) : IRankingSlotQuota
             .FirstOrDefaultAsync(d => d.LevelType == DepartmentLevelType.Branch && d.Status == RecordStatus.Active, ct)
             ?? await db.Departments.AsNoTracking().FirstOrDefaultAsync(d => d.LevelType == DepartmentLevelType.Branch, ct)
             ?? throw new NotFoundException("Không tìm thấy chi nhánh đang hoạt động.");
+
+        var activeEmployeeCount = await db.Employees
+            .AsNoTracking()
+            .CountAsync(e => e.Status == EmployeeStatus.Active, ct);
+
+        if (activeEmployeeCount > 0 && slots is { Count: > 0 })
+        {
+            var opts = parameters?.Current ?? new SystemParametersOptions();
+            var maxTierA = Math.Max(1, (int)Math.Ceiling(activeEmployeeCount * (opts.TierAQuotaPercent / 100m)));
+            var maxTierB = (int)Math.Ceiling(activeEmployeeCount * (opts.TierBTargetPercent / 100m));
+            var maxTierC = (int)Math.Ceiling(activeEmployeeCount * (opts.TierCTargetPercent / 100m));
+
+            var sumA = slots.Where(s => s.TierCode.StartsWith('A')).Sum(s => s.Headcount ?? 0);
+            var slotB = slots.FirstOrDefault(s => s.TierCode == "B")?.Headcount ?? 0;
+            var slotC = slots.FirstOrDefault(s => s.TierCode == "C")?.Headcount ?? 0;
+            var totalSlots = sumA + slotB + slotC;
+
+            var ratioErrors = new List<string>();
+            if (sumA > maxTierA)
+            {
+                ratioErrors.Add($"Tổng quota hạng A ({sumA}) vượt quá tỉ lệ cho phép {opts.TierAQuotaPercent:0.#}% ({maxTierA} slot).");
+            }
+            if (slotB > maxTierB)
+            {
+                ratioErrors.Add($"Quota hạng B ({slotB}) vượt quá tỉ lệ cho phép {opts.TierBTargetPercent:0.#}% ({maxTierB} slot).");
+            }
+            if (slotC > maxTierC)
+            {
+                ratioErrors.Add($"Quota hạng C ({slotC}) vượt quá tỉ lệ cho phép {opts.TierCTargetPercent:0.#}% ({maxTierC} slot).");
+            }
+            if (totalSlots > activeEmployeeCount)
+            {
+                ratioErrors.Add($"Tổng quota A/B/C ({totalSlots}) vượt quá tổng nhân viên chi nhánh ({activeEmployeeCount}).");
+            }
+
+            if (ratioErrors.Count > 0)
+            {
+                throw new ValidationException(ratioErrors);
+            }
+        }
 
         return await UpdateAsync(new UpdateRankingSlotQuotasDto(branch.Id, slots, periodId), ct);
     }

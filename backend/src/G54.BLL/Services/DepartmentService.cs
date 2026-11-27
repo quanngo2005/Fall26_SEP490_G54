@@ -585,7 +585,8 @@ public sealed partial class DepartmentService(
                 k.AchievementPercent)).ToList(),
             await BuildTrendAsync(period, periods, snapshot, cancellationToken),
             BuildKpiGroups(kpis, previousAchievement, snapshot),
-            BuildPositions(snapshot));
+            BuildPositions(snapshot),
+            await BuildYearlyTrendAsync(period, periods, snapshot, cancellationToken));
     }
 
     /// <summary>

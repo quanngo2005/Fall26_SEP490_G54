@@ -6,7 +6,6 @@ import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { CampaignService } from '../../core/campaign.service';
 import { DepartmentService } from '../../core/department.service';
-import { EvaluationService } from '../../core/evaluation.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { NavigationService, ROLE_MENUS } from '../../shared/layout/navigation.service';
@@ -24,7 +23,6 @@ describe('BranchPerformanceComponent', () => {
     overview: jasmine.createSpy('overview'),
     exportOverview: jasmine.createSpy('exportOverview'),
   };
-  const evaluations = { branchPeriods: jasmine.createSpy('branchPeriods') };
   const campaigns = { list: jasmine.createSpy('list') };
   const branch = { id: 'br-1', code: 'BR', name: 'Branch One', levelType: 'BRANCH' };
   const overview = overviewFixture({
@@ -45,16 +43,13 @@ describe('BranchPerformanceComponent', () => {
   });
 
   beforeEach(async () => {
-    for (const spy of [...Object.values(departments), evaluations.branchPeriods, campaigns.list]) {
+    for (const spy of [...Object.values(departments), campaigns.list]) {
       spy.calls.reset();
     }
     departments.list.and.returnValue(
       of({ items: [branch], totalCount: 1, page: 1, pageSize: 100 }),
     );
     departments.overview.and.returnValue(of(overview));
-    evaluations.branchPeriods.and.returnValue(
-      of({ branchName: 'Branch One', branchCode: 'BR', availableYears: [2026], periods: [] }),
-    );
     campaigns.list.and.returnValue(
       of({
         metrics: {
@@ -76,7 +71,6 @@ describe('BranchPerformanceComponent', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: DepartmentService, useValue: departments },
-        { provide: EvaluationService, useValue: evaluations },
         { provide: CampaignService, useValue: campaigns },
       ],
     })
@@ -94,11 +88,10 @@ describe('BranchPerformanceComponent', () => {
     return { fixture, root: fixture.nativeElement as HTMLElement };
   };
 
-  it('loads the caller branch, its open period year and running campaigns', () => {
+  it('loads the caller branch and running campaigns', () => {
     const { root } = open();
     expect(departments.list).toHaveBeenCalledWith({ levelType: 'BRANCH', pageSize: 100 });
     expect(departments.overview).toHaveBeenCalledWith('br-1', undefined, 'PREVIOUS');
-    expect(evaluations.branchPeriods).toHaveBeenCalledWith(2026);
     expect(campaigns.list).toHaveBeenCalledWith(
       jasmine.objectContaining({ status: 'RUNNING', page: 1 }),
     );
@@ -109,14 +102,16 @@ describe('BranchPerformanceComponent', () => {
     expect(cards[3]).toContain('2/3'); // slow campaigns / running campaigns
     expect(root.textContent).toContain('Unit Alpha');
     expect(root.textContent).toContain('Campaign'); // campaign column of the KPI table
+    expect(root.querySelector('app-perf-kpi-below-plan')).toBeNull();
+    expect(root.querySelector('app-perf-evaluation-period')).toBeNull();
+    expect(root.querySelector('app-perf-branch-line-chart path.line-current')).not.toBeNull();
+    expect(root.querySelector('app-perf-branch-line-chart path.line-previous')).not.toBeNull();
   });
 
   it('keeps the page when a side card fails and offers a retry on it', () => {
     campaigns.list.and.returnValue(throwError(() => new Error('403')));
-    evaluations.branchPeriods.and.returnValue(throwError(() => new Error('403')));
     const { root } = open();
     expect(root.textContent).toContain('Could not load campaigns');
-    expect(root.textContent).toContain('Could not load evaluation periods');
     expect(root.textContent).toContain('Unit Alpha');
     expect(root.querySelectorAll('app-perf-metric-card')[3].textContent).toContain('—');
   });

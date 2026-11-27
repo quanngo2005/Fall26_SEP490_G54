@@ -22,4 +22,10 @@ public interface IEvaluationPeriodService
     /// next period) and appeals still open (they must be settled before the period is locked, BR-31).
     /// </summary>
     Task<ClosePeriodResultDto> CloseAsync(Guid periodId, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the focus/priority KPIs configured by BM for the given evaluation period.</summary>
+    Task<PeriodFocusKpisDto> GetFocusKpisAsync(Guid periodId, CancellationToken cancellationToken = default);
+
+    /// <summary>Updates the focus/priority KPIs for an open or in-review evaluation period (max 5 KPIs).</summary>
+    Task<PeriodFocusKpisDto> UpdateFocusKpisAsync(Guid periodId, UpdatePeriodFocusKpisRequestDto request, CancellationToken cancellationToken = default);
 }

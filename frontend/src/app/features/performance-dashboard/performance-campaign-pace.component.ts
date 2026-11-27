@@ -1,16 +1,17 @@
 import { Component, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
-import { CampaignSummary } from '../../core/campaign.models';
-import { formatSigned, formatValue, toneOf } from './performance-display';
+import { CampaignStatus, CampaignSummary } from '../../core/campaign.models';
+import { AppDatePipe } from '../../shared/pipes';
+import { StatusBadgeComponent, StatusBadgeTone } from '../../shared/ui';
+import { formatValue } from './performance-display';
 
 /**
- * "Campaign đang chạy": progress of each running campaign against the time elapsed, and the pace gap (all three
- * computed by the API, BRANCH_DASHBOARD_CONTRACT.md §3).
+ * "Campaign đang chạy": running campaigns with start date, status, progress bar, completed works, and deadline.
  */
 @Component({
   selector: 'app-perf-campaign-pace',
-  imports: [RouterLink],
+  imports: [RouterLink, AppDatePipe, StatusBadgeComponent],
   template: `
     @let text = localization.branchPerformance;
 <section class="card is-clickable" aria-labelledby="campaign-title">
@@ -28,29 +29,40 @@ import { formatSigned, formatValue, toneOf } from './performance-display';
       </button>
     </div>
   } @else if (campaigns().length) {
-    <div class="row head">
-      <span>{{text.colCampaign}}</span>
-      <span>{{text.colProgress}} · │ {{text.colElapsed}}</span>
-      <span></span>
-      <span class="right">{{text.colPace}}</span>
+    <div class="table-wrap">
+      <div class="row head">
+        <span>{{text.colCampaign}}</span>
+        <span>{{text.colStartDate}}</span>
+        <span>{{text.colStatus}}</span>
+        <span>{{text.colProgress}}</span>
+        <span class="right">{{text.colCompletedWorks}}</span>
+        <span class="right">{{text.colDeadline}}</span>
+      </div>
+      @for (campaign of campaigns(); track campaign.id) {
+        <a class="row item" routerLink="/campaigns/detail" [state]="{ campaignId: campaign.id }">
+          <span>
+            <b>{{campaign.name}}</b>
+            <small class="muted">{{subtitle(campaign)}}</small>
+          </span>
+          <span class="mono nowrap">{{campaign.startDate | appDate}}</span>
+          <span>
+            <app-status-badge [tone]="badgeTone(campaign.status)">
+              {{statusLabel(campaign.status)}}
+            </app-status-badge>
+          </span>
+          <span class="progress">
+            <span class="track" aria-hidden="true">
+              <span class="fill" [style.width.%]="clampedProgress(campaign.progressPercent)"></span>
+            </span>
+            <b class="mono percent">{{percent(campaign.progressPercent)}}</b>
+          </span>
+          <span class="mono right">
+            {{campaign.completedWorksCount}}/{{campaign.generatedWorksCount}}
+          </span>
+          <span class="mono right nowrap">{{campaign.endDate | appDate}}</span>
+        </a>
+      }
     </div>
-    @for (campaign of campaigns(); track campaign.id) {
-      <a class="row item" routerLink="/campaigns/detail" [state]="{ campaignId: campaign.id }">
-        <span
-          ><b>{{campaign.name}}</b> <small class="muted">{{subtitle(campaign)}}</small></span
-        >
-        <span class="track" aria-hidden="true">
-          <span
-            class="fill"
-            [class.behind]="campaign.paceGap < 0"
-            [style.width.%]="campaign.progressPercent"
-          ></span>
-          <span class="marker" [style.left.%]="campaign.timeElapsedPercent"></span>
-        </span>
-        <b class="mono" [class]="campaign.paceGap < 0 ? 'down' : 'up'">{{percent(campaign.progressPercent)}}</b>
-        <span class="mono right" [class]="tone(campaign.paceGap)">{{arrow(campaign.paceGap)}}</span>
-      </a>
-    }
   } @else {
     <p class="empty">{{text.noCampaigns}}</p>
   }
@@ -58,11 +70,15 @@ import { formatSigned, formatValue, toneOf } from './performance-display';
   `,
   styleUrl: './performance-card.scss',
   styles: `
+    .table-wrap {
+      overflow-x: auto;
+    }
     .row {
       display: grid;
-      grid-template-columns: minmax(140px, 1.2fr) 1fr 48px 56px;
+      grid-template-columns: minmax(180px, 1.5fr) 110px 130px minmax(140px, 1.2fr) 170px 110px;
       align-items: center;
       gap: 12px;
+      min-width: 780px;
       padding: 10px 0;
       border-bottom: 1px solid #f1f5f9;
       color: #0f172a;
@@ -83,27 +99,31 @@ import { formatSigned, formatValue, toneOf } from './performance-display';
     .right {
       text-align: right;
     }
+    .nowrap {
+      white-space: nowrap;
+    }
+    .progress {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
     .track {
-      position: relative;
-      height: 12px;
-      border-radius: 3px;
-      background: #eef2f7;
+      flex: 1;
+      height: 8px;
+      overflow: hidden;
+      border-radius: 9999px;
+      background: #e2e8f0;
     }
     .fill {
-      position: absolute;
-      inset: 0 auto 0 0;
-      border-radius: 3px;
-      background: #059669;
+      display: block;
+      height: 100%;
+      border-radius: 9999px;
+      background: #0e7490;
+      transition: width 0.2s ease;
     }
-    .fill.behind {
-      background: #e11d48;
-    }
-    .marker {
-      position: absolute;
-      top: -4px;
-      width: 2px;
-      height: 20px;
-      background: #0f172a;
+    .percent {
+      min-width: 38px;
+      text-align: right;
     }
   `,
 })
@@ -123,15 +143,30 @@ export class PerfCampaignPaceComponent extends LocalizedComponent {
     return `${campaign.completedWorksCount}/${campaign.generatedWorksCount} ${this.localization.departmentPerformance.worksUnit}`;
   }
 
+  protected clampedProgress(value: number): number {
+    return Math.max(0, Math.min(100, value ?? 0));
+  }
+
   protected percent(value: number): string {
     return `${formatValue(this.i18n.currentLanguage(), value, 0)}%`;
   }
 
-  protected arrow(value: number): string {
-    return formatSigned(this.i18n.currentLanguage(), value, 0);
+  protected statusLabel(status: CampaignStatus): string {
+    return this.localization.campaign.status[status] ?? status;
   }
 
-  protected tone(value: number): string {
-    return toneOf(value) ?? '';
+  protected badgeTone(status: CampaignStatus): StatusBadgeTone {
+    switch (status) {
+      case 'RUNNING':
+      case 'COMPLETED':
+        return 'success';
+      case 'PLANNED':
+      case 'PAUSED':
+        return 'warning';
+      case 'CANCELLED':
+        return 'danger';
+      default:
+        return 'neutral';
+    }
   }
 }

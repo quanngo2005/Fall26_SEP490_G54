@@ -618,6 +618,80 @@ public sealed class EvaluationScopeTests
     }
 
     [Fact]
+    public async Task GetDepartmentEvaluationDashboard_AssignsZeroWeightAndScoreToUngroupedOtherKpis()
+    {
+        using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var now = DateTimeOffset.UtcNow;
+        var period = new EvaluationPeriod
+        {
+            Id = Guid.NewGuid(),
+            Code = "2026-M12",
+            Name = "Tháng 12/2026",
+            PeriodType = PeriodType.Month,
+            Status = PeriodStatus.Open,
+            StartDate = new DateOnly(2026, 12, 1),
+            EndDate = new DateOnly(2026, 12, 31),
+            UpdatedAt = now,
+        };
+        var kpiGroup = new KpiGroup
+        {
+            Id = Guid.NewGuid(),
+            Code = "OPS",
+            Name = "Vận hành",
+            UpdatedAt = now,
+        };
+        var otherKpi = new KpiDefinition
+        {
+            Id = Guid.NewGuid(),
+            Code = "CASH",
+            Name = "Giao dịch tiền mặt",
+            Unit = "GD",
+            KpiGroupId = kpiGroup.Id,
+            Direction = KpiDirection.HigherBetter,
+            AggregationType = KpiAggregationType.Sum,
+            UpdatedAt = now,
+        };
+        context.EvaluationPeriods.Add(period);
+        context.KpiGroups.Add(kpiGroup);
+        context.KpiDefinitions.Add(otherKpi);
+
+        var target = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            KpiDefinitionId = otherKpi.Id,
+            EmployeeId = s.StaffA.Id,
+            EvaluationPeriodId = period.Id,
+            TargetValue = 100m,
+            Version = 1,
+            Status = TargetAssignmentStatus.Active,
+            AssignedAt = now,
+            EffectiveFrom = period.StartDate,
+        };
+        context.TargetAssignments.Add(target);
+        context.ActualProgresses.Add(new ActualProgress
+        {
+            Id = Guid.NewGuid(),
+            TargetAssignmentId = target.Id,
+            Value = 110m,
+            Denominator = 1m,
+            ProgressDate = new DateOnly(2026, 12, 10),
+            Status = ActualProgressStatus.Valid,
+            UpdatedAt = now,
+        });
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context, Grant("read", PermissionScopes.Dept));
+        var dashboard = await service.GetDepartmentEvaluationDashboardAsync(period.Id, null, s.ManagerAAccount.Id);
+
+        var otherGroup = Assert.Single(dashboard.Performance.KpiGroups, g => g.Name is null);
+        Assert.Equal(0m, otherGroup.WeightPercent);
+        var kpi = Assert.Single(otherGroup.Kpis);
+        Assert.Equal(0m, kpi.Weight);
+        Assert.Equal(0m, kpi.Score);
+    }
+
+    [Fact]
     public async Task GetDepartmentEvaluationDashboard_IncludesDisputedScoreInDepartmentAverage()
     {
         using var context = CreateContext();

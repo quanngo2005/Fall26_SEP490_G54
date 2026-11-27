@@ -9,14 +9,14 @@ const LABEL_HEADROOM = 1.25;
 
 /**
  * "Phòng ban · <compare> và <period>": each child unit's average in the compare period and the selected one; a row
- * opens SCR-PRF-02 for that unit with the same period and comparison.
+ * opens /branch-performance/evaluations filtered to that department.
  */
 @Component({
   selector: 'app-perf-child-units',
   imports: [RouterLink],
   template: `
     @let text = localization.branchPerformance;
-<section class="card is-clickable" id="child-units" aria-labelledby="child-units-title">
+<section class="card" id="child-units" aria-labelledby="child-units-title">
   <div class="card-head">
     <h2 id="child-units-title">
       {{text.childUnitsTitle}} ·
@@ -25,9 +25,6 @@ const LABEL_HEADROOM = 1.25;
       }
       {{periodName()}}
     </h2>
-    <a class="card-link" routerLink="/department-performance"
-      >{{text.openDepartments}}<span class="chevron" aria-hidden="true">›</span></a
-    >
   </div>
   @if (compareName()) {
     <p class="legend">
@@ -37,9 +34,8 @@ const LABEL_HEADROOM = 1.25;
   @for (unit of units(); track unit.id) {
     <a
       class="unit row-link"
-      routerLink="/department-performance"
-      [queryParams]="{ department: unit.code, compare: compare() }"
-      [state]="{ periodId: periodId() }"
+      routerLink="/branch-performance/evaluations"
+      [state]="{ departmentId: unit.id }"
     >
       <span class="name"
         ><b>{{unit.name}}</b

@@ -98,6 +98,16 @@
                   </tbody>
                 </table>
               </div>
+              @if (item.row.focusKpisTotal && item.row.focusKpisTotal > 0) {
+                <span
+                  class="focus-kpi-badge font-mono"
+                  [class.focus-met]="item.row.focusKpisMet === item.row.focusKpisTotal"
+                  [class.focus-unmet]="item.row.focusKpisMet !== item.row.focusKpisTotal"
+                  [title]="focusGateTooltip(item.row)"
+                >
+                  TT {{item.row.focusKpisMet ?? 0}}/{{item.row.focusKpisTotal}}
+                </span>
+              }
             </div>
           </td>
           <td class="num-col">
@@ -194,7 +204,14 @@
                   (change)="onTierSelected(item.row, $event)"
                 >
                   @for (tier of tierOptions; track tier) {
-                    <option [value]="tier" [selected]="tier === item.finalTier">{{tier}}</option>
+                    <option
+                      [value]="tier"
+                      [selected]="tier === item.finalTier"
+                      [disabled]="isTierLocked(item.row, tier)"
+                      [title]="isTierLocked(item.row, tier) ? focusGateTooltip(item.row) : ''"
+                    >
+                      {{tier}}
+                    </option>
                   }
                 </select>
               </span>

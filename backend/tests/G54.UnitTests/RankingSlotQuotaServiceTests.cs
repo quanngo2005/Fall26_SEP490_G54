@@ -245,6 +245,48 @@ public sealed class RankingSlotQuotaServiceTests : IDisposable
         Assert.Equal(new int?[] { 2, 3, 4, 8, 3 }, fetched.Slots.Select(s => s.Headcount).ToArray());
     }
 
+    [Fact]
+    public async Task UpdateBranchQuota_EnforcesTierABCRatioLimits()
+    {
+        var branch = new Department { Id = Guid.NewGuid(), Code = "BR-RATIO", Name = "Chi nhánh Ratio", LevelType = DepartmentLevelType.Branch, Status = RecordStatus.Active };
+        var pos = new JobPosition { Id = Guid.NewGuid(), Code = "POS-R", Title = "NV", Status = RecordStatus.Active };
+        var period = new EvaluationPeriod { Id = Guid.NewGuid(), Code = "2026-11", Name = "Tháng 11/2026", StartDate = new DateOnly(2026, 11, 1), EndDate = new DateOnly(2026, 11, 30), Status = PeriodStatus.Open };
+        _db.Departments.Add(branch);
+        _db.JobPositions.Add(pos);
+        _db.EvaluationPeriods.Add(period);
+        for (var i = 0; i < 10; i++)
+        {
+            _db.Employees.Add(new Employee
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCode = $"EMP-{i:00}",
+                FullName = $"Nhân viên {i}",
+                Email = $"emp{i}@test.local",
+                DepartmentId = _departmentId,
+                JobPositionId = pos.Id,
+                Status = EmployeeStatus.Active,
+            });
+        }
+        await _db.SaveChangesAsync();
+
+        var service = new RankingSlotQuotaService(_db);
+        // 10 employees -> defaults: A=20% (2), B=60% (6), C=15% (2)
+        await Assert.ThrowsAsync<ValidationException>(() => service.UpdateBranchQuotaAsync(period.Id,
+        [
+            new("A1", 1), new("A2", 1), new("A3", 0), new("B", 7), new("C", 1),
+        ]));
+        await Assert.ThrowsAsync<ValidationException>(() => service.UpdateBranchQuotaAsync(period.Id,
+        [
+            new("A1", 1), new("A2", 1), new("A3", 0), new("B", 5), new("C", 3),
+        ]));
+
+        var valid = await service.UpdateBranchQuotaAsync(period.Id,
+        [
+            new("A1", 1), new("A2", 1), new("A3", 0), new("B", 6), new("C", 2),
+        ]);
+        Assert.Equal(new int?[] { 1, 1, 0, 6, 2 }, valid.Slots.Select(s => s.Headcount).ToArray());
+    }
+
     private UpdateRankingSlotQuotasDto Request(int a1, int a2, int a3, int b, int c = 5) => new(_departmentId,
     [
         new RankingSlotQuotaDto("A1", a1),

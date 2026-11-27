@@ -71,6 +71,11 @@ public interface IEvaluationService
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 
+    Task<CalibrationSubmitResultDto> SaveBranchCalibrationAdjustmentsAsync(
+        SubmitCalibrationRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
     Task<RankingBoardOverviewDto> GetRankingBoardAsync(
         Guid periodId,
         Guid? departmentId,

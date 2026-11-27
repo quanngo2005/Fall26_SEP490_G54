@@ -65,7 +65,7 @@
             <button
               type="button"
               class="button button-primary"
-              [disabled]="!canSend() || sending()"
+              [disabled]="sending() || !board()"
               (click)="openConfirmSend()"
             >
               {{localization.evaluations.departmentRanking.sendToDirector}}
@@ -172,19 +172,34 @@
             <p class="staff-footer meta">{{staffFooterText()}}</p>
           </article>
 
-          <article class="panel tier-panel">
-            <app-department-ranking-tier-table
-              [title]="localization.evaluations.departmentRanking.tierCardTitle"
-              [tierTableRows]="tierTableRows()"
-              [totalSlots]="totalSlots()"
-              [totalActual]="totalActual()"
-              [allSlotsFilled]="allSlotsFilled()"
-              [sendBlockers]="sendBlockers()"
-              [canSend]="canSend()"
-              [showBlockers]="!!board()"
-              [emptyValue]="emptyValue"
-            />
-          </article>
+          <div class="side-panels">
+            @if (data.focusKpis && data.focusKpis.length > 0) {
+              <article class="panel focus-kpi-panel" role="note">
+                <h2 class="panel-title">KPI trọng tâm kỳ</h2>
+                <div class="focus-kpi-chips">
+                  @for (kpi of data.focusKpis; track kpi.id) {
+                    <span class="focus-kpi-chip">
+                      <strong>{{kpi.code}}</strong> · {{kpi.name}}
+                    </span>
+                  }
+                </div>
+              </article>
+            }
+
+            <article class="panel tier-panel">
+              <app-department-ranking-tier-table
+                [title]="localization.evaluations.departmentRanking.tierCardTitle"
+                [tierTableRows]="tierTableRows()"
+                [totalSlots]="totalSlots()"
+                [totalActual]="totalActual()"
+                [allSlotsFilled]="allSlotsFilled()"
+                [sendBlockers]="sendBlockers()"
+                [canSend]="canSend()"
+                [showBlockers]="!!board()"
+                [emptyValue]="emptyValue"
+              />
+            </article>
+          </div>
         </section>
       }
 

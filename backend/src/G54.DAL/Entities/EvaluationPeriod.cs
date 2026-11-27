@@ -28,6 +28,9 @@ public partial class EvaluationPeriod
     /// <summary>Frozen JSON snapshot of the <see cref="RankingPolicy"/> definition captured when the period is locked (GB-910).</summary>
     public string? RankingPolicySnapshotJson { get; set; }
 
+    /// <summary>JSON array of KpiDefinition IDs marked as focus/priority KPIs by BM for this period.</summary>
+    public string? FocusKpiIds { get; set; }
+
     public virtual ICollection<EvaluationPeriod> InverseParentPeriod { get; set; } = new List<EvaluationPeriod>();
 
     public virtual EvaluationPeriod? ParentPeriod { get; set; }

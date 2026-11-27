@@ -2,6 +2,16 @@
   display: block;
 }
 
+.ranking-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
+}
+
+@media (max-width: 900px) {
+  .ranking-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .panel-head-row {
   display: flex;
   justify-content: space-between;

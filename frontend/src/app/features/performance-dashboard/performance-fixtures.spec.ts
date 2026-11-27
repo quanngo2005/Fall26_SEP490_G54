@@ -80,6 +80,15 @@ export function overviewFixture(patch: Partial<DepartmentOverview> = {}): Depart
         { periodId: 'p-prev', periodName: 'Period Before', average: 80 },
         { periodId: 'p-cur', periodName: 'Period Current', average: 81.25 },
       ],
+      yearlyTrend: {
+        currentYear: 2026,
+        previousYear: 2025,
+        months: Array.from({ length: 12 }, (_, i) => ({
+          month: i + 1,
+          currentYearAverage: i === 8 ? 80 : i === 9 ? 81.25 : null,
+          previousYearAverage: i === 8 ? 76 : i === 9 ? 78.5 : null,
+        })),
+      },
       kpiGroups: [
         {
           name: 'Group One',

@@ -4,6 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { DepartmentRankingApprovalComponent } from './department-ranking-approval.component';
 import { EvaluationService } from '../../../core/evaluation.service';
+import { KpiDefinitionService } from '../../../core/kpi-definition.service';
 import { I18nService } from '../../../core/i18n/i18n.service';
 import { Localization } from '../../../core/i18n/i18n.models';
 import {
@@ -187,13 +188,15 @@ describe('DepartmentRankingApprovalComponent', () => {
       'getCalibration',
       'approveDepartment',
       'rejectDepartment',
+      'saveBranchAdjustments',
       'finalize',
-      'getPreCloseCheck',
       'periods',
       'getDepartmentSlotQuotas',
       'updateDepartmentSlotQuotas',
       'getBranchPeriodQuota',
       'updateBranchPeriodQuota',
+      'getPeriodFocusKpis',
+      'updatePeriodFocusKpis',
     ]);
 
     i18nServiceSpy = jasmine.createSpyObj('I18nService', ['formatNumber'], {
@@ -229,7 +232,6 @@ describe('DepartmentRankingApprovalComponent', () => {
             statusPending: 'Chờ duyệt',
             statusSubmittedAt: 'gửi',
             statusNotSubmitted: 'Chưa gửi',
-            btnPreCloseCheck: 'Kiểm tra trước khi đóng',
             btnPublishResults: 'Publish kết quả',
             publishHint: 'Mở khi {approved}/{total} phòng đã duyệt và kiểm tra đạt.',
             btnReject: 'Trả về',
@@ -280,19 +282,6 @@ describe('DepartmentRankingApprovalComponent', () => {
 
     evaluationServiceSpy.getBranchApprovals.and.returnValue(of(mockOverview));
     evaluationServiceSpy.getCalibration.and.returnValue(of(mockCalibration));
-    evaluationServiceSpy.getPreCloseCheck.and.returnValue(
-      of({
-        periodId: 'p-1',
-        periodCode: '2026-Q3',
-        periodName: 'Quý 3/2026',
-        startDate: '2026-07-01',
-        endDate: '2099-12-31',
-        preCloseDeadline: '2099-10-12T17:00:00Z',
-        canPublish: false,
-        totalUnresolvedCount: 0,
-        items: [],
-      }),
-    );
 
     evaluationServiceSpy.periods.and.returnValue(
       of([
@@ -346,13 +335,23 @@ describe('DepartmentRankingApprovalComponent', () => {
         ],
       }),
     );
+    evaluationServiceSpy.getPeriodFocusKpis.and.returnValue(of({ periodId: 'p-1', focusKpis: [] }));
+    evaluationServiceSpy.updatePeriodFocusKpis.and.returnValue(
+      of({ periodId: 'p-1', focusKpis: [] }),
+    );
     i18nServiceSpy.formatNumber.and.callFake((val: number) => String(val));
+
+    const kpiDefinitionServiceSpy = jasmine.createSpyObj('KpiDefinitionService', ['list']);
+    kpiDefinitionServiceSpy.list.and.returnValue(
+      of({ items: [], totalCount: 0, page: 1, pageSize: 100 }),
+    );
 
     await TestBed.configureTestingModule({
       imports: [DepartmentRankingApprovalComponent],
       providers: [
         provideRouter([]),
         { provide: EvaluationService, useValue: evaluationServiceSpy },
+        { provide: KpiDefinitionService, useValue: kpiDefinitionServiceSpy },
         { provide: I18nService, useValue: i18nServiceSpy },
         ...provideRouteState({ periodId: 'p-1' }).providers,
       ],
@@ -401,6 +400,7 @@ describe('DepartmentRankingApprovalComponent', () => {
   });
 
   it('should show TP CHOT and reason columns only when department is submitted', () => {
+    component.setViewMode('single');
     // d-1 is IN_REVIEW (submitted)
     expect(component.isDepartmentSubmitted()).toBeTrue();
     fixture.detectChanges();
@@ -491,15 +491,6 @@ describe('DepartmentRankingApprovalComponent', () => {
     expect(component.isRejectModalOpen()).toBeFalse();
   });
 
-  it('should open pre-close modal and continue to lock modal', () => {
-    component.openPreCloseModal();
-    expect(component.isPreCloseModalOpen()).toBeTrue();
-
-    component.onPreCloseContinuePublish();
-    expect(component.isPreCloseModalOpen()).toBeFalse();
-    expect(component.isLockModalOpen()).toBeTrue();
-  });
-
   it('should submit lock period successfully', () => {
     const lockResult: FinalizePeriodResult = {
       periodId: 'p-1',
@@ -523,11 +514,9 @@ describe('DepartmentRankingApprovalComponent', () => {
     expect(component.isLockModalOpen()).toBeFalse();
   });
 
-  it('should navigate to traceability when clicking employee link', () => {
+  it('should navigate to evaluations/form when clicking employee link', () => {
     component.navigateToTraceability('emp-1');
-    expect(router.navigate).toHaveBeenCalledWith(['/performance-traceability'], {
-      state: { employeeId: 'emp-1', periodId: 'p-1' },
-    });
+    expect(router.navigate).toHaveBeenCalledWith(['/evaluations/form']);
   });
 
   it('should update department quota when BM edits and submits', () => {
@@ -588,11 +577,17 @@ describe('DepartmentRankingApprovalComponent', () => {
   });
 
   it('should switch viewMode between single and all', () => {
-    expect(component.viewMode()).toBe('single');
-    component.setViewMode('all');
     expect(component.viewMode()).toBe('all');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('Phân bố chỉ tiêu phòng');
+
     component.setViewMode('single');
     expect(component.viewMode()).toBe('single');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Phân bố chỉ tiêu phòng');
+
+    component.setViewMode('all');
+    expect(component.viewMode()).toBe('all');
   });
 
   it('should toggle department expansion and load calibration in all view', () => {
@@ -610,9 +605,12 @@ describe('DepartmentRankingApprovalComponent', () => {
     component.startEditPeriodQuota();
     expect(component.isEditingPeriodQuota()).toBeTrue();
 
-    component.onPeriodQuotaInputChange('A1', '4');
+    component.onPeriodQuotaInputChange('A1', '1');
+    component.onPeriodQuotaInputChange('A2', '0');
+    component.onPeriodQuotaInputChange('A3', '0');
     component.onPeriodQuotaInputChange('B', '6');
-    expect(component.periodQuotaDraft()['A1']).toBe(4);
+    component.onPeriodQuotaInputChange('C', '1');
+    expect(component.periodQuotaDraft()['A1']).toBe(1);
 
     component.savePeriodQuota();
     expect(evaluationServiceSpy.updateBranchPeriodQuota).toHaveBeenCalled();
@@ -697,21 +695,28 @@ describe('DepartmentRankingApprovalComponent', () => {
     component.startEditPeriodQuota();
     expect(component.isEditingPeriodQuota()).toBeTrue();
 
-    // Type headcount for A1 = 5 (total Tier A = 7)
+    // Type headcount for A1 = 5 (total Tier A = 7, exceeds 20% of 20 = 4)
     component.onPeriodQuotaInputChange('A1', '5');
     expect(component.totalBranchTierASlots()).toBe(7);
+    expect(component.periodQuotaRatioError()).toBeTruthy();
 
-    // Saving should succeed even when total exceeds employee headcount (independent quota)
+    component.savePeriodQuota();
+    expect(evaluationServiceSpy.updateBranchPeriodQuota).not.toHaveBeenCalled();
+
+    // Adjust A1 = 0, A2 = 0, A3 = 1 (total Tier A = 1 <= 1) -> should save
+    component.onPeriodQuotaInputChange('A1', '0');
+    component.onPeriodQuotaInputChange('A2', '0');
+    expect(component.periodQuotaRatioError()).toBeNull();
     evaluationServiceSpy.updateBranchPeriodQuota.and.returnValue(
       of({
         departmentId: '00000000-0000-0000-0000-000000000000',
         periodId: 'p-1',
         slots: [
-          { tierCode: 'A1', headcount: 5 },
-          { tierCode: 'A2', headcount: 1 },
+          { tierCode: 'A1', headcount: 0 },
+          { tierCode: 'A2', headcount: 0 },
           { tierCode: 'A3', headcount: 1 },
-          { tierCode: 'B', headcount: 0 },
-          { tierCode: 'C', headcount: 0 },
+          { tierCode: 'B', headcount: 1 },
+          { tierCode: 'C', headcount: 1 },
         ],
       }),
     );
@@ -770,5 +775,72 @@ describe('DepartmentRankingApprovalComponent', () => {
     // Submit should be blocked
     component.submitDepartmentQuota();
     expect(evaluationServiceSpy.updateDepartmentSlotQuotas).not.toHaveBeenCalled();
+  });
+
+  it('should allow BM to adjust submitted rankings, save on Submitted status, show Message warnings, and finalize via Duyệt popover', () => {
+    evaluationServiceSpy.saveBranchAdjustments.and.returnValue(
+      of({
+        departmentId: 'd-1',
+        periodId: 'p-1',
+        status: 'Submitted',
+        adjustedCount: 1,
+        message: 'OK',
+      }),
+    );
+    evaluationServiceSpy.finalize.and.returnValue(
+      of({
+        periodId: 'p-1',
+        periodCode: 'Q3-2026',
+        periodStatus: 'LOCKED',
+        finalizedAt: '2026-11-27T08:00:00Z',
+        totalEvaluationsFinalized: 20,
+        message: 'Locked',
+      }),
+    );
+
+    // Message warnings present before finalizing (missing period quota, disputedPendingCount = 1)
+    expect(component.branchFinalizeWarnings().length).toBeGreaterThan(0);
+
+    // Start adjusting
+    component.startBranchAdjusting();
+    expect(component.isAdjustingBranch()).toBeTrue();
+    expect(component.isDepartmentExpanded('d-1')).toBeTrue();
+
+    // Change tier & reason for emp-1 in mockCalibration
+    component.onBranchEmpTierChange('emp-1', 'B');
+    component.onBranchEmpReasonChange('emp-1', 'Điều chỉnh theo chi nhánh');
+    component.saveBranchDraft();
+
+    expect(evaluationServiceSpy.saveBranchAdjustments).toHaveBeenCalledWith(
+      jasmine.objectContaining({
+        departmentId: 'd-1',
+        periodId: 'p-1',
+        isDraft: false,
+      }),
+    );
+    expect(component.isAdjustingBranch()).toBeFalse();
+
+    // Open anchored Duyệt popover and confirm final approval
+    component.openApprovePopover();
+    expect(component.approvePopoverOpen()).toBeTrue();
+
+    evaluationServiceSpy.periods.and.returnValue(
+      of([
+        {
+          id: 'p-1',
+          code: 'Q3-2026',
+          name: 'Quý 3/2026',
+          startDate: '2026-07-01',
+          endDate: '2099-12-31',
+          periodType: 'QUARTER',
+          status: 'LOCKED',
+          isActive: false,
+        },
+      ]),
+    );
+    component.confirmFinalApprove();
+
+    expect(evaluationServiceSpy.finalize).toHaveBeenCalledWith({ periodId: 'p-1' });
+    expect(component.isBranchFinalized()).toBeTrue();
   });
 });

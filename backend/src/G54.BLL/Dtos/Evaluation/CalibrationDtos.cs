@@ -1,3 +1,4 @@
+using G54.BLL.Dtos.EvaluationPeriod;
 using G54.DAL.Entities;
 
 namespace G54.BLL.Dtos.Evaluation;
@@ -78,7 +79,8 @@ public sealed record CalibrationOverviewDto(
     List<CalibrationEmployeeRowDto> RankedRoster,
     bool CanSubmit,
     string? OverallStatus,
-    int DisputedPendingCount = 0);
+    int DisputedPendingCount = 0,
+    IReadOnlyList<FocusKpiSummaryDto>? DepartmentFocusKpis = null);
 
 public sealed record CalibrationAdjustmentItemDto(
     Guid EmployeeId,
@@ -138,7 +140,9 @@ public sealed record BranchApprovalOverviewDto(
     bool IsBranchCapCompliant,
     bool CanFinalize,
     List<DepartmentApprovalSummaryDto> Departments,
-    int DisputedPendingCount = 0);
+    int DisputedPendingCount = 0,
+    decimal TierBTargetPercent = 60m,
+    decimal TierCTargetPercent = 15m);
 
 public sealed record RejectCalibrationRequestDto(
     Guid PeriodId,

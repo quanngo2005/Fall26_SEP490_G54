@@ -815,6 +815,7 @@ public sealed partial class EvaluationService(
         var downgradeConfiguration = await LoadDowngradeConfigurationAsync(cancellationToken);
         var activePolicy = await TryLoadActiveRankingPolicyAsync(period, cancellationToken);
         var tierCriteria = await EvaluationSettingsService.LoadCriteriaAsync(db, cancellationToken);
+        var focusKpiIds = EvaluationPeriodService.ParseFocusKpiIds(period.FocusKpiIds);
         var unrankedRows = new List<CalibrationEmployeeRowDto>();
         var disputedEmployeeIds = evaluations.DisputedEmployeeIds();
         var rankingInputs = new List<RankingSubjectInput>();
@@ -873,6 +874,26 @@ public sealed partial class EvaluationService(
             var explanation = totalScore.HasValue
                 ? (dynamicEval?.Explanation ?? BuildLegacyExplanation(totalScore.Value, proposedTier, empRisks, downgradeConfiguration))
                 : null;
+            if (focusKpiIds.Count > 0 && totalScore.HasValue)
+            {
+                var empScore = scoredByEmployee.GetValueOrDefault(emp.Id);
+                if (empScore is null && profilesByPosition.TryGetValue(emp.JobPositionId, out var empProfile))
+                {
+                    var tempScores = await calculator.CalculateAsync(
+                        [new PerformanceScoreSubject(emp.Id, emp.DepartmentId, empProfile, new Dictionary<Guid, QualitativeScoreInputDto>())],
+                        period,
+                        cancellationToken);
+                    empScore = tempScores.GetValueOrDefault(emp.Id);
+                }
+
+                var focusGate = EvaluateFocusKpis(focusKpiIds, empScore, Params.EvalKpiMetThresholdPercent);
+                if (IsTierAboveCap(proposedTier, focusGate.MaxAllowedTier))
+                {
+                    proposedTier = focusGate.MaxAllowedTier;
+                    var focusNote = $"Hạ trần tối đa {focusGate.MaxAllowedTier} do chưa đạt đủ KPI trọng tâm kỳ ({focusGate.MetCount}/{focusGate.TotalCount})";
+                    explanation = [.. (explanation ?? []), focusNote];
+                }
+            }
             var calibratedTier = calibData?.CalibratedTier ?? proposedTier;
             var isAdjusted = !string.Equals(calibratedTier, proposedTier, StringComparison.OrdinalIgnoreCase);
             var coachingFlag = calibData?.CoachingFlag
@@ -992,6 +1013,13 @@ public sealed partial class EvaluationService(
         var canSubmit = period.Status is PeriodStatus.Open or PeriodStatus.InReview
             && overallStatus is not "FINAL";
 
+        var departmentFocusKpis = await ResolveDepartmentFocusKpisAsync(
+            period,
+            deptDto.Id,
+            rosterDepartments.ToList(),
+            employeeIds,
+            cancellationToken);
+
         return new CalibrationOverviewDto(
             deptDto,
             periodDto,
@@ -1000,7 +1028,8 @@ public sealed partial class EvaluationService(
             rankedRoster,
             canSubmit,
             overallStatus,
-            disputedEmployeeIds.Count);
+            disputedEmployeeIds.Count,
+            departmentFocusKpis);
     }
 
     public async Task<CalibrationSubmitResultDto> SubmitDepartmentCalibrationAsync(
@@ -1008,6 +1037,19 @@ public sealed partial class EvaluationService(
         Guid currentUserId,
         CancellationToken cancellationToken = default)
         => await SubmitDepartmentCalibrationAsync(request, currentUserId, enforceTierAQuota: true, includeSubDepartments: false, cancellationToken: cancellationToken);
+
+    public async Task<CalibrationSubmitResultDto> SaveBranchCalibrationAdjustmentsAsync(
+        SubmitCalibrationRequestDto request,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+        => await SubmitDepartmentCalibrationAsync(
+            request with { IsDraft = false },
+            currentUserId,
+            enforceTierAQuota: false,
+            includeSubDepartments: true,
+            scopeAction: "finalize",
+            isBranchAdjustment: true,
+            cancellationToken: cancellationToken);
 
     /// <summary>
     /// The ranking board applies its own slot rules (`RankingSlotQuota`) instead of the Tier A percent quota (BR-37),
@@ -1019,10 +1061,12 @@ public sealed partial class EvaluationService(
         Guid currentUserId,
         bool enforceTierAQuota,
         bool includeSubDepartments,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string scopeAction = "calibrate",
+        bool isBranchAdjustment = false)
     {
         var reviewer = await ResolveEmployeeAsync(currentUserId, cancellationToken);
-        await EnsureDepartmentInScopeAsync(currentUserId, "calibrate", reviewer, request.DepartmentId, cancellationToken);
+        await EnsureDepartmentInScopeAsync(currentUserId, scopeAction, reviewer, request.DepartmentId, cancellationToken);
 
         EnsureNoMarkerSyntax(request.Notes, "Notes");
 
@@ -1094,6 +1138,45 @@ public sealed partial class EvaluationService(
         {
             throw new ValidationException(
                 $"Tier không hợp lệ: {string.Join(", ", unknownTiers.Select(t => t ?? "(trống)"))}. Tier hợp lệ: {string.Join(", ", knownTiers)}.");
+        }
+
+        var focusKpiIds = EvaluationPeriodService.ParseFocusKpiIds(period.FocusKpiIds);
+        if (focusKpiIds.Count > 0)
+        {
+            var highTierSubjects = adjustmentMap.Values
+                .Where(a => a.CalibratedTier is "A1" or "A2" && employeeMap.ContainsKey(a.EmployeeId))
+                .Select(a => employeeMap[a.EmployeeId])
+                .Where(e => profilesByPosition.ContainsKey(e.JobPositionId))
+                .Select(e => new PerformanceScoreSubject(
+                    e.Id,
+                    e.DepartmentId,
+                    profilesByPosition[e.JobPositionId],
+                    new Dictionary<Guid, QualitativeScoreInputDto>()))
+                .ToList();
+
+            if (highTierSubjects.Count > 0)
+            {
+                var focusScored = await calculator.CalculateAsync(highTierSubjects, period, cancellationToken);
+                var violations = new List<string>();
+                foreach (var subj in highTierSubjects)
+                {
+                    var gate = EvaluateFocusKpis(focusKpiIds, focusScored.GetValueOrDefault(subj.EmployeeId), Params.EvalKpiMetThresholdPercent);
+                    var requestedTier = adjustmentMap[subj.EmployeeId].CalibratedTier;
+                    if (IsTierAboveCap(requestedTier, gate.MaxAllowedTier))
+                    {
+                        var emp = employeeMap[subj.EmployeeId];
+                        violations.Add($"{emp.FullName} ({emp.EmployeeCode}): đạt {gate.MetCount}/{gate.TotalCount} KPI trọng tâm, tối đa {gate.MaxAllowedTier}");
+                    }
+                }
+
+                if (violations.Count > 0)
+                {
+                    throw new BusinessRuleException(
+                        ErrorCodes.Conflict,
+                        $"Không thể xếp hạng A1/A2 cho nhân viên chưa đạt đủ KPI trọng tâm kỳ: {string.Join("; ", violations)}.",
+                        409);
+                }
+            }
         }
 
         var tierACount = adjustmentMap.Values.Count(a => a.CalibratedTier is "A1" or "A2" or "A3");
@@ -1201,7 +1284,7 @@ public sealed partial class EvaluationService(
         }
 
         // If submitting to executive, also ensure any other calculated evaluations in department move to InReview
-        if (!request.IsDraft)
+        if (!request.IsDraft && !isBranchAdjustment)
         {
             foreach (var pe in existingEvaluations)
             {
@@ -1218,7 +1301,7 @@ public sealed partial class EvaluationService(
             cancellationToken);
 
         LogCalibrationSubmitted(logger, request.DepartmentId, request.PeriodId, adjustmentMap.Count, null);
-        if (!request.IsDraft && notifier is not null)
+        if (!request.IsDraft && !isBranchAdjustment && notifier is not null)
         {
             var branchManagerIds = await NotificationRecipients.ActiveBranchManagersAsync(db, cancellationToken);
             if (reviewer.ManagerId is { } reviewerManagerId && !branchManagerIds.Contains(reviewerManagerId))
@@ -1444,7 +1527,9 @@ public sealed partial class EvaluationService(
             isBranchCompliant,
             canFinalize,
             deptSummaries,
-            disputedPendingCount);
+            disputedPendingCount,
+            Params.TierBTargetPercent,
+            Params.TierCTargetPercent);
     }
 
     public async Task<CalibrationDecisionResultDto> RejectDepartmentCalibrationAsync(

@@ -4,6 +4,7 @@ using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Common.Extensions;
 using G54.BLL.Dtos.Evaluation;
+using G54.BLL.Dtos.EvaluationPeriod;
 using G54.BLL.Dtos.SystemParameter;
 using G54.DAL.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -72,6 +73,13 @@ public sealed partial class EvaluationService
         }
         var isLocked = IsRankingLocked(period);
         var isSent = rows.Count > 0 && rows.All(r => r.EvaluationStatus is "SUBMITTED" or "FINAL");
+        var rosterDepartments = (await RosterDepartmentIdsAsync(deptId, includeSubDepartments: true, cancellationToken)).ToList();
+        var focusKpis = await ResolveDepartmentFocusKpisAsync(
+            period,
+            deptId,
+            rosterDepartments,
+            rows.Select(r => r.EmployeeId).ToList(),
+            cancellationToken);
 
         return new RankingBoardOverviewDto(
             deptId,
@@ -90,7 +98,8 @@ public sealed partial class EvaluationService
             tiers,
             staffRows,
             timeProvider.GetUtcNow(),
-            isTeam);
+            isTeam,
+            focusKpis);
     }
 
     public async Task<RankingBoardOverviewDto> SaveRankingBoardDraftAsync(
@@ -118,7 +127,6 @@ public sealed partial class EvaluationService
         }
 
         var remaining = board.Tiers.ToDictionary(t => t.TierCode, t => t.Headcount ?? 0);
-        var tierIndex = 0;
         var adjustments = new List<RankingBoardAdjustmentItemDto>();
         var ranked = board.StaffRows
             .Where(r => r.QuantitativeScore.Value.HasValue)
@@ -126,17 +134,13 @@ public sealed partial class EvaluationService
             .ThenBy(r => r.Rank);
         foreach (var row in ranked)
         {
-            while (tierIndex < RankingBoardTierCodes.Length && remaining[RankingBoardTierCodes[tierIndex]] == 0)
-            {
-                tierIndex++;
-            }
+            var eligibleTier = RankingBoardTierCodes.FirstOrDefault(code =>
+                remaining[code] > 0 && !IsTierAboveCap(code, row.MaxAllowedTier));
 
-            var finalTier = tierIndex < RankingBoardTierCodes.Length
-                ? RankingBoardTierCodes[tierIndex]
-                : row.SystemTier;
-            if (tierIndex < RankingBoardTierCodes.Length)
+            var finalTier = eligibleTier ?? CapTier(row.SystemTier, row.MaxAllowedTier);
+            if (eligibleTier is not null)
             {
-                remaining[finalTier!]--;
+                remaining[eligibleTier]--;
             }
 
             if (finalTier is not null)
@@ -332,7 +336,7 @@ public sealed partial class EvaluationService
             var prevPenalty = comparePeriod is null
                 ? (decimal?)null
                 : (compareRisks.GetValueOrDefault(row.EmployeeId) ?? []).Sum(r => RiskPenalty(r, Params));
-            var (achieved, total, criteria) = await LoadRankingCriteriaAsync(row.EmployeeId, period, cancellationToken);
+            var (achieved, total, criteria, focusGate) = await LoadRankingCriteriaAsync(row.EmployeeId, period, cancellationToken);
             var confirmedRisks = employeeRisks
                 .Where(r => r.Status is RiskEventStatus.Confirmed or RiskEventStatus.Resolved)
                 .Select(r => new RankingBoardRiskEventDto(r.Code, r.Description, r.Severity.ToString()))
@@ -356,13 +360,17 @@ public sealed partial class EvaluationService
                 row.ProposedTier,
                 row.CalibratedTier,
                 row.AdjustmentReason,
-                row.EvaluationStatus));
+                row.EvaluationStatus,
+                focusGate.MetCount,
+                focusGate.TotalCount,
+                focusGate.MaxAllowedTier,
+                focusGate.Details));
         }
 
         return staffRows;
     }
 
-    private async Task<(int? Achieved, int? Total, IReadOnlyList<RankingBoardCriterionDto> Criteria)> LoadRankingCriteriaAsync(
+    private async Task<(int? Achieved, int? Total, IReadOnlyList<RankingBoardCriterionDto> Criteria, FocusKpiGateResult FocusGate)> LoadRankingCriteriaAsync(
         Guid employeeId,
         EvaluationPeriod period,
         CancellationToken cancellationToken)
@@ -373,7 +381,7 @@ public sealed partial class EvaluationService
             cancellationToken);
         if (profile is null)
         {
-            return (null, null, []);
+            return (null, null, [], FocusKpiGateResult.Empty);
         }
 
         var employee = await db.Employees.AsNoTracking().FirstAsync(e => e.Id == employeeId, cancellationToken);
@@ -393,8 +401,101 @@ public sealed partial class EvaluationService
                 k.AchievementPercentCapped.HasValue && k.AchievementPercentCapped.Value >= Params.EvalKpiMetThresholdPercent))
             .ToList();
         var achieved = criteria.Count(c => c.IsAchieved);
-        return (achieved, kpis.Count, criteria);
+        var focusKpiIds = EvaluationPeriodService.ParseFocusKpiIds(period.FocusKpiIds);
+        var focusGate = EvaluateFocusKpis(focusKpiIds, scored, Params.EvalKpiMetThresholdPercent);
+        return (achieved, kpis.Count, criteria, focusGate);
     }
+
+    private async Task<IReadOnlyList<FocusKpiSummaryDto>> ResolveDepartmentFocusKpisAsync(
+        EvaluationPeriod period,
+        Guid departmentId,
+        List<Guid> rosterDepartmentIds,
+        List<Guid> employeeIds,
+        CancellationToken cancellationToken)
+    {
+        var allFocus = await EvaluationPeriodService.ResolveFocusKpiSummariesAsync(db, period.FocusKpiIds, cancellationToken);
+        if (allFocus.Count == 0)
+        {
+            return [];
+        }
+
+        var focusIds = allFocus.Select(k => k.Id).ToList();
+        var deptSet = rosterDepartmentIds.Count > 0 ? rosterDepartmentIds : [departmentId];
+
+        var assignedKpiIds = await db.TargetAssignments
+            .AsNoTracking()
+            .Where(t => t.EvaluationPeriodId == period.Id
+                && t.Status == TargetAssignmentStatus.Active
+                && focusIds.Contains(t.KpiDefinitionId)
+                && ((t.DepartmentId.HasValue && deptSet.Contains(t.DepartmentId.Value))
+                    || (t.EmployeeId.HasValue && employeeIds.Contains(t.EmployeeId.Value))))
+            .Select(t => t.KpiDefinitionId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var assignedSet = assignedKpiIds.ToHashSet();
+        return allFocus.Where(k => assignedSet.Contains(k.Id)).ToList();
+    }
+
+    private sealed record FocusKpiGateResult(
+        int MetCount,
+        int TotalCount,
+        string? MaxAllowedTier,
+        IReadOnlyList<RankingBoardCriterionDto> Details)
+    {
+        public static readonly FocusKpiGateResult Empty = new(0, 0, null, []);
+    }
+
+    private static FocusKpiGateResult EvaluateFocusKpis(
+        IReadOnlyList<Guid> focusKpiIds,
+        PerformanceScoreResult? scoreResult,
+        decimal metThresholdPercent)
+    {
+        if (focusKpiIds.Count == 0 || scoreResult is null)
+        {
+            return FocusKpiGateResult.Empty;
+        }
+
+        var focusSet = focusKpiIds.ToHashSet();
+        var details = scoreResult.Groups
+            .Where(g => !g.IsQualitative)
+            .SelectMany(g => g.Kpis)
+            .Where(k => focusSet.Contains(k.KpiDefinitionId) && k.TargetValue.HasValue)
+            .Select(k => new RankingBoardCriterionDto(
+                k.Name,
+                k.ActualValue,
+                k.TargetValue!.Value,
+                k.Unit,
+                k.AchievementPercentCapped.HasValue && k.AchievementPercentCapped.Value >= metThresholdPercent))
+            .ToList();
+
+        if (details.Count == 0)
+        {
+            return FocusKpiGateResult.Empty;
+        }
+
+        var metCount = details.Count(d => d.IsAchieved);
+        // Benchmark A2: Must meet ALL applicable focus KPIs to unlock A2 and A1; otherwise capped at A3.
+        var maxAllowedTier = metCount == details.Count ? "A1" : "A3";
+        return new FocusKpiGateResult(metCount, details.Count, maxAllowedTier, details);
+    }
+
+    private static int TierRank(string? tier) => tier?.ToUpperInvariant() switch
+    {
+        "A1" => 1,
+        "A2" => 2,
+        "A3" => 3,
+        "B" => 4,
+        "C" => 5,
+        "D" => 6,
+        _ => 99,
+    };
+
+    private static bool IsTierAboveCap(string? tier, string? maxAllowedTier) =>
+        maxAllowedTier is not null && tier is not null && TierRank(tier) < TierRank(maxAllowedTier);
+
+    private static string? CapTier(string? tier, string? maxAllowedTier) =>
+        IsTierAboveCap(tier, maxAllowedTier) ? maxAllowedTier : tier;
 
     private static RankingBoardDeltaDto DeltaOf(decimal? value, decimal? previous) =>
         new(value, previous, value.HasValue && previous.HasValue ? value.Value - previous.Value : null);
@@ -450,6 +551,12 @@ public sealed partial class EvaluationService
         if (missingReason > 0)
         {
             blockers.Add($"Còn {missingReason} nhân viên đổi hạng nhưng thiếu lý do điều chỉnh.");
+        }
+
+        var focusViolations = staffRows.Count(r => IsTierAboveCap(r.FinalTier, r.MaxAllowedTier));
+        if (focusViolations > 0)
+        {
+            blockers.Add($"Còn {focusViolations} nhân viên được xếp hạng A1/A2 nhưng chưa đạt đủ KPI trọng tâm của kỳ.");
         }
 
         return blockers;

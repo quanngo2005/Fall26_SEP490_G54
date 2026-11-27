@@ -1228,6 +1228,10 @@ namespace G54.DAL.Migrations
                         .HasColumnType("date")
                         .HasColumnName("end_date");
 
+                    b.Property<string>("FocusKpiIds")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("focus_kpi_ids");
+
                     b.Property<DateOnly?>("HardLockedThrough")
                         .HasColumnType("date")
                         .HasColumnName("hard_locked_through");

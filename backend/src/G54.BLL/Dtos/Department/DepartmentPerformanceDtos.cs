@@ -21,6 +21,16 @@ public enum DepartmentMemberSort
 
 public sealed record DepartmentTrendPointDto(Guid PeriodId, string PeriodName, decimal? Average);
 
+public sealed record DepartmentYearlyTrendMonthDto(
+    int Month,
+    decimal? CurrentYearAverage,
+    decimal? PreviousYearAverage);
+
+public sealed record DepartmentYearlyTrendDto(
+    int CurrentYear,
+    int PreviousYear,
+    IReadOnlyList<DepartmentYearlyTrendMonthDto> Months);
+
 public sealed record DepartmentGroupWeightDto(Guid JobPositionId, string JobPositionTitle, decimal WeightPercent);
 
 public sealed record DepartmentGroupKpiDto(

@@ -1,6 +1,8 @@
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
+import { AuthService } from '../../core/auth.service';
+import { canViewBranchEvaluations } from '../../core/branch-evaluation.guard';
 import { catchError, EMPTY, finalize, Subject, switchMap } from 'rxjs';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
@@ -13,8 +15,6 @@ import {
   DepartmentSummary,
   PerformanceCompareMode,
 } from '../../core/department.models';
-import { EvaluationService } from '../../core/evaluation.service';
-import { BranchEvaluationPeriodItem } from '../../core/evaluation.models';
 import { CompareSliderComponent, SelectOption, UiSelectComponent } from '../../shared/ui';
 import { PerfCampaignPaceComponent } from '../performance-dashboard/performance-campaign-pace.component';
 import { PerfChildUnitsComponent } from '../performance-dashboard/performance-child-units.component';
@@ -24,20 +24,18 @@ import {
   NOT_AVAILABLE,
   toneOf,
 } from '../performance-dashboard/performance-display';
-import { PerfEvaluationPeriodComponent } from '../performance-dashboard/performance-evaluation-period.component';
-import { PerfKpiBelowPlanComponent } from '../performance-dashboard/performance-kpi-below-plan.component';
 import { PerfKpiGroupTableComponent } from '../performance-dashboard/performance-kpi-group-table.component';
 import { PerfMetricCardComponent } from '../performance-dashboard/performance-metric-card.component';
 import { kpiOnPlan, saveFile } from '../performance-dashboard/performance-page';
-import { PerfTrendChartComponent } from '../performance-dashboard/performance-trend-chart.component';
+import { PerfBranchLineChartComponent } from '../performance-dashboard/performance-branch-line-chart.component';
 
 /** Display size of the running-campaign card; the full list is one click away at /campaigns. */
 const CAMPAIGN_CARD_SIZE = 5;
 
 /**
- * SCR-PRF-03 Branch performance (branch manager): the branch overview (`GET /departments/{branchId}/overview`), the
- * open evaluation period (`GET /evaluations/branch-periods`) and running campaigns (`GET /campaigns`), see
- * docs/api/BRANCH_DASHBOARD_CONTRACT.md. A failing side card shows its own retry; nothing is ever filled with samples.
+ * SCR-PRF-03 Branch performance (branch manager): the branch overview (`GET /departments/{branchId}/overview`) and
+ * running campaigns (`GET /campaigns`), see docs/api/BRANCH_DASHBOARD_CONTRACT.md. A failing side card shows its own
+ * retry; nothing is ever filled with samples.
  */
 @Component({
   selector: 'app-branch-performance',
@@ -48,11 +46,9 @@ const CAMPAIGN_CARD_SIZE = 5;
     SidebarComponent,
     PerfMetricCardComponent,
     PerfChildUnitsComponent,
-    PerfEvaluationPeriodComponent,
     PerfCampaignPaceComponent,
-    PerfKpiBelowPlanComponent,
     PerfKpiGroupTableComponent,
-    PerfTrendChartComponent,
+    PerfBranchLineChartComponent,
   ],
   templateUrl: './branch-performance.component.html',
   styleUrls: [
@@ -63,15 +59,16 @@ const CAMPAIGN_CARD_SIZE = 5;
 })
 export class BranchPerformanceComponent extends LocalizedComponent {
   private readonly departments = inject(DepartmentService);
-  private readonly evaluations = inject(EvaluationService);
+  private readonly auth = inject(AuthService);
+  protected readonly canOpenBranchRanking = computed(() =>
+    canViewBranchEvaluations(this.auth.currentUser()?.permissions),
+  );
   private readonly campaignApi = inject(CampaignService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly reload = new Subject<void>();
   protected readonly branches = signal<DepartmentSummary[]>([]);
   protected readonly overview = signal<DepartmentOverview | null>(null);
-  protected readonly periods = signal<BranchEvaluationPeriodItem[]>([]);
-  protected readonly periodsFailed = signal(false);
   protected readonly campaigns = signal<CampaignListOverview | null>(null);
   protected readonly campaignsFailed = signal(false);
   protected readonly loading = signal(true);
@@ -130,7 +127,6 @@ export class BranchPerformanceComponent extends LocalizedComponent {
       .subscribe((overview) => {
         this.overview.set(overview);
         this.periodId = overview.period?.id ?? '';
-        this.loadPeriods();
       });
     this.load();
   }
@@ -187,19 +183,6 @@ export class BranchPerformanceComponent extends LocalizedComponent {
     this.refresh();
   }
 
-  /** Periods of the selected period's year; the card shows the newest one that is not locked. */
-  protected loadPeriods(): void {
-    const start = this.overview()?.period?.startDate;
-    this.periodsFailed.set(false);
-    this.evaluations
-      .branchPeriods(start ? Number(start.slice(0, 4)) : null)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (result) => this.periods.set(result.periods),
-        error: () => this.periodsFailed.set(true),
-      });
-  }
-
   protected loadCampaigns(): void {
     this.campaignsFailed.set(false);
     this.campaignApi
@@ -217,6 +200,15 @@ export class BranchPerformanceComponent extends LocalizedComponent {
 
   protected open(route: string): void {
     void this.router.navigateByUrl(route);
+  }
+
+  protected openBranchRankingApproval(): void {
+    void this.router.navigate(['/branch-performance/evaluations/approval'], {
+      queryParams: {
+        viewMode: 'all',
+        periodId: this.periodId || undefined,
+      },
+    });
   }
 
   protected exportExcel(data: DepartmentOverview): void {

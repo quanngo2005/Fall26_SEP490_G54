@@ -1,4 +1,14 @@
-﻿.lock-notice {
+﻿.toast-banner {
+  position: fixed;
+  top: 76px;
+  right: 24px;
+  z-index: 60;
+  margin: 0;
+  max-width: min(420px, calc(100vw - 32px));
+  box-shadow: 0 8px 24px rgb(15 23 42 / 14%);
+}
+
+.lock-notice {
   flex: none;
   margin-left: auto;
   min-width: 320px;
@@ -30,24 +40,29 @@
 
 .ranking-grid {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 290px);
   gap: 16px;
   align-items: start;
 }
 
-/* The tier panel takes column 2 of row 1, so the staff panel auto-places into column 1. */
-.tier-panel {
+/* The side panels stack in column 2 of row 1, so the staff panel auto-places into column 1. */
+.side-panels {
   grid-column: 2;
   grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 
-/* Phones and small tablets: stack the staff panel and the tier panel so neither is squeezed. */
+/* Phones and small tablets: stack the staff panel and the side panels so neither is squeezed. */
 @media (max-width: 900px) {
   .ranking-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .staff-panel,
+  .side-panels,
   .tier-panel {
     grid-column: 1;
     grid-row: auto;
@@ -165,7 +180,10 @@
   background: #fff;
 }
 
-.tier-a {
+.tier-a,
+.tier-a1,
+.tier-a2,
+.tier-a3 {
   background: #ecfdf5;
   border-color: #a7f3d0;
   color: #047857;
@@ -350,4 +368,162 @@
   text-align: left;
   cursor: pointer;
   text-decoration: underline;
+}
+
+.focus-kpi-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: var(--font-size-sm);
+}
+
+.focus-kpi-banner-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.focus-kpi-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.focus-kpi-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  background: var(--surface-muted, #f3f5f8);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.focus-kpi-empty {
+  margin: 8px 0 0;
+  font-size: var(--font-size-xs);
+}
+
+.focus-kpi-selector-list {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.focus-kpi-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.focus-kpi-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+
+  &.focus-met {
+    background: #e6f6ec;
+    color: #166534;
+  }
+
+  &.focus-unmet {
+    background: #fef2f2;
+    color: #b91c1c;
+  }
+}
+
+.approve-anchor-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.approve-confirm-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: 260px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface, #fff);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+}
+
+.approve-confirm-text {
+  margin: 0 0 10px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.approve-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.all-depts-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.branch-tier-select {
+  min-width: 68px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface, #fff);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.branch-reason-input {
+  width: 100%;
+  min-width: 160px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface, #fff);
+  font-size: var(--font-size-xs);
+}
+
+.branch-message-ok {
+  margin: 8px 0 0;
+  font-size: var(--font-size-xs);
+  color: #166534;
+}
+
+.branch-message-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.branch-message-item {
+  font-size: var(--font-size-xs);
+  color: #b45309;
+  line-height: 1.4;
 }

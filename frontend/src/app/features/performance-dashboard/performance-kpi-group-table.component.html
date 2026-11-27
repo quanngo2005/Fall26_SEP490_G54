@@ -38,23 +38,24 @@
                   <td class="num mono">{{value(kpi.campaignActualValue, kpi.unit)}}</td>
                 }
                 <td>
-                  <div class="achievement">
-                    <span class="track" aria-hidden="true">
+                  @if (kpi.achievementPercent !== null) {
+                    <div class="achievement">
+                      <strong
+                        class="mono"
+                        [class.up]="kpi.achievementPercent >= 100"
+                        [class.down]="kpi.achievementPercent < 100"
+                        >{{percent(kpi.achievementPercent)}}</strong
+                      >
                       <span
-                        class="fill"
-                        [class.below]="
-                          kpi.achievementPercent !== null && kpi.achievementPercent < 100
-                        "
-                        [style.width.%]="width(kpi.achievementPercent)"
-                      ></span>
-                      <span class="marker" [style.left.%]="marker()"></span>
-                    </span>
-                    <strong
-                      class="mono"
-                      [class.down]="kpi.achievementPercent !== null && kpi.achievementPercent < 100"
-                      >{{percent(kpi.achievementPercent)}}</strong
-                    >
-                  </div>
+                        class="rate-note"
+                        [class.up]="kpi.achievementPercent >= 100"
+                        [class.down]="kpi.achievementPercent < 100"
+                        >{{rateNote(kpi)}}</span
+                      >
+                    </div>
+                  } @else {
+                    <span class="muted mono">{{percent(null)}}</span>
+                  }
                 </td>
                 @if (compareName()) {
                   <td class="num mono" [class]="tone(kpi)">{{change(kpi)}}</td>

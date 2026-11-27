@@ -9,4 +9,5 @@ public sealed record DepartmentPerformanceDto(
     IReadOnlyList<DepartmentKpiPerformanceDto> Kpis,
     IReadOnlyList<DepartmentTrendPointDto> Trend,
     IReadOnlyList<DepartmentKpiGroupDto> KpiGroups,
-    IReadOnlyList<DepartmentPositionDto> Positions);
+    IReadOnlyList<DepartmentPositionDto> Positions,
+    DepartmentYearlyTrendDto? YearlyTrend = null);

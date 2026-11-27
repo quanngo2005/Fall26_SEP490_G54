@@ -1,3 +1,5 @@
+using G54.BLL.Dtos.EvaluationPeriod;
+
 namespace G54.BLL.Dtos.Evaluation;
 
 /// <summary>One tier of the board: the configured headcount (null when not configured) and the employees placed in it.</summary>
@@ -31,7 +33,11 @@ public sealed record RankingBoardStaffRowDto(
     string? SystemTier,
     string? FinalTier,
     string? AdjustmentReason,
-    string EvaluationStatus);
+    string EvaluationStatus,
+    int FocusKpisMet = 0,
+    int FocusKpisTotal = 0,
+    string? MaxAllowedTier = null,
+    IReadOnlyList<RankingBoardCriterionDto>? FocusKpiDetails = null);
 
 /// <summary>One KPI of the criteria count: its target, its actual value and whether it reached the threshold.</summary>
 public sealed record RankingBoardCriterionDto(
@@ -64,7 +70,8 @@ public sealed record RankingBoardOverviewDto(
     IReadOnlyList<RankingBoardTierDto> Tiers,
     IReadOnlyList<RankingBoardStaffRowDto> StaffRows,
     DateTimeOffset GeneratedAt,
-    bool IsTeam = false);
+    bool IsTeam = false,
+    IReadOnlyList<FocusKpiSummaryDto>? FocusKpis = null);
 
 public sealed record RankingBoardAdjustmentItemDto(
     Guid EmployeeId,

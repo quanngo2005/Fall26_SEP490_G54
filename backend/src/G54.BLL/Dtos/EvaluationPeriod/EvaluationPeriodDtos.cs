@@ -64,3 +64,16 @@ public sealed record ClosePeriodResultDto(
     string Status,
     int PendingInReviewResults,
     int OpenDisputes);
+
+public sealed record FocusKpiSummaryDto(
+    Guid Id,
+    string Code,
+    string Name,
+    string Unit);
+
+public sealed record PeriodFocusKpisDto(
+    Guid PeriodId,
+    IReadOnlyList<FocusKpiSummaryDto> FocusKpis);
+
+public sealed record UpdatePeriodFocusKpisRequestDto(
+    IReadOnlyList<Guid>? KpiIds);
