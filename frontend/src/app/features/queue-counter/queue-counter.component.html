@@ -1,0 +1,114 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="queue-page">
+      <h1>{{localization.queue.title}}</h1>
+      @if (message(); as key) {
+        <p role="status" class="notice">{{localization.queue[key]}}</p>
+      }
+      @if (state(); as s) {
+        <section class="panel">
+          @if (s.counter) {
+            <h2>{{localization.queue.desk}} {{s.counter}}</h2>
+            @if (s.visit; as v) {
+              <div class="ticket">
+                <strong>{{v.number}}</strong>
+                <div>
+                  {{localization.queue.services[v.service]}}<br />{{localization.queue.states[v.state]}}
+                </div>
+                <p>
+                  {{localization.queue.elapsed}} <b>{{elapsed(v.calledAt)}}</b>
+                </p>
+              </div>
+              @if (v.workId) {
+                <a routerLink="/my-work" [state]="{ workId: v.workId }">{{localization.queue.work}}</a>
+              } @else if (v.workType) {
+                <p>{{localization.queue.sync}}</p>
+              }
+              @if (v.state === 'called') {
+                @if (types(v.service).length > 1) {
+                  <label
+                    >{{localization.queue.product}}<select [(ngModel)]="selected">
+                      <option value="">{{localization.queue.select}}</option>
+                      @for (t of types(v.service); track t) {
+                        <option [value]="t">{{t}}</option>
+                      }
+                    </select></label
+                  >
+                }
+                <button
+                  [disabled]="
+                    busy() ||
+                    (!v.workType &&
+                      v.service !== 'advice' &&
+                      (types(v.service).length === 0 || (types(v.service).length > 1 && !selected)))
+                  "
+                  (click)="act('start')"
+                >
+                  {{localization.queue.start}}
+                </button>
+                <button [disabled]="busy()" (click)="act('recall')">
+                  {{localization.queue.recall}}</button
+                ><button [disabled]="busy()" (click)="act('absent')">
+                  {{localization.queue.absent}}
+                </button>
+              }
+              @if (v.state === 'serving') {
+                <button [disabled]="busy()" (click)="act('finish')">
+                  {{localization.queue.finish}}
+                </button>
+              }
+              <div class="actions">
+                <label
+                  >{{localization.queue.destination}}<select [(ngModel)]="destination" (ngModelChange)="selected = ''">
+                    @for (code of services; track code) {
+                      <option [value]="code">{{localization.queue.services[code]}}</option>
+                    }
+                  </select></label
+                >
+                <button [disabled]="busy() || destination === v.service" (click)="act('transfer')">
+                  {{localization.queue.transferAction}}
+                </button>
+                @if (
+                  v.state === 'serving' &&
+                  v.service === 'advice' &&
+                  !v.workType &&
+                  types(destination).length
+                ) {
+                  @if (types(destination).length > 1) {
+                    <label
+                      >{{localization.queue.product}}<select [(ngModel)]="selected">
+                        <option value="">{{localization.queue.select}}</option>
+                        @for (t of types(destination); track t) {
+                          <option [value]="t">{{t}}</option>
+                        }
+                      </select></label
+                    >
+                  }
+                  <button
+                    [disabled]="busy() || (types(destination).length > 1 && !selected)"
+                    (click)="act('convert')"
+                  >
+                    {{localization.queue.convert}}
+                  </button>
+                }
+              </div>
+            } @else {
+              <p>{{localization.queue.empty}}</p>
+              <button [disabled]="busy()" (click)="act('call')">
+                {{localization.queue.call}}</button
+              ><button [disabled]="busy()" (click)="act('close')">
+                {{localization.queue.close}}
+              </button>
+            }
+          } @else {
+            <button [disabled]="busy()" (click)="act('open')">{{localization.queue.open}}</button>
+          }
+        </section>
+      } @else {
+        <button (click)="refresh()">{{localization.queue.retry}}</button>
+      }
+    </main>
+  </div>
+</div>

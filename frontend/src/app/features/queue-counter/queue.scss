@@ -1,0 +1,108 @@
+.queue-page {
+  padding: clamp(16px, 3vw, 40px);
+  max-width: 1280px;
+  margin: auto;
+  color: #102d42;
+}
+.queue-page h1 {
+  margin: 0 0 1rem;
+  font-size: clamp(28px, 3.5vw, 40px);
+  letter-spacing: -0.035em;
+}
+.queue-page h2 {
+  font-size: 1.22rem;
+}
+.queue-page h3 {
+  margin: 0;
+}
+.panel {
+  background: white;
+  border: 1px solid #cfdae0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 18px;
+  min-width: 0;
+}
+.desk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+}
+.row,
+.ticket,
+.actions,
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.row {
+  justify-content: space-between;
+}
+.status,
+.chips span {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #eaf1f4;
+}
+.chips {
+  gap: 4px;
+  margin: 12px 0;
+}
+.late,
+.notice {
+  border-left: 4px solid #ae3319;
+  background: #fff3ec;
+  padding: 12px;
+}
+.ticket > strong {
+  font-size: 3rem;
+}
+.ticket {
+  margin-bottom: 18px;
+}
+.queue-page button,
+.queue-page select {
+  font: inherit;
+  padding: 9px 13px;
+  border: 1px solid #adbecb;
+  border-radius: 6px;
+  background: white;
+  color: #12344f;
+  margin: 4px;
+}
+.queue-page button:enabled {
+  cursor: pointer;
+}
+.queue-page button:disabled {
+  opacity: 0.48;
+}
+.queue-page button:focus-visible,
+.queue-page select:focus-visible {
+  outline: 3px solid #1c72a6;
+}
+.queue-page label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px;
+}
+.queue-page fieldset {
+  border: 1px solid #cfdae0;
+  margin: 12px 0;
+}
+.queue-page th,
+.queue-page td {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid #cfdae0;
+}
+.queue-page table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.scroll {
+  overflow: auto;
+}

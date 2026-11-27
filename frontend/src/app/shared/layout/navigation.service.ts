@@ -13,6 +13,8 @@ export type WorkspaceRole =
   'employee' | 'departmentManager' | 'branchManager' | 'hr' | 'qa' | 'admin';
 export type MenuKey =
   | 'overview'
+  | 'queueLobby'
+  | 'queueCounter'
   | 'myWork'
   | 'mySubmissions'
   | 'myCampaigns'
@@ -84,6 +86,7 @@ const ROLE_CODES: Readonly<Record<RoleCode, WorkspaceRole>> = {
 
 export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
   employee: [
+    'queueCounter',
     'overview',
     'myWork',
     'mySubmissions',
@@ -95,6 +98,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'myProfile',
   ],
   departmentManager: [
+    'queueLobby',
     'overview',
     'employees',
     'teamWork',
@@ -111,6 +115,7 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
     'myProfile',
   ],
   branchManager: [
+    'queueLobby',
     'overview',
     'organization',
     'myWork',
@@ -166,6 +171,18 @@ export const ROLE_MENUS: Readonly<Record<WorkspaceRole, readonly MenuKey[]>> = {
 };
 
 const ITEMS: readonly NavigationItem[] = [
+  {
+    id: 'queueLobby',
+    icon: 'myWork',
+    route: '/queue-lobby',
+    permission: 'QUEUE_COUNTER_SUPERVISE',
+  },
+  {
+    id: 'queueCounter',
+    icon: 'myWork',
+    route: '/queue-counter',
+    permission: 'QUEUE_COUNTER_OPERATE',
+  },
   { id: 'overview', icon: 'dashboard', route: '/home' },
   { id: 'myWork', icon: 'myWork', route: '/my-work', permission: 'WORK_READ' },
   { id: 'mySubmissions', icon: 'mySubmissions', route: '/submissions', permission: 'WORK_READ' },
@@ -303,6 +320,8 @@ export class NavigationService {
   readonly routeOptions = [
     '/home',
     '/my-work',
+    '/queue-counter',
+    '/queue-lobby',
     '/work-monitor',
     '/my-targets',
     '/my-campaigns',

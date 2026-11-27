@@ -1,0 +1,18 @@
+# Counter service and G54 Queue
+
+BPMS owns staff identity, authorization, Work and its append-only activity history. Queue owns tickets, counter allocation, feedback and a durable event stream. One branch per Queue deployment. Public ticket numbers use a branch sequence. UUIDs identify visits and commands.
+
+## BPMS (authenticated, ApiResponse<T>)
+- GET /queue-counters returns {counter, visit, options, serverTime}. counter is 1 or 3 (TELLER), 2 or 4 (SALES), or null. options lists the configured active WorkType codes for this employee's position. visit is null or {id,number,service,state,calledAt,workType,workId}. workId is nullable pending synchronization.
+- POST /queue-counters/commands accepts {requestId:uuid, action, visitId?:uuid, service?:string, workType?:string}. Actions open, close, call, recall, absent, start, convert, transfer, finish. Visit commands require the current visit UUID. Service is the destination service on transfer. Open binds the employee to an available compatible counter. Retry a command with its original requestId. Returns refreshed counter state. Own counter permission and active TELLER/SALES position required. 400 invalid choice, 401 unauthenticated, 403 forbidden, 404 unknown visit, 409 unavailable/invalid state, 503 queue unavailable.
+- GET /queue-counters/ratings.xlsx requires service_rating_import:manage All. Export ratings with an unambiguous actual transaction code and rated employee.
+- Codes: deposit, withdrawal, transfer, account, savings, card, advice. Cash operations use GIAO_DICH; account MO_TAI_KHOAN; savings HUY_DONG; card THE_TD_CLASSIC/GOLD/PLATINUM. Advice can start without Work and convert to account/savings/card. Finish releases the counter without changing the Work's business result.
+- Each immutable Queue visit UUID identifies at most one Work. Event UUIDs deduplicate WorkActivity inserts. Backfill original timestamps on Work creation. Replay after outages; no customer identifier, feedback comment or membership in Work activity.
+
+## Supervisor lobby
+GET /queue-counters/lobby returns ApiResponse<{staff, desks, waiting, daily, issuedToday, serverTime, waitLimitMinutes, serviceLimitMinutes}>. queue_counter:supervise Dept or Branch. Staff and employee metrics follow the department subtree or nearest branch. Waiting tickets are shared by compatible service with no customer identifier. Desk state is closed, locked, idle, called or serving. Today's completed visits use UTC+7 and omit unrated visits from the rating mean. Poll every 5s.
+PUT /queue-counters/lobby/desks/{counter} accepts {employee, services, locked, revision}. Employee is a nullable UUID. An idle desk can be reassigned, locked, or given a subset of its operator position's supported services. 400 invalid service/operator, 403 forbidden, 404 outside scope/unknown desk, 409 stale revision, busy operator or active visit. Auxiliary desks 3 and 4 start locked.
+
+## Queue
+Public GET /public/services, POST /public/tickets {requestId,identifier,service} -> {number}, GET /public/board -> [{counter,number}]. Rating devices use a counter-scoped X-Device-Key, GET /devices/{counter}/rating -> {id,number} or null and POST to the same path with {id,score,comment}; null score skips. Forms expire.
+Server-to-server endpoints under /internal require a deployment key. BPMS supplies the authenticated employee identity and role. GET /internal/counters/{employeeId}, POST /internal/commands, GET /internal/pending, POST /internal/ack/{id}/{version}, GET /internal/ratings. Errors use a stable errorCode. Internal commands serialize assignment, append events, and record retries in one DB transaction.

@@ -16,6 +16,20 @@ import { permissionGuard } from './core/permission.guard';
 
 export const routes: Routes = [
   {
+    path: 'queue-lobby',
+    canActivate: [authGuard, permissionGuard('QUEUE_COUNTER_SUPERVISE')],
+    loadComponent: () =>
+      import('./features/queue-counter/queue-lobby.component').then((m) => m.QueueLobbyComponent),
+  },
+  {
+    path: 'queue-counter',
+    canActivate: [authGuard, permissionGuard('QUEUE_COUNTER_OPERATE')],
+    loadComponent: () =>
+      import('./features/queue-counter/queue-counter.component').then(
+        (m) => m.QueueCounterComponent,
+      ),
+  },
+  {
     path: 'sidebar-settings',
     canActivate: [authGuard, adminGuard],
     loadComponent: () =>

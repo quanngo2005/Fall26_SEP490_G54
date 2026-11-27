@@ -24,6 +24,8 @@ describe('AuthService', () => {
   };
 
   beforeEach(() => {
+    response.expiresAt = new Date(Date.now() + 60_000).toISOString();
+    response.refreshTokenExpiresAt = new Date(Date.now() + 3_600_000).toISOString();
     localStorage.clear();
     sessionStorage.clear();
     TestBed.configureTestingModule({
