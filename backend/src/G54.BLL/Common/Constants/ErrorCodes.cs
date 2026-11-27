@@ -114,6 +114,17 @@ public static class ErrorCodes
     public const string TargetDepartmentNotEligible = "TARGET_DEPARTMENT_NOT_ELIGIBLE";    // department has no headcount for this KPI
     public const string TargetPublishBlocked = "TARGET_PUBLISH_BLOCKED";                   // publish validation failed
 
+    // Employee allocation (Tier 3, docs/api/TARGET_ALLOCATION_CONTRACT.md, Phase 3)
+    public const string TargetTierNotPublished = "TARGET_TIER_NOT_PUBLISHED";              // previous tier (department) not yet published
+    public const string TargetEmployeeNotEligible = "TARGET_EMPLOYEE_NOT_ELIGIBLE";        // employee does not hold a responsible position for this KPI
+    public const string TargetEmployeeAllocationSumMismatch = "TARGET_EMPLOYEE_ALLOCATION_SUM_MISMATCH"; // employees must equal department year exactly
+    public const string TargetEmployeeQuarterSumMismatch = "TARGET_EMPLOYEE_QUARTER_SUM_MISMATCH";       // each employee's quarters must equal their year exactly
+    public const string TargetEmployeePublishBlocked = "TARGET_EMPLOYEE_PUBLISH_BLOCKED";  // employee-tier publish validation failed
+
+    // Employee "my-targets" (Target Allocation v3 employee side, docs/api/TARGET_ALLOCATION_CONTRACT.md)
+    public const string TargetFeedbackProposedSumMismatch = "TARGET_FEEDBACK_PROPOSED_SUM_MISMATCH"; // cumulative proposal: Σ quarters must equal proposed year
+    public const string TargetAckInvalidState = "TARGET_ACK_INVALID_STATE";              // confirm called while not PENDING/RECONFIRM
+
     // Data import (docs/api/DATA_IMPORT_CONTRACT.md)
     public const string ImportTemplateInvalid = "IMPORT_TEMPLATE_INVALID";
     public const string DataImportHasErrors = "DATA_IMPORT_HAS_ERRORS";
@@ -136,6 +147,14 @@ public static class ErrorCodes
     public const string AccountExists = "ACCOUNT_EXISTS";
     public const string CannotLockSelf = "CANNOT_LOCK_SELF";
 
+    // Campaign customers (docs/api/CAMPAIGN_CONTRACT.md §5)
+    public const string CampaignCustomerClosed = "CAMPAIGN_CUSTOMER_CLOSED";
+    public const string CampaignNotRunning = "CAMPAIGN_NOT_RUNNING";
+    public const string WorkTypeNotInCampaign = "WORK_TYPE_NOT_IN_CAMPAIGN";
+    public const string EmployeeNotParticipant = "EMPLOYEE_NOT_PARTICIPANT";
+    public const string CampaignHasAssignments = "CAMPAIGN_HAS_ASSIGNMENTS";
+    public const string CampaignWorkLocked = "CAMPAIGN_WORK_LOCKED";
+    public const string CampaignNotCompletable = "CAMPAIGN_NOT_COMPLETABLE";
     // Call recordings (docs/api/CALL_RECORDING_AI_TRIAGE_CONTRACT.md §9)
     public const string CallRecordingInvalidFile = "CALL_RECORDING_INVALID_FILE";
     public const string CallRecordingSubmissionClosed = "CALL_RECORDING_SUBMISSION_CLOSED";
@@ -219,9 +238,23 @@ public static class ErrorCodes
         [TargetQuartersNotReady] = ("Chỉ tiêu theo quý chưa được chia cho chỉ tiêu này; hãy hoàn thành bước chia quý trước.", "Quarters have not yet been split for this KPI; complete step 2 first."),
         [TargetDepartmentNotEligible] = ("Phòng ban này không có nhân viên đủ điều kiện cho chỉ tiêu này nên bị ẩn.", "This department has no eligible employees for this KPI and is hidden."),
         [TargetPublishBlocked] = ("Phát hành bị chặn: một hoặc nhiều chỉ tiêu chưa khớp. Xem chi tiết để hoàn thành.", "Publish is blocked: one or more KPI targets are incomplete. See details to resolve."),
+        [TargetTierNotPublished] = ("Chỉ tiêu phòng ban (cấp 2) chưa được phát hành nên chưa thể giao chỉ tiêu nhân viên.", "The department tier (tier 2) has not been published yet, so employee targets cannot be assigned."),
+        [TargetEmployeeNotEligible] = ("Nhân viên này không giữ vị trí phụ trách KPI này nên bị khóa.", "This employee does not hold a responsible position for this KPI and is locked."),
+        [TargetEmployeeAllocationSumMismatch] = ("Tổng chỉ tiêu của các nhân viên phải bằng chính xác chỉ tiêu của phòng ban.", "Employee allocations must equal the department target exactly."),
+        [TargetEmployeeQuarterSumMismatch] = ("Tổng chỉ tiêu các quý của từng nhân viên phải bằng chính xác chỉ tiêu năm của nhân viên đó.", "Each employee's quarter totals must equal their year target exactly."),
+        [TargetEmployeePublishBlocked] = ("Phát hành chỉ tiêu nhân viên bị chặn: một hoặc nhiều chỉ tiêu chưa khớp. Xem chi tiết để hoàn thành.", "Publishing employee targets is blocked: one or more KPI targets are incomplete. See details to resolve."),
+        [TargetFeedbackProposedSumMismatch] = ("Tổng chỉ tiêu quý đề xuất phải bằng chính xác chỉ tiêu năm đề xuất.", "Proposed quarter totals must equal the proposed year value exactly."),
+        [TargetAckInvalidState] = ("Trạng thái xác nhận hiện tại không cho phép thao tác này.", "The current confirmation state does not allow this action."),
         [UsernameExists] = ("Tên đăng nhập đã tồn tại trong hệ thống.", "The username already exists in the system."),
         [AccountExists] = ("Nhân sự được chọn đã có tài khoản đăng nhập.", "The selected employee already has a user account."),
         [CannotLockSelf] = ("Bạn không thể khóa chính tài khoản đang đăng nhập.", "You cannot lock the account you are signed in with."),
+        [CampaignCustomerClosed] = ("Khách hàng này đã chốt và không thể cập nhật thêm.", "This customer is already closed and cannot be updated further."),
+        [CampaignNotRunning] = ("Chiến dịch không ở trạng thái đang chạy nên không thể thao tác.", "The campaign is not running, so this action is not allowed."),
+        [WorkTypeNotInCampaign] = ("Sản phẩm đã chọn không thuộc danh mục sản phẩm của chiến dịch.", "The selected product is not one of the campaign's work types."),
+        [EmployeeNotParticipant] = ("Nhân viên không phải là thành viên tham gia chiến dịch.", "The employee is not an active participant of the campaign."),
+        [CampaignHasAssignments] = ("Chiến dịch đã có khách hàng được phân bổ hoặc công việc được sinh ra nên không thể thay đổi sản phẩm hoặc gỡ thành viên. Vui lòng phân công lại trước.", "The campaign already has assigned customers or generated work, so the product cannot change or a participant cannot be removed. Reassign first."),
+        [CampaignWorkLocked] = ("Công việc này thuộc một chiến dịch và chỉ có thể cập nhật từ màn hình Chiến dịch của tôi.", "This work belongs to a campaign and can only be updated from My Campaigns."),
+        [CampaignNotCompletable] = ("Trạng thái hiện tại của chiến dịch không cho phép hoàn tất hoặc hủy.", "The campaign's current status does not allow completing or cancelling it."),
         [CallRecordingInvalidFile] = ("Tệp ghi âm không hợp lệ (mp3, m4a, mp4, wav; tối đa 50 MB).", "Invalid call recording file (mp3, m4a, mp4, wav; up to 50 MB)."),
         [CallRecordingSubmissionClosed] = ("Kết quả đã rút, không thể tải ghi âm.", "The result submission was withdrawn, so no recording can be uploaded."),
         [CallRecordingNotReady] = ("Ghi âm đang được xử lý.", "The call recording is still being processed."),

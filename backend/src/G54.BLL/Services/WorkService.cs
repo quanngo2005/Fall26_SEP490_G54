@@ -208,6 +208,12 @@ public sealed partial class WorkService(
         var actor = await ResolveActorAsync(userId, cancellationToken);
         await EnsureCanChangeStatusAsync(work, actor, target, cancellationToken);
 
+        var leadStatus = await CampaignLeadWork.LeadStatusAsync(unitOfWork.Repository<CampaignCustomer>().Query(), work.Id, cancellationToken);
+        if (leadStatus is not null)
+        {
+            throw new BusinessRuleException(ErrorCodes.CampaignWorkLocked, null, 409);
+        }
+
         if (!WorkStateMachine.TryGetNextStatus(work.Status, action, out var nextStatus))
         {
             throw new ConflictException(
@@ -348,7 +354,7 @@ public sealed partial class WorkService(
             AssigneeEmployeeName: assigneeName,
             AssigneeEmployeeCode: assigneeCode,
             Priority: work.Priority.ToString(),
-            Status: work.Status.ToString(),
+            Status: work.Status.ToEnumString(),
             PlannedStartDate: work.PlannedStartDate,
             PlannedEndDate: work.PlannedEndDate,
             EstimatedHours: work.EstimatedHours,

@@ -110,6 +110,77 @@ public sealed class QualityAssuranceServiceTests : IDisposable
         return (maker, qa, work, submission, result);
     }
 
+    /// <summary>Places the employee in a department; a Dept-scoped manager sits in <paramref name="managerDept"/>.</summary>
+    private async Task<(Guid ManagerDept, Guid OtherDept)> SeedDepartmentsAsync()
+    {
+        var branch = Guid.NewGuid();
+        var managerDept = Guid.NewGuid();
+        var otherDept = Guid.NewGuid();
+        _db.Departments.AddRange(
+            new Department { Id = branch, Code = $"B{branch:N}"[..8], Name = "Branch", LevelType = DepartmentLevelType.Branch, Status = RecordStatus.Active, UpdatedAt = Now },
+            new Department { Id = managerDept, Code = $"D{managerDept:N}"[..8], Name = "Sales", ParentDepartmentId = branch, LevelType = DepartmentLevelType.Department, Status = RecordStatus.Active, UpdatedAt = Now },
+            new Department { Id = otherDept, Code = $"O{otherDept:N}"[..8], Name = "Teller", ParentDepartmentId = branch, LevelType = DepartmentLevelType.Department, Status = RecordStatus.Active, UpdatedAt = Now });
+        await _db.SaveChangesAsync();
+        return (managerDept, otherDept);
+    }
+
+    private QualityAssuranceService ServiceWith(params (string Resource, string Action, string Scope)[] grants) =>
+        new(_db, new FixedTime(Now), _notifier, NullLogger<QualityAssuranceService>.Instance, new GrantedPermissions(grants));
+
+    [Fact]
+    public async Task DeptManager_FlagsAndRequestsRework_ForTheStaffOfTheirDepartment()
+    {
+        var (managerDept, _) = await SeedDepartmentsAsync();
+        var (maker, manager, work, submission, result) = await SeedApprovedAsync();
+        maker.DepartmentId = managerDept;
+        manager.DepartmentId = managerDept;
+        await _db.SaveChangesAsync();
+        var service = ServiceWith(("quality_flag", "create", "Dept"), ("quality_flag", "rework", "Dept"));
+
+        var flag = await service.CreateFlagAsync(submission.Id, manager.Id, new CreateQualityFlagDto(LongReason, null));
+        var reworked = await service.RequestReworkAsync(flag.Id, manager.Id, new RequestReworkDto("Làm lại báo cáo và đính kèm chứng từ."));
+
+        Assert.Equal("REWORK_REQUESTED", reworked.Status);
+        Assert.Equal(WorkStatus.InProgress, (await _db.Works.AsNoTracking().SingleAsync(w => w.Id == work.Id)).Status);
+        Assert.Equal(VerifiedResultStatus.Invalid, (await _db.VerifiedWorkResults.AsNoTracking().SingleAsync(r => r.Id == result.Id)).Status);
+    }
+
+    [Fact]
+    public async Task DeptManager_CannotFlagOrReworkTheStaffOfAnotherDepartment()
+    {
+        var (managerDept, otherDept) = await SeedDepartmentsAsync();
+        var (maker, manager, _, submission, _) = await SeedApprovedAsync();
+        var (_, qa, _, _, _) = await SeedApprovedAsync();
+        maker.DepartmentId = otherDept;
+        manager.DepartmentId = managerDept;
+        await _db.SaveChangesAsync();
+        var managerService = ServiceWith(("quality_flag", "create", "Dept"), ("quality_flag", "rework", "Dept"));
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            managerService.CreateFlagAsync(submission.Id, manager.Id, new CreateQualityFlagDto(LongReason, null)));
+
+        var qaFlag = await ServiceWith(("quality_flag", "create", "All")).CreateFlagAsync(submission.Id, qa.Id, new CreateQualityFlagDto(LongReason, null));
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            managerService.RequestReworkAsync(qaFlag.Id, manager.Id, new RequestReworkDto("Làm lại báo cáo và đính kèm chứng từ.")));
+        Assert.Equal(QualityFlagStatus.Open, (await _db.QualityFlags.AsNoTracking().SingleAsync(f => f.Id == qaFlag.Id)).Status);
+    }
+
+    private sealed class GrantedPermissions((string Resource, string Action, string Scope)[] grants) : IPermissionService
+    {
+        public Task<UserPermissionsResponseDto?> GetUserPermissionsAsync(Guid accountId, CancellationToken cancellationToken) =>
+            Task.FromResult<UserPermissionsResponseDto?>(null);
+
+        public Task<IReadOnlyList<UserPermissionDto>> GetEffectivePermissionsAsync(Guid accountId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<UserPermissionDto>>(grants.Select(g => new UserPermissionDto(g.Resource, g.Action, g.Scope)).ToList());
+
+        public Task<bool> HasPermissionAsync(Guid accountId, string resource, string action, string requiredScope, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
+        public Task InvalidateUserPermissionsAsync(Guid accountId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task InvalidateRolePermissionsAsync(Guid roleId, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
     [Fact]
     public async Task CreateFlag_OnAnApprovedResult_FlagsTheSubmitter()
     {

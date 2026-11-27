@@ -70,6 +70,126 @@ public sealed class CampaignControllerTests
             controller.Decide(Guid.NewGuid(), request, CancellationToken.None));
     }
 
+    private static CampaignController CreateController(Guid? userId = null) => new(new MockCampaignService())
+    {
+        ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = userId is null
+                    ? new ClaimsPrincipal(new ClaimsIdentity())
+                    : new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", userId.ToString()!)], "test")),
+            },
+        },
+    };
+
+    [Fact]
+    public async Task GetCampaigns_ReturnsOkWithTheRequestedPage()
+    {
+        var result = await CreateController(Guid.NewGuid()).GetCampaigns("q", "RUNNING", null, 3, 10);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<ApiResponse<CampaignListOverviewDto>>(ok.Value);
+        Assert.Equal(3, response.Data!.Campaigns.Page);
+    }
+
+    [Fact]
+    public async Task GetById_ReturnsTheCampaign()
+    {
+        var id = Guid.NewGuid();
+
+        var result = await CreateController(Guid.NewGuid()).GetById(id);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(id, Assert.IsType<ApiResponse<CampaignDetailDto>>(ok.Value).Data!.Id);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsCreatedPointingAtGetById()
+    {
+        var request = new CreateCampaignRequestDto(
+            Guid.NewGuid(), "CMP-1", "Name", null, DateOnly.FromDateTime(DateTime.UtcNow),
+            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5)));
+
+        var result = await CreateController(Guid.NewGuid()).Create(request);
+
+        var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+        Assert.Equal(nameof(CampaignController.GetById), created.ActionName);
+    }
+
+    [Fact]
+    public async Task Update_ReturnsOk()
+    {
+        var request = new UpdateCampaignRequestDto(
+            "Name", null, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5)));
+
+        var result = await CreateController(Guid.NewGuid()).Update(Guid.NewGuid(), request);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsNoContent()
+    {
+        var result = await CreateController(Guid.NewGuid()).Delete(Guid.NewGuid());
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task BatchGenerateWork_ReturnsOk()
+    {
+        var result = await CreateController(Guid.NewGuid()).BatchGenerateWork(
+            Guid.NewGuid(), new BatchWorkGeneratorRequestDto(Guid.NewGuid(), "POOL", "EVEN", 1));
+
+        Assert.IsType<OkObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Complete_ReturnsCompleted()
+    {
+        var id = Guid.NewGuid();
+
+        var result = await CreateController(Guid.NewGuid()).Complete(id);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal("COMPLETED", Assert.IsType<ApiResponse<CampaignDecisionResultDto>>(ok.Value).Data!.Status);
+    }
+
+    [Fact]
+    public async Task Cancel_ReturnsCancelledWithTheReason()
+    {
+        var result = await CreateController(Guid.NewGuid()).Cancel(Guid.NewGuid(), new CancelCampaignRequestDto("Hết ngân sách"));
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<ApiResponse<CampaignDecisionResultDto>>(ok.Value);
+        Assert.Equal("CANCELLED", response.Data!.Status);
+        Assert.Contains("Hết ngân sách", response.Message);
+    }
+
+    [Fact]
+    public async Task WriteActions_ThrowUnauthorized_WhenUserIsNotAuthenticated()
+    {
+        var controller = CreateController();
+
+        await Assert.ThrowsAsync<UnauthorizedException>(() => controller.Complete(Guid.NewGuid()));
+        await Assert.ThrowsAsync<UnauthorizedException>(() => controller.Delete(Guid.NewGuid()));
+        await Assert.ThrowsAsync<UnauthorizedException>(() =>
+            controller.Cancel(Guid.NewGuid(), new CancelCampaignRequestDto("x")));
+    }
+
+    [Fact]
+    public void DecideRequiresAllScopeAndTheOtherWritesRequireDeptScope()
+    {
+        static string Scope(string method) =>
+            typeof(CampaignController).GetMethod(method)!.GetCustomAttribute<G54.Api.Authorization.HasPermissionAttribute>()!.Scope;
+
+        Assert.Equal("All", Scope(nameof(CampaignController.Decide)));
+        Assert.Equal("Dept", Scope(nameof(CampaignController.Create)));
+        Assert.Equal("Dept", Scope(nameof(CampaignController.Complete)));
+        Assert.Equal("Dept", Scope(nameof(CampaignController.Cancel)));
+    }
+
     [Fact]
     public void ControllerHasExpectedRouteAndAuthorizeAttributes()
     {
@@ -142,5 +262,14 @@ public sealed class CampaignControllerTests
 
         public Task<BatchWorkGenerateResultDto> BatchGenerateWorkAsync(Guid id, BatchWorkGeneratorRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
             => Task.FromResult(new BatchWorkGenerateResultDto(id, "CMP-1", 1, 1, 1m, ["TSK-1"], "pool", DateTimeOffset.UtcNow, "Done"));
+
+        public Task<CampaignDecisionResultDto> CompleteAsync(Guid id, Guid currentUserId, CancellationToken cancellationToken = default)
+            => Task.FromResult(new CampaignDecisionResultDto(id, "COMPLETED", DateTimeOffset.UtcNow, "Đã hoàn tất chiến dịch thành công."));
+
+        public Task<CampaignDecisionResultDto> CancelAsync(Guid id, CancelCampaignRequestDto request, Guid currentUserId, CancellationToken cancellationToken = default)
+            => Task.FromResult(new CampaignDecisionResultDto(id, "CANCELLED", DateTimeOffset.UtcNow, $"Đã hủy chiến dịch. Lý do: {request.Reason}"));
+
+        public Task<int> SendEndReminderAsync(DateOnly today, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
     }
 }

@@ -1,3 +1,5 @@
+export { CompareSliderComponent } from './compare-slider.component';
+export type { ComparePeriodMode } from './compare-slider.component';
 export { ConfirmSaveDialogComponent } from './confirm-save-dialog.component';
 export { initials } from './display';
 export { MetricCardComponent } from './metric-card.component';

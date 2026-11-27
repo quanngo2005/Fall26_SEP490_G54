@@ -30,7 +30,7 @@ public sealed class WorkHttpTests(ObjectiveKpiTargetFixture api)
         var result = await api.SendAsync("UC72-01", HttpMethod.Post, "/works", "mgr", Body());
         Assert.Equal(201, result.Code);
         Assert.NotNull(result.Location);
-        Assert.Equal("New", result.Data.GetProperty("status").GetString());
+        Assert.Equal("NEW", result.Data.GetProperty("status").GetString());
         Assert.Equal("High", result.Data.GetProperty("priority").GetString());
         Assert.Equal(api.EmployeeIdOf("emp1"), result.Data.GetProperty("assigneeEmployeeId").GetGuid());
         Assert.StartsWith("WRK-", result.Data.GetProperty("code").GetString());
@@ -158,7 +158,7 @@ public sealed class WorkHttpTests(ObjectiveKpiTargetFixture api)
         var missing = await api.SendAsync("UC73-05", HttpMethod.Get, $"/works/{Guid.NewGuid()}", "emp1");
         Assert.Equal(200, found.Code);
         Assert.Equal(id, found.Id);
-        Assert.Equal("New", found.Data.GetProperty("status").GetString());
+        Assert.Equal("NEW", found.Data.GetProperty("status").GetString());
         Assert.Equal(api.EmployeeIdOf("emp1"), found.Data.GetProperty("assigneeEmployeeId").GetGuid());
         Assert.Equal(404, missing.Code);
         Assert.Equal("NOT_FOUND", missing.ErrorCode);
@@ -184,7 +184,7 @@ public sealed class WorkHttpTests(ObjectiveKpiTargetFixture api)
         var id = await api.NewWorkAsync("emp1");
         var result = await api.SendAsync("UC74-01", HttpMethod.Patch, $"/works/{id}/status", "emp1", Status("InProgress"));
         Assert.Equal(200, result.Code);
-        Assert.Equal("InProgress", result.Data.GetProperty("status").GetString());
+        Assert.Equal("IN_PROGRESS", result.Data.GetProperty("status").GetString());
     }
 
     [Fact]
@@ -196,7 +196,7 @@ public sealed class WorkHttpTests(ObjectiveKpiTargetFixture api)
         Assert.Equal(400, noReason.Code);
         Assert.Equal("VALIDATION_ERROR", noReason.ErrorCode);
         Assert.Equal(200, result.Code);
-        Assert.Equal("Cancelled", result.Data.GetProperty("status").GetString());
+        Assert.Equal("CANCELLED", result.Data.GetProperty("status").GetString());
     }
 
     [Fact]
@@ -207,7 +207,7 @@ public sealed class WorkHttpTests(ObjectiveKpiTargetFixture api)
         var done = await api.SendAsync("UC74-03", HttpMethod.Patch, $"/works/{verified}/status", "mgr", Status("Done"));
         var invalid = await api.SendAsync("UC74-03", HttpMethod.Patch, $"/works/{fresh}/status", "mgr", Status("Done"));
         Assert.Equal(200, done.Code);
-        Assert.Equal("Done", done.Data.GetProperty("status").GetString());
+        Assert.Equal("DONE", done.Data.GetProperty("status").GetString());
         Assert.Equal(409, invalid.Code);
         Assert.Equal("WORK_INVALID_STATE", invalid.ErrorCode);
     }

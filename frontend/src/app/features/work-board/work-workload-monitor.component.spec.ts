@@ -106,45 +106,45 @@ describe('WorkWorkloadMonitorComponent', () => {
   ];
 
   const defaultWorks: WorkListItem[] = [
-    workItem('WK-1001', 'New', {
+    workItem('WK-1001', 'NEW', {
       assigneeEmployeeId: 'emp-1',
       assigneeEmployeeName: 'Hoàng Thị E',
     }),
-    workItem('WK-1002', 'InProgress', {
+    workItem('WK-1002', 'IN_PROGRESS', {
       assigneeEmployeeId: 'emp-1',
       assigneeEmployeeName: 'Hoàng Thị E',
     }),
-    workItem('WK-1003', 'Submitted', {
+    workItem('WK-1003', 'SUBMITTED', {
       assigneeEmployeeId: 'emp-2',
       assigneeEmployeeName: 'Phạm Văn D',
     }),
-    workItem('WK-1004', 'Verified', {
+    workItem('WK-1004', 'VERIFIED', {
       assigneeEmployeeId: 'emp-2',
       assigneeEmployeeName: 'Phạm Văn D',
     }),
-    workItem('WK-1005', 'Done', {
+    workItem('WK-1005', 'DONE', {
       assigneeEmployeeId: 'emp-3',
       assigneeEmployeeName: 'Nguyễn Văn A',
     }),
-    workItem('WK-1006', 'Overdue', {
+    workItem('WK-1006', 'OVERDUE', {
       assigneeEmployeeId: 'emp-1',
       assigneeEmployeeName: 'Hoàng Thị E',
       plannedEndDate: '2026-10-23',
     }),
-    workItem('WK-1007', 'Overdue', {
+    workItem('WK-1007', 'OVERDUE', {
       assigneeEmployeeId: 'emp-2',
       assigneeEmployeeName: 'Phạm Văn D',
       plannedEndDate: '2026-10-22',
     }),
     // Outside WorkType: counted in KPI cards & overdue, excluded from KPI stage funnel.
-    workItem('WK-1008', 'InProgress', {
+    workItem('WK-1008', 'IN_PROGRESS', {
       workTypeId: null,
       workTypeName: null,
       assigneeEmployeeId: 'emp-1',
       assigneeEmployeeName: 'Hoàng Thị E',
     }),
     // Cancelled: excluded everywhere.
-    workItem('WK-1009', 'Cancelled', {
+    workItem('WK-1009', 'CANCELLED', {
       assigneeEmployeeId: 'emp-3',
       assigneeEmployeeName: 'Nguyễn Văn A',
     }),

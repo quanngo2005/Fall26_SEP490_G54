@@ -1,0 +1,46 @@
+.update-dialog {
+  width: min(560px, 100%);
+}
+.customer-card {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+.customer-card p {
+  margin: 0;
+}
+.current {
+  margin-top: 4px;
+}
+.hint {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  color: #334155;
+  font-size: 13px;
+}
+fieldset.field {
+  border: 0;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.notice.is-warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #b45309;
+}
+.check-row {
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}

@@ -22,8 +22,9 @@ public sealed class RankingSlotQuotasController(IRankingSlotQuotaService service
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<RankingSlotQuotasDto>>> Get(
         [FromQuery] Guid departmentId,
+        [FromQuery] Guid? periodId,
         CancellationToken cancellationToken)
-        => Ok(ApiResponse.Ok(await service.GetAsync(departmentId, cancellationToken), traceId: HttpContext.TraceIdentifier));
+        => Ok(ApiResponse.Ok(await service.GetAsync(departmentId, periodId, cancellationToken), traceId: HttpContext.TraceIdentifier));
 
     [HttpPut]
     [HasPermission("system_parameter", "update", PermissionScopes.All)]

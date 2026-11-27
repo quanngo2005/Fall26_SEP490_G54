@@ -21,7 +21,10 @@ import {
   UiSelectComponent,
   StatusBadgeComponent,
   RiskSummaryCardComponent,
+  CompareSliderComponent,
+  ComparePeriodMode,
 } from '../../shared/ui';
+import { findPreviousPeriod, findSameLastYearPeriod } from '../../core/period-options';
 import { serverMessage } from '../campaigns/campaign.utils';
 import { saveFile } from '../performance-dashboard/performance-page';
 
@@ -44,6 +47,7 @@ const PERIOD_TYPES: readonly PeriodTypeFilter[] = ['YEAR', 'QUARTER', 'MONTH'];
     StatusBadgeComponent,
     MetricCardComponent,
     RiskSummaryCardComponent,
+    CompareSliderComponent,
   ],
   templateUrl: './evaluation-form.component.html',
   styleUrls: [
@@ -100,6 +104,25 @@ export class EvaluationFormComponent extends LocalizedComponent {
     const type = this.selectedPeriodType();
     return this.periodOptions().filter((period) => period.periodType === type);
   });
+  readonly compareMode = signal<ComparePeriodMode>('PREVIOUS');
+
+  readonly currentPeriod = computed(() => {
+    const p = this.form()?.period;
+    if (!p) return null;
+    return this.periodOptions().find((opt) => opt.id === p.id) ?? null;
+  });
+
+  readonly previousPeriod = computed(() =>
+    findPreviousPeriod(this.currentPeriod(), this.compareOptions()),
+  );
+
+  readonly sameLastYearPeriod = computed(() =>
+    findSameLastYearPeriod(this.currentPeriod(), this.periodOptions()),
+  );
+
+  readonly hasPreviousPeriod = computed(() => !!this.previousPeriod());
+  readonly hasSameLastYearPeriod = computed(() => !!this.sameLastYearPeriod());
+
   readonly compareOptions = computed<EvaluationPeriodOption[]>(
     () => this.form()?.compareOptions ?? [],
   );
@@ -177,9 +200,8 @@ export class EvaluationFormComponent extends LocalizedComponent {
   readonly scorePillText = computed(() => {
     const difference = this.form()?.previousPeriod?.scoreDifference ?? null;
     if (difference === null) return null;
-    const arrow = difference > 0 ? '▲ ' : difference < 0 ? '▼ ' : '';
     const sign = difference > 0 ? '+' : difference < 0 ? '-' : '';
-    return `${arrow}${sign}${this.i18n.formatNumber(Math.abs(difference), 2)}`;
+    return `${sign}${this.i18n.formatNumber(Math.abs(difference), 2)}`;
   });
 
   readonly scorePillClass = computed(() =>
@@ -356,6 +378,12 @@ export class EvaluationFormComponent extends LocalizedComponent {
     this.exporting.set(false);
     this.selectedComparePeriodId.set(compareId);
     this.loadForm(this.evaluationService.form(employeeId, periodId, compareId));
+  }
+
+  onCompareModeChanged(mode: ComparePeriodMode): void {
+    this.compareMode.set(mode);
+    const target = mode === 'SAME_LAST_YEAR' ? this.sameLastYearPeriod() : this.previousPeriod();
+    this.onCompareChange(target?.id ?? '');
   }
 
   onExportExcel(): void {

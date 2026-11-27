@@ -142,6 +142,16 @@ describe('TargetAssignmentService', () => {
     expect(result).toEqual({ kpiId: 'k1' } as never);
   });
 
+  it('reads every KPI allocation in one call for the matrix view', () => {
+    let result: unknown;
+    service.getAllAllocations('by1').subscribe((allocations) => (result = allocations));
+
+    const request = http.expectOne((r) => r.url === `${url}/by1/allocations` && r.method === 'GET');
+    request.flush({ success: true, status: 200, data: [{ kpiId: 'k1' }] });
+
+    expect(result).toEqual([{ kpiId: 'k1' }] as never);
+  });
+
   it('saves the allocation of one KPI', () => {
     const body = {
       departments: [{ departmentId: 'd1', year: 10, q1: 1, q2: 2, q3: 3, q4: 4 }],

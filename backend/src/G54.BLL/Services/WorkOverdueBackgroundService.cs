@@ -72,6 +72,9 @@ public sealed class WorkOverdueBackgroundService(
             {
                 LogMarked(logger, count, null);
             }
+
+            var campaignService = scope.ServiceProvider.GetRequiredService<ICampaignService>();
+            await campaignService.SendEndReminderAsync(today, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

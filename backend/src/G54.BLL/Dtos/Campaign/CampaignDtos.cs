@@ -61,7 +61,10 @@ public sealed record CampaignMetricsDto(
     int CompletedWorksCount,
     int InExecutionWorksCount,
     int PendingWorksCount,
-    decimal ProgressPercent);
+    decimal ProgressPercent,
+    int CustomerTotal = 0,
+    int CustomerUnassigned = 0,
+    int CustomerClosed = 0);
 
 public sealed record CampaignDetailDto(
     Guid Id,
@@ -124,6 +127,9 @@ public sealed record CampaignDecisionResultDto(
     string Status,
     DateTimeOffset DecidedAt,
     string Message);
+
+/// <summary>Body of <c>POST /campaigns/{id}/cancel</c> (§5.7): a reason is required and stored in the audit log.</summary>
+public sealed record CancelCampaignRequestDto(string Reason);
 
 // =========================================================================
 // Batch Work Generator DTOs (SCR-CMP-01 - UC24 / UC71)

@@ -1,0 +1,37 @@
+@let text = this.text();
+@let c = counts();
+<div class="tier-status-line">
+  <div class="summary">
+    <strong class="tier-label">{{tierLabel()}}</strong>
+    <span class="counts">
+      {{c.matched}} / {{c.total}} {{text.matchedOf}} · {{c.mismatched}}
+      {{text.mismatched}} · {{c.notSplit}} {{text.notSplit}}
+    </span>
+  </div>
+  <div class="filters" role="group" [attr.aria-label]="text.filterAll">
+    <button
+      type="button"
+      class="chip"
+      [class.is-active]="activeFilter() === 'ALL'"
+      (click)="setFilter('ALL')"
+    >
+      {{text.filterAll}}
+    </button>
+    <button
+      type="button"
+      class="chip"
+      [class.is-active]="activeFilter() === 'MISMATCHED'"
+      (click)="setFilter('MISMATCHED')"
+    >
+      {{text.filterMismatched}} ({{c.mismatched}})
+    </button>
+    <button
+      type="button"
+      class="chip"
+      [class.is-active]="activeFilter() === 'NOT_SPLIT'"
+      (click)="setFilter('NOT_SPLIT')"
+    >
+      {{text.filterNotSplit}} ({{c.notSplit}})
+    </button>
+  </div>
+</div>

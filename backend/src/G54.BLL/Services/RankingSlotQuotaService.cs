@@ -1,26 +1,67 @@
+using G54.BLL.Common.Constants;
 using G54.BLL.Common.Exceptions;
 using G54.BLL.Dtos.SystemParameter;
 using G54.DAL;
 using G54.DAL.Entities;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace G54.BLL.Services;
 
 public sealed class RankingSlotQuotaService(AppDbContext db) : IRankingSlotQuotaService
 {
-    public async Task<RankingSlotQuotasDto> GetAsync(Guid departmentId, CancellationToken ct = default)
+    public async Task<RankingSlotQuotasDto> GetAsync(Guid departmentId, Guid? periodId = null, CancellationToken ct = default)
     {
         await EnsureDepartmentExistsAsync(departmentId, ct);
 
-        var rows = await db.RankingSlotQuotas.AsNoTracking()
-            .Where(q => q.DepartmentId == departmentId && !q.IsDeleted)
-            .ToDictionaryAsync(q => q.TierCode, q => q.Headcount, ct);
+        Dictionary<string, int> rows;
+
+        if (periodId.HasValue)
+        {
+            var period = await db.EvaluationPeriods.AsNoTracking().FirstOrDefaultAsync(p => p.Id == periodId.Value, ct);
+
+            // 1. Direct match for period
+            rows = await db.RankingSlotQuotas.AsNoTracking()
+                .Where(q => q.DepartmentId == departmentId && q.EvaluationPeriodId == periodId.Value && !q.IsDeleted)
+                .ToDictionaryAsync(q => q.TierCode, q => q.Headcount, ct);
+
+            // 2. Fallback to latest preceding period
+            if (rows.Count == 0 && period is not null)
+            {
+                var prevPeriodId = await db.RankingSlotQuotas.AsNoTracking()
+                    .Where(q => q.DepartmentId == departmentId && !q.IsDeleted && q.EvaluationPeriodId != null && q.EvaluationPeriod!.StartDate < period.StartDate)
+                    .OrderByDescending(q => q.EvaluationPeriod!.StartDate)
+                    .Select(q => q.EvaluationPeriodId)
+                    .FirstOrDefaultAsync(ct);
+
+                if (prevPeriodId.HasValue)
+                {
+                    rows = await db.RankingSlotQuotas.AsNoTracking()
+                        .Where(q => q.DepartmentId == departmentId && q.EvaluationPeriodId == prevPeriodId.Value && !q.IsDeleted)
+                        .ToDictionaryAsync(q => q.TierCode, q => q.Headcount, ct);
+                }
+            }
+
+            // 3. Fallback to baseline
+            if (rows.Count == 0)
+            {
+                rows = await db.RankingSlotQuotas.AsNoTracking()
+                    .Where(q => q.DepartmentId == departmentId && q.EvaluationPeriodId == null && !q.IsDeleted)
+                    .ToDictionaryAsync(q => q.TierCode, q => q.Headcount, ct);
+            }
+        }
+        else
+        {
+            rows = await db.RankingSlotQuotas.AsNoTracking()
+                .Where(q => q.DepartmentId == departmentId && q.EvaluationPeriodId == null && !q.IsDeleted)
+                .ToDictionaryAsync(q => q.TierCode, q => q.Headcount, ct);
+        }
 
         var slots = RankingSlotTierCodes.All
             .Select(code => new RankingSlotQuotaDto(code, rows.TryGetValue(code, out var headcount) ? headcount : null))
             .ToList();
 
-        return new RankingSlotQuotasDto(departmentId, slots);
+        return new RankingSlotQuotasDto(departmentId, slots, periodId);
     }
 
     public async Task<RankingSlotQuotasDto> UpdateAsync(UpdateRankingSlotQuotasDto request, CancellationToken ct = default)
@@ -47,34 +88,102 @@ public sealed class RankingSlotQuotaService(AppDbContext db) : IRankingSlotQuota
 
         await EnsureDepartmentExistsAsync(request.DepartmentId, ct);
 
-        var existing = await db.RankingSlotQuotas
-            .Where(q => q.DepartmentId == request.DepartmentId)
-            .ToListAsync(ct);
-        var now = DateTimeOffset.UtcNow;
-
-        foreach (var slot in request.Slots)
+        if (request.PeriodId.HasValue)
         {
-            var row = existing.FirstOrDefault(q => q.TierCode == slot.TierCode);
-            if (row is null)
+            var period = await db.EvaluationPeriods.FirstOrDefaultAsync(p => p.Id == request.PeriodId.Value, ct)
+                ?? throw new NotFoundException("Kỳ đánh giá", request.PeriodId.Value);
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            if (period.Status is PeriodStatus.Locked or PeriodStatus.Closed || period.EndDate < today)
             {
-                db.RankingSlotQuotas.Add(new RankingSlotQuota
-                {
-                    DepartmentId = request.DepartmentId,
-                    TierCode = slot.TierCode,
-                    Headcount = slot.Headcount!.Value,
-                    UpdatedAt = now,
-                });
-                continue;
+                throw new BusinessRuleException(
+                    ErrorCodes.PeriodLocked,
+                    "Không thể cập nhật hạn ngạch quota cho kỳ đánh giá đã khóa hoặc đã qua.",
+                    StatusCodes.Status409Conflict);
             }
 
-            row.Headcount = slot.Headcount!.Value;
-            row.IsDeleted = false;
-            row.UpdatedAt = now;
+            var existing = await db.RankingSlotQuotas
+                .Where(q => q.DepartmentId == request.DepartmentId && q.EvaluationPeriodId == request.PeriodId.Value)
+                .ToListAsync(ct);
+            var now = DateTimeOffset.UtcNow;
+
+            foreach (var slot in request.Slots)
+            {
+                var row = existing.FirstOrDefault(q => q.TierCode == slot.TierCode);
+                if (row is null)
+                {
+                    db.RankingSlotQuotas.Add(new RankingSlotQuota
+                    {
+                        DepartmentId = request.DepartmentId,
+                        EvaluationPeriodId = request.PeriodId.Value,
+                        TierCode = slot.TierCode,
+                        Headcount = slot.Headcount!.Value,
+                        UpdatedAt = now,
+                    });
+                    continue;
+                }
+
+                row.Headcount = slot.Headcount!.Value;
+                row.IsDeleted = false;
+                row.UpdatedAt = now;
+            }
+
+            await db.SaveChangesAsync(ct);
+            return await GetAsync(request.DepartmentId, request.PeriodId, ct);
         }
+        else
+        {
+            var existing = await db.RankingSlotQuotas
+                .Where(q => q.DepartmentId == request.DepartmentId && q.EvaluationPeriodId == null)
+                .ToListAsync(ct);
+            var now = DateTimeOffset.UtcNow;
 
-        await db.SaveChangesAsync(ct);
+            foreach (var slot in request.Slots)
+            {
+                var row = existing.FirstOrDefault(q => q.TierCode == slot.TierCode);
+                if (row is null)
+                {
+                    db.RankingSlotQuotas.Add(new RankingSlotQuota
+                    {
+                        DepartmentId = request.DepartmentId,
+                        EvaluationPeriodId = null,
+                        TierCode = slot.TierCode,
+                        Headcount = slot.Headcount!.Value,
+                        UpdatedAt = now,
+                    });
+                    continue;
+                }
 
-        return await GetAsync(request.DepartmentId, ct);
+                row.Headcount = slot.Headcount!.Value;
+                row.IsDeleted = false;
+                row.UpdatedAt = now;
+            }
+
+            await db.SaveChangesAsync(ct);
+            return await GetAsync(request.DepartmentId, null, ct);
+        }
+    }
+
+    public async Task<RankingSlotQuotasDto> GetBranchQuotaAsync(Guid periodId, CancellationToken ct = default)
+    {
+        var branch = await db.Departments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.LevelType == DepartmentLevelType.Branch && d.Status == RecordStatus.Active, ct)
+            ?? await db.Departments.AsNoTracking().FirstOrDefaultAsync(d => d.LevelType == DepartmentLevelType.Branch, ct)
+            ?? throw new NotFoundException("Không tìm thấy chi nhánh đang hoạt động.");
+
+        return await GetAsync(branch.Id, periodId, ct);
+    }
+
+    public async Task<RankingSlotQuotasDto> UpdateBranchQuotaAsync(Guid periodId, List<RankingSlotQuotaDto> slots, CancellationToken ct = default)
+    {
+        var branch = await db.Departments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.LevelType == DepartmentLevelType.Branch && d.Status == RecordStatus.Active, ct)
+            ?? await db.Departments.AsNoTracking().FirstOrDefaultAsync(d => d.LevelType == DepartmentLevelType.Branch, ct)
+            ?? throw new NotFoundException("Không tìm thấy chi nhánh đang hoạt động.");
+
+        return await UpdateAsync(new UpdateRankingSlotQuotasDto(branch.Id, slots, periodId), ct);
     }
 
     private async Task EnsureDepartmentExistsAsync(Guid departmentId, CancellationToken ct)

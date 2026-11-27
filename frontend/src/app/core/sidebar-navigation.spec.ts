@@ -117,6 +117,8 @@ describe('Configured sidebar navigation', () => {
     );
     expect(navigation.routeOptions).toContain('/department-performance');
     expect(navigation.routeOptions).toContain('/departments');
+    expect(navigation.routeOptions).toContain('/evaluations');
+    expect(navigation.routeOptions).toContain('/branch-performance/evaluations');
   });
   it('links the configured Appeals menu item to the appeals workspace', () => {
     current.and.returnValue(of([{ role: 'employee', itemIds: ['appeals'], version: 1 }]));

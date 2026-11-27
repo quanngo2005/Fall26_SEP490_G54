@@ -283,7 +283,7 @@
       @if (flagging() && detail()?.actions?.flagSubmissionId; as submissionId) {
         <app-reconciliation-flag-modal
           [submissionId]="submissionId"
-          (flagged)="onFlagged()"
+          (flagged)="onFlagged($event)"
           (dismissed)="flagging.set(false)"
         />
       }

@@ -29,6 +29,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<BusinessObjective> BusinessObjectives { get; set; }
 
+    public virtual DbSet<CampaignCustomer> CampaignCustomers { get; set; }
+
     public virtual DbSet<CampaignWorkType> CampaignWorkTypes { get; set; }
 
     public virtual DbSet<Department> Departments { get; set; }
@@ -97,6 +99,10 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<TargetAssignmentFeedback> TargetAssignmentFeedbacks { get; set; }
 
+    public virtual DbSet<EmployeeTargetAck> EmployeeTargetAcks { get; set; }
+
+    public virtual DbSet<TargetChangeLog> TargetChangeLogs { get; set; }
+
     public virtual DbSet<TaskHandover> TaskHandovers { get; set; }
 
     public virtual DbSet<UserRole> UserRoles { get; set; }
@@ -121,6 +127,7 @@ public partial class AppDbContext : DbContext
             .HasPostgresEnum<RecordStatus>("public", "record_status")
             .HasPostgresEnum<BusinessObjectiveStatus>("public", "business_objective_status")
             .HasPostgresEnum<BusinessCampaignStatus>("public", "business_campaign_status")
+            .HasPostgresEnum<CampaignContactStatus>("public", "campaign_contact_status")
             .HasPostgresEnum<KpiStatus>("public", "kpi_status")
             .HasPostgresEnum<KpiAggregationType>("public", "kpi_aggregation_type")
             .HasPostgresEnum<KpiDirection>("public", "kpi_direction")
@@ -359,6 +366,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+            entity.Property(e => e.CreatedBy).HasColumnName("created_by");
 
             entity.HasOne(d => d.BusinessObjective).WithMany(p => p.BusinessCampaigns)
                 .HasForeignKey(d => d.BusinessObjectiveId)
@@ -369,6 +377,11 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.ParentCampaignId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_business_campaign_parent");
+
+            entity.HasOne(d => d.CreatedByEmployee).WithMany(p => p.BusinessCampaignCreatedByNavigations)
+                .HasForeignKey(d => d.CreatedBy)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_business_campaign_created_by");
 
             entity.Property(e => e.Status)
                 .HasColumnType("business_campaign_status")
@@ -977,6 +990,76 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("fk_participant_employee");
         });
 
+        modelBuilder.Entity<CampaignCustomer>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_customer_pkey");
+
+            entity.ToTable("campaign_customer");
+
+            entity.HasIndex(e => new { e.BusinessCampaignId, e.CustomerCif }, "uq_campaign_customer_cif").IsUnique();
+
+            entity.HasIndex(e => new { e.BusinessCampaignId, e.AssigneeEmployeeId }, "ix_campaign_customer_assignee");
+
+            entity.HasIndex(e => e.WorkId, "uq_campaign_customer_work")
+                .IsUnique()
+                .HasFilter("work_id IS NOT NULL");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.BusinessCampaignId).HasColumnName("business_campaign_id");
+            entity.Property(e => e.CustomerCif)
+                .HasMaxLength(50)
+                .HasColumnName("customer_cif");
+            entity.Property(e => e.CustomerName)
+                .HasMaxLength(200)
+                .HasColumnName("customer_name");
+            entity.Property(e => e.Phone)
+                .HasMaxLength(20)
+                .HasColumnName("phone");
+            entity.Property(e => e.Note)
+                .HasMaxLength(1000)
+                .HasColumnName("note");
+            entity.Property(e => e.AssigneeEmployeeId).HasColumnName("assignee_employee_id");
+            entity.Property(e => e.AssignedAt).HasColumnName("assigned_at");
+            entity.Property(e => e.ContactStatus)
+                .HasColumnType("campaign_contact_status")
+                .HasDefaultValueSql("'NOT_CONTACTED'::campaign_contact_status")
+                .HasColumnName("contact_status");
+            entity.Property(e => e.CallAnswered).HasColumnName("call_answered");
+            entity.Property(e => e.MissedCallCount)
+                .HasDefaultValue(0)
+                .HasColumnName("missed_call_count");
+            entity.Property(e => e.AppointmentAt).HasColumnName("appointment_at");
+            entity.Property(e => e.MetAt).HasColumnName("met_at");
+            entity.Property(e => e.ClosedWorkTypeId).HasColumnName("closed_work_type_id");
+            entity.Property(e => e.WorkId).HasColumnName("work_id");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy).HasColumnName("updated_by");
+
+            entity.HasOne(d => d.BusinessCampaign).WithMany(p => p.CampaignCustomers)
+                .HasForeignKey(d => d.BusinessCampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_campaign_customer_campaign");
+
+            entity.HasOne(d => d.AssigneeEmployee).WithMany()
+                .HasForeignKey(d => d.AssigneeEmployeeId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_campaign_customer_assignee");
+
+            entity.HasOne(d => d.ClosedWorkType).WithMany()
+                .HasForeignKey(d => d.ClosedWorkTypeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_campaign_customer_closed_work_type");
+
+            entity.HasOne(d => d.Work).WithMany()
+                .HasForeignKey(d => d.WorkId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_campaign_customer_work");
+        });
+
         modelBuilder.Entity<PerformanceContribution>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("performance_contribution_pkey");
@@ -1426,10 +1509,17 @@ public partial class AppDbContext : DbContext
                 table.HasCheckConstraint("ck_ranking_slot_quota_tier_code", "tier_code IN ('A1', 'A2', 'A3', 'B', 'C')");
             });
 
-            entity.HasIndex(e => new { e.DepartmentId, e.TierCode }, "uq_ranking_slot_quota_department_tier").IsUnique();
+            entity.HasIndex(e => new { e.EvaluationPeriodId, e.DepartmentId, e.TierCode }, "uq_ranking_slot_quota_period_department_tier")
+                .IsUnique()
+                .HasFilter("evaluation_period_id IS NOT NULL");
+
+            entity.HasIndex(e => new { e.DepartmentId, e.TierCode }, "uq_ranking_slot_quota_department_tier")
+                .IsUnique()
+                .HasFilter("evaluation_period_id IS NULL");
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.DepartmentId).HasColumnName("department_id");
+            entity.Property(e => e.EvaluationPeriodId).HasColumnName("evaluation_period_id");
             entity.Property(e => e.TierCode)
                 .HasMaxLength(10)
                 .HasColumnName("tier_code");
@@ -1444,6 +1534,11 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.DepartmentId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_ranking_slot_quota_department");
+
+            entity.HasOne(d => d.EvaluationPeriod).WithMany()
+                .HasForeignKey(d => d.EvaluationPeriodId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_ranking_slot_quota_evaluation_period");
         });
 
         modelBuilder.Entity<Downgrade>(entity =>
@@ -1681,6 +1776,8 @@ public partial class AppDbContext : DbContext
             entity.ToTable("target_assignment_feedback", table =>
             {
                 table.HasCheckConstraint("ck_target_assignment_feedback_comment_len", "comment IS NULL OR char_length(comment) <= 500");
+                table.HasCheckConstraint("ck_target_assignment_feedback_reply_len", "reply IS NULL OR char_length(reply) <= 500");
+                table.HasCheckConstraint("ck_target_assignment_feedback_replied_by_time", "(replied_by IS NULL) = (replied_at IS NULL)");
             });
 
             entity.HasIndex(e => e.TargetAssignmentId, "ix_target_assignment_feedback_target");
@@ -1700,6 +1797,14 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Type)
                 .HasColumnType("target_assignment_feedback_type")
                 .HasColumnName("type");
+            entity.Property(e => e.ProposedYear).HasPrecision(18, 4).HasColumnName("proposed_year");
+            entity.Property(e => e.ProposedQ1).HasPrecision(18, 4).HasColumnName("proposed_q1");
+            entity.Property(e => e.ProposedQ2).HasPrecision(18, 4).HasColumnName("proposed_q2");
+            entity.Property(e => e.ProposedQ3).HasPrecision(18, 4).HasColumnName("proposed_q3");
+            entity.Property(e => e.ProposedQ4).HasPrecision(18, 4).HasColumnName("proposed_q4");
+            entity.Property(e => e.Reply).HasMaxLength(500).HasColumnName("reply");
+            entity.Property(e => e.RepliedBy).HasColumnName("replied_by");
+            entity.Property(e => e.RepliedAt).HasColumnName("replied_at");
 
             entity.HasOne(d => d.TargetAssignment)
                 .WithMany()
@@ -1712,6 +1817,100 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_target_assignment_feedback_employee");
+
+            entity.HasOne<Employee>()
+                .WithMany()
+                .HasForeignKey(d => d.RepliedBy)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_assignment_feedback_replied_by");
+        });
+
+        modelBuilder.Entity<EmployeeTargetAck>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("employee_target_ack_pkey");
+
+            entity.ToTable("employee_target_ack", table =>
+            {
+                table.HasCheckConstraint("ck_employee_target_ack_status", "status IN ('PENDING', 'CONFIRMED', 'RECONFIRM')");
+            });
+
+            entity.HasIndex(e => new { e.EmployeeId, e.Year }, "uq_employee_target_ack_employee_year").IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
+            entity.Property(e => e.Year).HasColumnName("year");
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .HasColumnName("status");
+            entity.Property(e => e.ConfirmedAt).HasColumnName("confirmed_at");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(d => d.Employee)
+                .WithMany()
+                .HasForeignKey(d => d.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_employee_target_ack_employee");
+        });
+
+        modelBuilder.Entity<TargetChangeLog>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("target_change_log_pkey");
+
+            entity.ToTable("target_change_log", table =>
+            {
+                table.HasCheckConstraint("ck_target_change_log_action",
+                    "action IN ('SUGGEST', 'MANUAL', 'PUBLISH', 'ADJUST', 'FEEDBACK', 'REPLY')");
+                table.HasCheckConstraint("ck_target_change_log_tier", "tier IN (1, 2, 3)");
+            });
+
+            entity.HasIndex(e => e.KpiDefinitionId, "ix_target_change_log_kpi");
+            entity.HasIndex(e => new { e.EmployeeId, e.Year }, "ix_target_change_log_employee_year");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.ActorId).HasColumnName("actor_id");
+            entity.Property(e => e.OccurredAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("occurred_at");
+            entity.Property(e => e.Action).HasMaxLength(20).HasColumnName("action");
+            entity.Property(e => e.Tier).HasColumnName("tier");
+            entity.Property(e => e.KpiDefinitionId).HasColumnName("kpi_definition_id");
+            entity.Property(e => e.Unit).HasMaxLength(50).HasColumnName("unit");
+            entity.Property(e => e.Period).HasMaxLength(10).HasColumnName("period");
+            entity.Property(e => e.OldValue).HasPrecision(18, 4).HasColumnName("old_value");
+            entity.Property(e => e.NewValue).HasPrecision(18, 4).HasColumnName("new_value");
+            entity.Property(e => e.Basis).HasMaxLength(50).HasColumnName("basis");
+            entity.Property(e => e.RoundingStep).HasPrecision(18, 4).HasColumnName("rounding_step");
+            entity.Property(e => e.EmployeeId).HasColumnName("employee_id");
+            entity.Property(e => e.DepartmentId).HasColumnName("department_id");
+            entity.Property(e => e.Year).HasColumnName("year");
+            entity.Property(e => e.ScopeJson).HasColumnType("jsonb").HasColumnName("scope_json");
+
+            entity.HasOne(d => d.KpiDefinition)
+                .WithMany()
+                .HasForeignKey(d => d.KpiDefinitionId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_change_log_kpi");
+
+            entity.HasOne(d => d.Employee)
+                .WithMany()
+                .HasForeignKey(d => d.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_change_log_employee");
+
+            entity.HasOne(d => d.Department)
+                .WithMany()
+                .HasForeignKey(d => d.DepartmentId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_target_change_log_department");
         });
 
         modelBuilder.Entity<TaskHandover>(entity =>

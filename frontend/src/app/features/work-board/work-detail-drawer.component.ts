@@ -49,7 +49,7 @@ interface Notice {
 const CLOCK_TICK_MS = 30_000;
 const NOTICE_MS = 5000;
 /** Works the assignee can still hand over (same rule as the board). */
-const HANDOVER_STATUSES: readonly string[] = ['New', 'InProgress'];
+const HANDOVER_STATUSES: readonly string[] = ['NEW', 'IN_PROGRESS'];
 
 /**
  * SCR-WRK-03 / SCR-WRK-03-M1: everything about one work in the side panel of the board (`GET /works/{id}`).
@@ -197,7 +197,7 @@ export class WorkDetailDrawerComponent extends LocalizedComponent {
 
   /** "Còn 1 ngày 6 giờ" / "Đã trễ 2 giờ"; nothing once the work no longer waits on its deadline. */
   protected timeText(work: WorkDetail): string | null {
-    if (!OPEN_FOR_ASSIGNEE.includes(work.status) && work.status !== 'HandedOver') return null;
+    if (!OPEN_FOR_ASSIGNEE.includes(work.status) && work.status !== 'HANDED_OVER') return null;
     const span = deadlineSpan(work.plannedEndDate, this.now());
     if (!span) return null;
     const parts = spanParts(span);

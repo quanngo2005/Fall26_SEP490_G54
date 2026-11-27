@@ -1,0 +1,158 @@
+.suggest-popover {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgb(15 23 42 / 12%);
+  max-height: 80vh;
+}
+
+.popover-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid #f1f5f9;
+
+  h3 {
+    margin: 0;
+    color: #0f172a;
+    font:
+      700 15px/1.3 'Nunito Sans',
+      sans-serif;
+  }
+}
+
+.popover-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  h4 {
+    margin: 0 0 2px;
+    color: #475569;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+
+    &.sub {
+      margin-top: 6px;
+    }
+  }
+}
+
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #0f172a;
+  font-size: 13px;
+  cursor: pointer;
+
+  input[disabled] {
+    cursor: not-allowed;
+  }
+}
+
+.badge-must-round {
+  background: #ffedd5;
+  color: #9a3412;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.note {
+  margin: 2px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.step-input,
+.mode-select {
+  width: 160px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font: inherit;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+
+  &:focus {
+    outline: 2px solid #002b49;
+    outline-offset: 1px;
+  }
+}
+
+.mode-select {
+  text-align: left;
+}
+
+.disabled-reason {
+  margin: 14px 18px;
+  padding: 10px 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.preview {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 12px;
+}
+
+.preview-line {
+  margin: 0;
+  color: #0f172a;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-sum {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+
+  &.is-ok {
+    color: #166534;
+  }
+
+  &.is-warn {
+    color: #9a3412;
+  }
+}
+
+.preview-warnings {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: #b91c1c;
+  font-size: 12px;
+}
+
+.popover-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid #f1f5f9;
+  background: #f8fafc;
+}

@@ -75,6 +75,13 @@ $intentionallyOpen = @{
     "POST /target-assignments/{id:guid}/feedback/confirm"  = "TargetAssignmentService.LoadOwnedByCallerAsync: owner only"
     "POST /target-assignments/{id:guid}/feedback/comments" = "TargetAssignmentService.LoadOwnedByCallerAsync: owner only"
     "GET /target-assignments/{id:guid}/feedback"           = "TargetAssignmentService.EnsureCanViewAsync: owner or org-scoped caller"
+    "GET /my-targets/{year:int}"                           = "MyTargetsService.ResolveEmployeeAsync: caller's own targets from the token"
+    "POST /my-targets/{year:int}/confirm"                  = "MyTargetsService.ResolveEmployeeAsync: confirms the caller's own targets"
+    "POST /my-targets/{year:int}/feedback"                 = "MyTargetsService.ResolveEmployeeAsync: feedback on the caller's own KPI row"
+    "GET /my-targets/{year:int}/progress"                  = "MyTargetsService.ResolveEmployeeAsync: caller's own progress"
+    "GET /my-targets/{year:int}/change-log"                = "MyTargetsService.GetChangeLogAsync: self, or target:manage:Dept + DepartmentAccessGuard"
+    "GET /my-targets/{year:int}/my-feedback"               = "MyTargetsService.ResolveEmployeeAsync: caller's own feedback"
+    "GET /my-targets/{year:int}/kpis/{kpiId:guid}/contributions" = "MyTargetsService.ResolveEmployeeAsync: caller's own KPI row only"
     # Reference/catalog data used to fill forms, nothing sensitive (kpi:read is granted to every role)
     "GET /employees/departments"                           = "reference list"
     "GET /employees/job-positions"                         = "reference list"

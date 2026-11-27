@@ -1,0 +1,196 @@
+@let t = text;
+<div
+  animate.leave="g54-leave-fade"
+  class="modal-backdrop"
+  (click)="close()"
+  (keydown.escape)="close()"
+  role="presentation"
+>
+  <div
+    animate.leave="g54-leave-pop"
+    class="modal-dialog import-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="customer-import-title"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  >
+    <div class="modal-header">
+      <h2 id="customer-import-title">{{t.title}} · {{campaign().code}}</h2>
+      <button type="button" class="modal-close" [attr.aria-label]="t.close" (click)="close()">
+        ×
+      </button>
+    </div>
+
+    <div class="modal-body">
+      @if (loadError(); as message) {
+        <div class="notice is-error" role="alert">
+          <span>{{message}}</span>
+        </div>
+      }
+
+      @switch (step()) {
+        @case ('CHOOSE_FILE') {
+          <div class="field">
+            <label for="customer-import-file">{{t.chooseFile}}</label>
+            <input
+              #fileInput
+              id="customer-import-file"
+              class="visually-hidden"
+              type="file"
+              accept=".xlsx"
+              (change)="onFileChosen($event)"
+            />
+            <div class="file-drop">
+              @if (file(); as chosen) {
+                <span class="file-name">{{chosen.name}}</span>
+                <span class="muted">{{chosen.size / 1024 | appNumber: 0}} KB</span>
+                <button
+                  type="button"
+                  class="button button-secondary"
+                  (click)="removeFile(fileInput)"
+                >
+                  {{t.remove}}
+                </button>
+              } @else {
+                <span class="muted">{{t.noFile}}</span>
+                <button type="button" class="button button-secondary" (click)="fileInput.click()">
+                  {{t.chooseFile}}
+                </button>
+              }
+            </div>
+            <p class="hint">{{t.hint}}</p>
+          </div>
+          @if (fileError(); as message) {
+            <div class="notice is-error" role="alert">
+              <span>{{message}}</span>
+            </div>
+          }
+          <button type="button" class="link-button" (click)="downloadTemplate()">
+            {{t.downloadTemplate}}
+          </button>
+        }
+
+        @case ('PREVIEW') {
+          @if (preview(); as data) {
+            <div class="import-summary">
+              <span class="status-badge"
+                >{{t.summaryValid}}: {{data.summary.valid}} {{t.rowsUnit}}</span
+              >
+              <span class="status-badge" [class.is-danger]="data.summary.invalid > 0">
+                {{t.summaryInvalid}}: {{data.summary.invalid}} {{t.rowsUnit}}
+              </span>
+              <span class="status-badge is-info"
+                >{{t.summaryCreate}}: {{data.summary.create}}</span
+              >
+              <span class="status-badge is-warning"
+                >{{t.summaryUpdate}}: {{data.summary.update}}</span
+              >
+            </div>
+            @if (data.summary.update > 0) {
+              <p class="hint">{{t.updateNote}}</p>
+            }
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="num">{{t.colRow}}</th>
+                    <th>{{t.colCif}}</th>
+                    <th>{{t.colName}}</th>
+                    <th>{{t.colPhone}}</th>
+                    <th>{{t.colNote}}</th>
+                    <th>{{t.colAction}}</th>
+                    <th>{{t.colErrors}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of data.rows; track row.rowNumber) {
+                    <tr [class.row-invalid]="row.action === 'INVALID'">
+                      <td class="num">{{row.rowNumber}}</td>
+                      <td class="mono">{{row.data[columns.cif] ?? '—'}}</td>
+                      <td>{{row.data[columns.name] ?? '—'}}</td>
+                      <td class="mono">{{row.data[columns.phone] ?? '—'}}</td>
+                      <td>{{row.data[columns.note] ?? '—'}}</td>
+                      <td>
+                        <span class="status-badge" [class]="actionBadge(row.action)">
+                          {{actionLabel(row.action)}}
+                        </span>
+                      </td>
+                      <td>
+                        @for (error of row.errors; track $index) {
+                          <p class="row-error">{{errorLine(row.rowNumber, error)}}</p>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            @if (data.summary.valid === 0) {
+              <div class="notice is-error" role="alert">
+                <span>{{t.noValidRows}}</span>
+              </div>
+            } @else if (data.summary.invalid > 0) {
+              <label class="check-row">
+                <input
+                  type="checkbox"
+                  [checked]="skipErrors()"
+                  (change)="skipErrors.set($any($event.target).checked)"
+                />
+                <span>
+                  {{skipLabel(data)}}
+                  <small class="muted">{{t.skipErrorsHint}}</small>
+                </span>
+              </label>
+            }
+          }
+        }
+
+        @case ('RESULT') {
+          @if (result(); as data) {
+            <div class="notice" role="status">
+              <span>{{resultText(data)}}</span>
+            </div>
+          }
+        }
+      }
+    </div>
+
+    <div class="modal-footer">
+      @switch (step()) {
+        @case ('CHOOSE_FILE') {
+          <button type="button" class="button button-secondary" (click)="close()">
+            {{t.cancel}}
+          </button>
+          <button
+            type="button"
+            class="button button-primary"
+            [disabled]="!file() || loading()"
+            (click)="submitPreview()"
+          >
+            {{loading() ? t.previewing : t.preview}}
+          </button>
+        }
+        @case ('PREVIEW') {
+          <button type="button" class="button button-secondary" (click)="backToChooseFile()">
+            {{t.back}}
+          </button>
+          <button
+            type="button"
+            class="button button-primary"
+            [disabled]="!canCommit()"
+            (click)="commit()"
+          >
+            {{loading() ? t.committing : commitLabel(preview()!)}}
+          </button>
+        }
+        @case ('RESULT') {
+          <button type="button" class="button button-primary" (click)="close()">
+            {{t.done}}
+          </button>
+        }
+      }
+    </div>
+  </div>
+</div>

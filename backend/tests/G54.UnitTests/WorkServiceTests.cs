@@ -80,7 +80,7 @@ public sealed class WorkServiceTests
             Assert.Equal("Credit Card Issuance", result.WorkTypeName);
             Assert.Equal("Nguyen Van A", result.AssigneeEmployeeName);
             Assert.Equal("High", result.Priority);
-            Assert.Equal("New", result.Status);
+            Assert.Equal("NEW", result.Status);
         }
     }
 
@@ -675,7 +675,7 @@ public sealed class WorkServiceTests
 
             var result = await service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = statusInput });
 
-            Assert.Equal("InProgress", result.Status);
+            Assert.Equal("IN_PROGRESS", result.Status);
             Assert.Equal(WorkStatus.InProgress, (await context.Works.FindAsync(work.Id))!.Status);
         }
     }
@@ -693,6 +693,51 @@ public sealed class WorkServiceTests
 
             Assert.Equal(ErrorCodes.WorkInvalidState, ex.ErrorCode);
             Assert.Equal(WorkStatus.Overdue, (await context.Works.FindAsync(work.Id))!.Status);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_LeadWork_IsLocked()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, _, work) = await SeedAsync(context, WorkStatus.New);
+            context.CampaignCustomers.Add(new CampaignCustomer
+            {
+                Id = Guid.NewGuid(),
+                BusinessCampaignId = Guid.NewGuid(),
+                CustomerCif = "CIF-LEAD",
+                CustomerName = "Lead Customer",
+                AssigneeEmployeeId = assignee.Id,
+                ContactStatus = CampaignContactStatus.Closed,
+                WorkId = work.Id,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+                service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = "InProgress" }));
+
+            Assert.Equal(ErrorCodes.CampaignWorkLocked, ex.ErrorCode);
+            Assert.Equal(409, ex.StatusCode);
+            Assert.Equal(WorkStatus.New, (await context.Works.FindAsync(work.Id))!.Status);
+        }
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_NonLeadCampaignWork_IsUnaffected()
+    {
+        var (context, service) = CreateStatusTestEnvironment();
+        using (context)
+        {
+            var (_, assignee, _, work) = await SeedAsync(context, WorkStatus.New);
+            work.BusinessCampaignId = Guid.NewGuid();
+            await context.SaveChangesAsync();
+
+            var result = await service.ChangeStatusAsync(work.Id, assignee.Id, new WorkStatusDto { Status = "InProgress" });
+
+            Assert.Equal("IN_PROGRESS", result.Status);
         }
     }
 
@@ -756,7 +801,7 @@ public sealed class WorkServiceTests
 
             var result = await service.ChangeStatusAsync(work.Id, manager.Id, new WorkStatusDto { Status = "Done" });
 
-            Assert.Equal("Done", result.Status);
+            Assert.Equal("DONE", result.Status);
         }
     }
 
@@ -771,7 +816,7 @@ public sealed class WorkServiceTests
             var result = await service.ChangeStatusAsync(
                 work.Id, manager.Id, new WorkStatusDto { Status = "Cancelled", Reason = "Khach hang huy yeu cau" });
 
-            Assert.Equal("Cancelled", result.Status);
+            Assert.Equal("CANCELLED", result.Status);
         }
     }
 

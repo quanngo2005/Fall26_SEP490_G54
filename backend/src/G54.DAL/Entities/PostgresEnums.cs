@@ -42,6 +42,15 @@ public enum BusinessCampaignStatus
     [PgName("CANCELLED")] Cancelled,
 }
 
+public enum CampaignContactStatus
+{
+    [PgName("NOT_CONTACTED")] NotContacted,
+    [PgName("CALLED")] Called,
+    [PgName("APPOINTMENT_SET")] AppointmentSet,
+    [PgName("MET")] Met,
+    [PgName("CLOSED")] Closed,
+}
+
 public enum KpiStatus
 {
     [PgName("DRAFT")] Draft,
@@ -58,6 +67,10 @@ public enum KpiAggregationType
     [PgName("RATIO")] Ratio,
     [PgName("AVG")] Avg,
     [PgName("NO_AGGREGATION")] NoAggregation,
+
+    /// <summary>End-of-quarter balance level, not a net increase (D2). Only Q4 must equal the year value (D3); a
+    /// quarter lower than the previous one is a warning, not a block.</summary>
+    [PgName("BALANCE")] Balance,
 }
 
 public enum KpiDirection

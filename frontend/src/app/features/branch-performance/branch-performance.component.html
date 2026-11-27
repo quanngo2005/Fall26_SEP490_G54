@@ -8,57 +8,47 @@
       @if (loading() && overview()) {
         <div class="refresh-bar" aria-hidden="true"></div>
       }
-      <div class="page-toolbar">
-        <div class="page-heading">
-          <p class="breadcrumb">{{text.breadcrumb}}</p>
+      <nav class="breadcrumb-trail" aria-label="Breadcrumb">
+        <span class="breadcrumb-item">{{text.breadcrumb}}</span>
+        @if (overview(); as data) {
+          <span class="breadcrumb-separator">/</span>
+          <span class="breadcrumb-current">{{data.department.name}}</span>
+        }
+      </nav>
+
+      <header class="ui-page-header">
+        <div class="ui-page-heading">
           @if (overview(); as data) {
-            <h1>{{data.department.name}}</h1>
-            <p class="subline">
+            <h1 class="ui-page-title">{{data.department.name}}</h1>
+            <p class="ui-page-subtitle">
               {{data.childUnits.length}} {{text.departmentsUnit}} ·
               {{data.metrics.employeeCount}} {{shared.employeesUnit}} · {{text.director}}
               {{data.department.manager?.fullName ?? '—'}}
             </p>
           } @else {
-            <h1>{{text.title}}</h1>
+            <h1 class="ui-page-title">{{text.title}}</h1>
           }
         </div>
-        <div class="filters">
+        <div class="ui-page-actions filters">
           @if (branches().length > 1) {
-            <select
-              class="select"
-              [attr.aria-label]="text.selectBranch"
-              [(ngModel)]="branchId"
-              (ngModelChange)="changeBranch()"
-            >
-              @for (branch of branches(); track branch.id) {
-                <option [value]="branch.id">{{branch.code}} · {{branch.name}}</option>
-              }
-            </select>
+            <app-ui-select
+              [options]="branchOptions()"
+              [value]="branchId"
+              [ariaLabel]="text.selectBranch"
+              (valueChange)="onBranchChange($event)"
+            />
           }
           @if (overview(); as data) {
-            <select
-              class="select"
-              [attr.aria-label]="shared.period"
-              [(ngModel)]="periodId"
-              (ngModelChange)="refresh()"
-            >
-              @for (period of data.availablePeriods; track period.id) {
-                <option [value]="period.id">{{period.name}}</option>
-              }
-            </select>
-            <select
-              class="select"
-              [attr.aria-label]="shared.compare"
-              [(ngModel)]="compare"
-              (ngModelChange)="refresh()"
-            >
-              @for (mode of compareModes; track mode) {
-                <option [value]="mode">{{shared.compare}}: {{compareLabel(mode)}}</option>
-              }
-            </select>
+            <app-ui-select
+              [options]="periodOptions()"
+              [value]="periodId"
+              [ariaLabel]="shared.period"
+              (valueChange)="onPeriodChange($event)"
+            />
+            <app-compare-slider [mode]="compare" (modeChange)="onCompareChange($event)" />
             <button
               type="button"
-              class="button button-secondary"
+              class="button button-primary"
               [disabled]="exporting()"
               (click)="exportExcel(data)"
             >
@@ -66,9 +56,11 @@
             </button>
           }
         </div>
-      </div>
+      </header>
       @if (exportFailed()) {
-        <p class="inline-error" role="alert">{{shared.exportError}}</p>
+        <div class="alert-banner" role="alert">
+          <span>{{shared.exportError}}</span>
+        </div>
       }
       @if (loading() && !overview()) {
         <div class="state-card" role="status">
@@ -76,8 +68,8 @@
           <p>{{shared.loading}}</p>
         </div>
       } @else if (failed()) {
-        <div class="state-card state-error" role="alert">
-          <p>{{shared.loadError}}</p>
+        <div class="alert-banner" role="alert">
+          <span>{{shared.loadError}}</span>
           <button type="button" class="button button-secondary" (click)="load()">
             {{shared.retry}}
           </button>

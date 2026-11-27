@@ -1,6 +1,5 @@
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { catchError, EMPTY, finalize, Subject, switchMap } from 'rxjs';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
@@ -16,10 +15,11 @@ import {
 } from '../../core/department.models';
 import { EvaluationService } from '../../core/evaluation.service';
 import { BranchEvaluationPeriodItem } from '../../core/evaluation.models';
+import { CompareSliderComponent, SelectOption, UiSelectComponent } from '../../shared/ui';
 import { PerfCampaignPaceComponent } from '../performance-dashboard/performance-campaign-pace.component';
 import { PerfChildUnitsComponent } from '../performance-dashboard/performance-child-units.component';
 import {
-  formatArrow,
+  formatSigned,
   formatValue,
   NOT_AVAILABLE,
   toneOf,
@@ -42,7 +42,8 @@ const CAMPAIGN_CARD_SIZE = 5;
 @Component({
   selector: 'app-branch-performance',
   imports: [
-    FormsModule,
+    UiSelectComponent,
+    CompareSliderComponent,
     HeaderComponent,
     SidebarComponent,
     PerfMetricCardComponent,
@@ -54,7 +55,11 @@ const CAMPAIGN_CARD_SIZE = 5;
     PerfTrendChartComponent,
   ],
   templateUrl: './branch-performance.component.html',
-  styleUrls: ['../../shared/ui/ui-controls.scss', '../departments/department-view.component.scss'],
+  styleUrls: [
+    '../../shared/ui/workspace-page.scss',
+    '../../shared/ui/ui-controls.scss',
+    './branch-performance.component.scss',
+  ],
 })
 export class BranchPerformanceComponent extends LocalizedComponent {
   private readonly departments = inject(DepartmentService);
@@ -80,6 +85,28 @@ export class BranchPerformanceComponent extends LocalizedComponent {
 
   protected readonly compareName = computed(() => this.overview()?.comparePeriod?.name ?? null);
   protected readonly kpiCount = computed(() => kpiOnPlan(this.overview()));
+
+  protected readonly branchOptions = computed<SelectOption[]>(() =>
+    this.branches().map((branch) => ({
+      value: branch.id,
+      label: `${branch.code} · ${branch.name}`,
+    })),
+  );
+
+  protected readonly periodOptions = computed<SelectOption[]>(() =>
+    (this.overview()?.availablePeriods ?? []).map((period) => ({
+      value: period.id,
+      label: period.name,
+    })),
+  );
+
+  protected readonly compareOptions = computed<SelectOption[]>(() => {
+    const shared = this.localization.departmentPerformance;
+    return this.compareModes.map((mode) => ({
+      value: mode,
+      label: `${shared.compare}: ${this.compareLabel(mode)}`,
+    }));
+  });
 
   constructor() {
     super();
@@ -141,6 +168,25 @@ export class BranchPerformanceComponent extends LocalizedComponent {
     this.refresh();
   }
 
+  protected onBranchChange(id: string): void {
+    if (this.branchId === id) return;
+    this.branchId = id;
+    this.changeBranch();
+  }
+
+  protected onPeriodChange(id: string): void {
+    if (this.periodId === id) return;
+    this.periodId = id;
+    this.refresh();
+  }
+
+  protected onCompareChange(mode: string): void {
+    const compareMode = mode as PerformanceCompareMode;
+    if (this.compare === compareMode) return;
+    this.compare = compareMode;
+    this.refresh();
+  }
+
   /** Periods of the selected period's year; the card shows the newest one that is not locked. */
   protected loadPeriods(): void {
     const start = this.overview()?.period?.startDate;
@@ -197,7 +243,7 @@ export class BranchPerformanceComponent extends LocalizedComponent {
     const name = this.compareName();
     return name == null || value == null
       ? null
-      : `${formatArrow(this.i18n.currentLanguage(), value)} ${this.localization.departmentPerformance.vs} ${name}`;
+      : `${formatSigned(this.i18n.currentLanguage(), value)} ${this.localization.departmentPerformance.vs} ${name}`;
   }
 
   protected tone(value: number | null) {

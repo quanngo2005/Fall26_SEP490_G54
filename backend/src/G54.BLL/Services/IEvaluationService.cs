@@ -44,6 +44,20 @@ public interface IEvaluationService
         Guid currentUserId,
         CancellationToken cancellationToken = default);
 
+    Task<DepartmentEvaluationDashboardDto> GetBranchEvaluationDashboardAsync(
+        Guid? periodId,
+        Guid? comparePeriodId,
+        Guid? departmentId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<DepartmentEvaluationDashboardExportDto> ExportBranchEvaluationDashboardAsync(
+        Guid? periodId,
+        Guid? comparePeriodId,
+        Guid? departmentId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
     Task<CalibrationOverviewDto> GetDepartmentCalibrationAsync(
         Guid periodId,
         Guid? departmentId,

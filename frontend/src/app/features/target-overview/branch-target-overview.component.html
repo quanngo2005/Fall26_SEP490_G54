@@ -4,16 +4,19 @@
     <p class="breadcrumb">{{text.breadcrumb}}</p>
     <h1>
       {{text.title}}
-      @if (table().branchName) {
-        · {{table().branchName}}
+      @if (heading()) {
+        · {{heading()}}
       }
     </h1>
-    <p class="subtitle">{{text.branchSubtitle}}</p>
+    <p class="subtitle">{{subtitle()}}</p>
   </div>
-  <div class="toolbar-actions">
+  <div class="page-actions">
     <button type="button" class="button button-secondary" disabled [title]="text.unavailable">
       {{text.export}}
     </button>
+    @if (canManageTargets() && setup()?.status === 'DRAFT') {
+      <app-suggest-button [label]="text.suggestQuarterSplit" (pressed)="goToQuarterSuggestion()" />
+    }
     @if (canManageTargets()) {
       <button
         type="button"
@@ -34,6 +37,10 @@
           {{setup()?.status === 'DRAFT' ? text.continueSetup : text.setupYearTargets}}
         </button>
       }
+    } @else if (departmentScope()) {
+      <button type="button" class="button button-primary" (click)="goToEmployeeAllocation()">
+        {{text.allocateToEmployees}}
+      </button>
     } @else {
       <button type="button" class="button button-primary" disabled [title]="text.unavailable">
         {{text.setupYearTargets}}
@@ -51,6 +58,22 @@
   />
 }
 
+@if (quarterKpi() && branchId() && year()) {
+  <app-kpi-quarter-modal
+    [branchId]="branchId()!"
+    [branchName]="branchName()"
+    [year]="year()!"
+    [kpi]="quarterKpi()!"
+    [periods]="periods()"
+    [canManage]="canManageTargets()"
+    (closed)="quarterKpiId.set(null)"
+  />
+}
+
+@if (periodMessage(); as message) {
+  <p class="period-message" [attr.data-kind]="message.kind" role="status">{{message.text}}</p>
+}
+
 <div class="filter-bar">
   <label class="inline-field">
     {{text.year}}
@@ -65,58 +88,105 @@
       }
     </select>
   </label>
-  <div class="period-tabs" role="tablist">
+  @if (canManageTargets()) {
     <button
       type="button"
-      role="tab"
-      [class.is-active]="quarter() === 0"
-      [attr.aria-selected]="quarter() === 0"
-      (click)="selectQuarter(0)"
+      class="button button-secondary"
+      [disabled]="creatingYear()"
+      (click)="createNextYear()"
     >
-      {{text.wholeYear}}
+      + {{i18n.translate('targetOverview.createYear', { year: nextYear() })}}
     </button>
-    @for (item of quarters; track item) {
+  }
+  @if (!departmentScope()) {
+    <div class="view-switch" role="group" [attr.aria-label]="text.viewBy">
+      <span class="view-switch-label">{{text.viewBy}}</span>
       <button
         type="button"
-        role="tab"
-        [class.is-active]="quarter() === item"
-        [attr.aria-selected]="quarter() === item"
-        (click)="selectQuarter(item)"
+        class="view-switch-option"
+        [class.is-active]="viewMode() === 'BRANCH'"
+        [attr.aria-pressed]="viewMode() === 'BRANCH'"
+        (click)="selectViewMode('BRANCH')"
       >
-        {{text.quarter}} {{item}}
+        {{text.viewBranch}}
       </button>
+      <button
+        type="button"
+        class="view-switch-option"
+        [class.is-active]="viewMode() === 'DEPARTMENT'"
+        [attr.aria-pressed]="viewMode() === 'DEPARTMENT'"
+        (click)="selectViewMode('DEPARTMENT')"
+      >
+        {{text.viewDepartment}} ▾
+      </button>
+    </div>
+    @if (viewMode() === 'DEPARTMENT') {
+      <select
+        class="select filter-select"
+        [ngModel]="selectedDepartmentId()"
+        (ngModelChange)="selectDepartment($event)"
+        [attr.aria-label]="text.viewDepartment"
+      >
+        @for (item of departmentOptions(); track item.id) {
+          <option [value]="item.id">{{item.name}}</option>
+        }
+      </select>
     }
-  </div>
+    @if (viewMode() === 'BRANCH') {
+      @let bm = bmText();
+      <div class="view-switch" role="group" [attr.aria-label]="bm.tabKpi + ' / ' + bm.tabHeatmap">
+        <button
+          type="button"
+          class="view-switch-option"
+          [class.is-active]="overviewTab() === 'KPI'"
+          [attr.aria-pressed]="overviewTab() === 'KPI'"
+          (click)="selectOverviewTab('KPI')"
+        >
+          {{bm.tabKpi}}
+        </button>
+        <button
+          type="button"
+          class="view-switch-option"
+          [class.is-active]="overviewTab() === 'HEATMAP'"
+          [attr.aria-pressed]="overviewTab() === 'HEATMAP'"
+          (click)="selectOverviewTab('HEATMAP')"
+        >
+          {{bm.tabHeatmap}}
+        </button>
+      </div>
+    }
+  }
   <div class="filter-spacer"></div>
   <input
     type="search"
     class="input filter-search"
-    [ngModel]="search()"
-    (ngModelChange)="search.set($event); resetPage()"
-    [placeholder]="text.searchBranch"
-    [attr.aria-label]="text.searchBranch"
+    [ngModel]="kpiSearch()"
+    (ngModelChange)="kpiSearch.set($event)"
+    [placeholder]="text.searchKpi"
+    [attr.aria-label]="text.searchKpi"
   />
   <select
     class="select filter-select"
-    [ngModel]="departmentId()"
-    (ngModelChange)="departmentId.set($event); resetPage()"
-    [attr.aria-label]="text.allDepartments"
+    [ngModel]="groupFilter()"
+    (ngModelChange)="groupFilter.set($event)"
+    [attr.aria-label]="text.allGroups"
   >
-    <option value="">{{text.allDepartments}} ({{departmentOptions().length}})</option>
-    @for (item of departmentOptions(); track item.id) {
-      <option [value]="item.id">{{item.name}}</option>
+    <option value="">{{text.allGroups}}</option>
+    @for (item of groupOptions(); track item) {
+      <option [value]="item">{{item}}</option>
     }
   </select>
   <select
     class="select filter-select"
-    [ngModel]="position()"
-    (ngModelChange)="position.set($event); resetPage()"
-    [attr.aria-label]="text.allPositions"
+    [ngModel]="splitFilter()"
+    (ngModelChange)="splitFilter.set($event)"
+    [attr.aria-label]="text.allSplitStates"
   >
-    <option value="">{{text.allPositions}}</option>
-    @for (item of positionOptions(); track item) {
-      <option [value]="item">{{item}}</option>
-    }
+    <option value="">{{text.allSplitStates}}</option>
+    <option value="MATCHED">{{text.statusMatched}}</option>
+    <option value="MISMATCH">{{text.statusShort}}</option>
+    <option value="NOT_SPLIT">{{text.statusNotSplit}}</option>
+    <option value="FIXED">{{text.statusFixed}}</option>
   </select>
 </div>
 
@@ -134,114 +204,293 @@
   <div class="state-card">
     <p>{{text.noPeriod}}</p>
   </div>
+} @else if (notImported()) {
+  <div class="state-card">
+    <p>{{text.notImported}}</p>
+    @if (canManageTargets()) {
+      <button type="button" class="button button-primary" (click)="openSetup()">
+        {{text.setupYearTargets}}
+      </button>
+    }
+  </div>
+} @else if (overviewTab() === 'HEATMAP' && viewMode() === 'BRANCH') {
+  @let bm = bmText();
+  <section class="surface-card target-card heatmap-card">
+    <p class="heatmap-note">{{bm.heatmapNote}}</p>
+    @if (heatmapLoading()) {
+      <div class="state-card" role="status">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>{{bm.heatmapLoading}}</p>
+      </div>
+    } @else if (heatmapFailed()) {
+      <div class="state-card state-error" role="alert">
+        <p>{{bm.heatmapFailed}}</p>
+        <button
+          type="button"
+          class="button button-secondary"
+          (click)="selectOverviewTab('HEATMAP')"
+        >
+          {{bm.heatmapRetry}}
+        </button>
+      </div>
+    } @else if (heatmapColumns().length === 0) {
+      <div class="state-card">
+        <p>{{bm.heatmapEmpty}}</p>
+      </div>
+    } @else {
+      <div class="table-wrap">
+        <table class="target-table heatmap-table">
+          <thead>
+            <tr>
+              <th class="sticky-col">{{bm.heatmapColDepartment}}</th>
+              @for (column of heatmapColumns(); track column.kpiId) {
+                <th class="num" [title]="column.kpiName">{{column.kpiCode}}</th>
+              }
+              <th class="num">{{bm.heatmapBelowThreshold}}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of heatmapRows(); track row.departmentId) {
+              <tr>
+                <td class="sticky-col kpi-cell">
+                  <button
+                    type="button"
+                    class="kpi-name kpi-link"
+                    (click)="openDepartmentDrawer(row.departmentId)"
+                  >
+                    {{row.departmentName}}
+                  </button>
+                </td>
+                @for (cell of row.cells; track $index) {
+                  <td
+                    class="num heatmap-cell"
+                    [class.heatmap-matched]="cell.state === 'MATCHED'"
+                    [class.heatmap-mismatch]="cell.state === 'MISMATCH'"
+                    [class.heatmap-not-eligible]="cell.state === 'NOT_ELIGIBLE'"
+                  >
+                    @switch (cell.state) {
+                      @case ('MATCHED') {
+                        ✓
+                      }
+                      @case ('MISMATCH') {
+                        ⚠
+                      }
+                      @default {
+                        —
+                      }
+                    }
+                  </td>
+                }
+                <td class="num">
+                  @if (row.mismatchCount > 0) {
+                    <span class="change-value change-down">{{row.mismatchCount}}</span>
+                  } @else {
+                    <span class="muted">0</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="cell-legend" role="list">
+        <span class="legend-item" role="listitem">
+          <span class="swatch heatmap-matched" aria-hidden="true">✓</span>
+          {{bm.heatmapLegendMatched}}
+        </span>
+        <span class="legend-item" role="listitem">
+          <span class="swatch heatmap-mismatch" aria-hidden="true">⚠</span>
+          {{bm.heatmapLegendMismatch}}
+        </span>
+        <span class="legend-item" role="listitem">
+          <span class="swatch heatmap-not-eligible" aria-hidden="true">—</span>
+          {{bm.heatmapLegendNotEligible}}
+        </span>
+      </div>
+    }
+  </section>
 } @else {
   <section class="surface-card target-card">
     <div class="table-wrap">
-      <table class="target-table">
+      <table class="target-table kpi-quarter-table">
         <thead>
           <tr>
-            <th>{{text.colUnit}}</th>
-            @for (kpi of columns(); track kpi.id) {
-              <th class="num">{{columnLabel(kpi)}}</th>
+            <th class="sticky-col">{{text.colKpi}}</th>
+            <th>{{text.colUnitOfMeasure}}</th>
+            <th class="num">{{text.wholeYear}}</th>
+            @for (item of quarters; track item) {
+              <th class="num">{{text.quarter}} {{item}}</th>
             }
+            <th class="num">{{text.colVsLastYear}}</th>
+            <th>{{text.colSplit}}</th>
           </tr>
         </thead>
         <tbody>
-          @if (columns().length === 0) {
+          @if (filteredRows().length === 0) {
             <tr>
-              <td class="empty-cell" colspan="2">{{text.empty}}</td>
-            </tr>
-          } @else {
-            <tr class="row-total">
-              <td>{{table().branchName}}</td>
-              @for (cell of table().total; track $index) {
-                <td class="num"><app-target-cell [value]="cell" /></td>
-              }
+              <td class="empty-cell sticky-col" colspan="9">{{text.empty}}</td>
             </tr>
           }
-          @for (row of pageRows(); track row.department.id) {
-            @let open = expanded().has(row.department.id);
-            <tr class="row-department" [class.is-open]="open">
-              <td>
-                <button
-                  type="button"
-                  class="row-toggle"
-                  [attr.aria-expanded]="open"
-                  (click)="toggle(row.department.id)"
-                >
-                  <span aria-hidden="true">{{open ? '▾' : '▸'}}</span>
-                  <span class="department-name">{{row.department.name}}</span>
-                  <span class="department-count">· {{row.memberCount}} {{text.people}}</span>
-                </button>
+          @for (group of groups(); track group.groupName) {
+            <tr class="row-group">
+              <td class="sticky-col" colspan="9">
+                {{group.groupName}} · {{group.rows.length}} KPI
               </td>
-              @for (cell of row.cells; track $index) {
-                <td class="num"><app-target-cell [value]="cell" /></td>
-              }
             </tr>
-            @if (open) {
-              @for (member of row.members.slice(0, memberPreview); track member.employee.id) {
-                <tr class="row-employee">
-                  <td>
-                    {{member.employee.fullName}}
-                    <span class="employee-position">· {{member.employee.jobPositionTitle}}</span>
-                    @if (member.employee.departmentId !== row.department.id) {
-                      <span class="employee-position">· {{member.employee.departmentName}}</span>
-                    }
-                  </td>
-                  @for (cell of member.cells; track $index) {
-                    <td class="num"><app-target-cell [value]="cell" /></td>
+            @for (row of group.rows; track row.kpiId) {
+              @let format = rowFormat(row);
+              <tr>
+                <td class="sticky-col kpi-cell">
+                  @if (canManageTargets()) {
+                    <button
+                      type="button"
+                      class="kpi-name kpi-link"
+                      [attr.aria-label]="text.openQuarterSplit + ': ' + row.kpiName"
+                      (click)="quarterKpiId.set(row.kpiId)"
+                    >
+                      {{row.kpiName}}
+                    </button>
+                  } @else {
+                    <span class="kpi-name">{{row.kpiName}}</span>
                   }
-                </tr>
-              }
-              @if (row.members.length > memberPreview) {
-                <tr class="row-employee">
-                  <td class="employee-more" [attr.colspan]="columns().length + 1">
-                    … {{row.members.length - memberPreview}} {{text.otherEmployees}}
+                </td>
+                <td>{{format.unit}}</td>
+                <td class="num">
+                  <app-target-cell [value]="row.year" [divisor]="format.divisor" />
+                </td>
+                @for (cell of row.quarters; track $index) {
+                  <td class="num" [class.quarter-fixed]="row.isRatio">
+                    <app-target-cell [value]="cell" [divisor]="format.divisor" />
                   </td>
-                </tr>
-              }
+                }
+                <td class="num">
+                  @if (row.changePercent === null) {
+                    <span class="muted">—</span>
+                  } @else {
+                    <span
+                      class="change-value"
+                      [class.change-up]="row.changePercent >= 0"
+                      [class.change-down]="row.changePercent < 0"
+                    >
+                      {{row.changePercent >= 0 ? '+' : ''}}{{pct(row.changePercent) | appNumber}}%
+                    </span>
+                  }
+                </td>
+                <td>
+                  <span
+                    class="split-badge"
+                    [class.split-matched]="row.state === 'MATCHED'"
+                    [class.split-mismatch]="row.state === 'SHORT' || row.state === 'OVER'"
+                    [class.split-not-split]="row.state === 'NOT_SPLIT'"
+                    [class.split-fixed]="row.state === 'FIXED'"
+                  >
+                    @switch (row.state) {
+                      @case ('MATCHED') {
+                        <span aria-hidden="true">✓</span> {{text.statusMatched}}
+                      }
+                      @case ('SHORT') {
+                        <span aria-hidden="true">⚠</span> {{text.statusShort}}
+                        {{diffAmount(row, format)}}
+                      }
+                      @case ('OVER') {
+                        <span aria-hidden="true">⚠</span> {{text.statusOver}}
+                        {{diffAmount(row, format)}}
+                      }
+                      @case ('NOT_SPLIT') {
+                        <span aria-hidden="true">○</span> {{text.statusNotSplit}}
+                      }
+                      @case ('FIXED') {
+                        {{text.statusFixed}}
+                      }
+                    }
+                  </span>
+                </td>
+              </tr>
             }
           }
         </tbody>
       </table>
     </div>
     <div class="table-footer">
-      <span>
-        {{table().departments.length}} {{text.departments}} · {{employeeCount()}}
-        {{text.employees}} ·
-        {{text.legend}}
-      </span>
-      <div class="pager">
-        @if (totalPages() > 1) {
-          <button
-            type="button"
-            class="button button-secondary"
-            [disabled]="page() <= 1"
-            (click)="page.set(page() - 1)"
-          >
-            {{text.previous}}
-          </button>
-          <span class="page-indicator">{{page()}} / {{totalPages()}}</span>
-          <button
-            type="button"
-            class="button button-secondary"
-            [disabled]="page() >= totalPages()"
-            (click)="page.set(page() + 1)"
-          >
-            {{text.next}}
-          </button>
-        }
-        <select
-          class="select page-size"
-          [ngModel]="pageSize()"
-          (ngModelChange)="setPageSize($event)"
-          [attr.aria-label]="text.perPage"
-        >
-          @for (size of pageSizes; track size) {
-            <option [ngValue]="size">{{size}} {{text.perPage}}</option>
-          }
-        </select>
-      </div>
+      <span>{{filteredRows().length}} KPI</span>
     </div>
   </section>
+}
+
+@if (drawerDepartment(); as department) {
+  @let bm = bmText();
+  <app-right-drawer
+    [open]="true"
+    [titleText]="department.departmentName"
+    [subtitleText]="year() ? text.wholeYear + ' ' + year() : null"
+    (closed)="closeDepartmentDrawer()"
+  >
+    @if (department.cells.length === 0) {
+      <p class="muted">{{bm.drawerEmpty}}</p>
+    } @else {
+      <table class="target-table">
+        <thead>
+          <tr>
+            <th class="sticky-col">{{text.colKpi}}</th>
+            <th class="num">{{bm.drawerYearCol}}</th>
+            <th>{{bm.drawerStatusCol}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (column of heatmapColumns(); track column.kpiId; let i = $index) {
+            @let cell = department.cells[i];
+            <tr>
+              <td class="sticky-col">{{column.kpiName}}</td>
+              <td class="num">
+                @if (cell.year !== null) {
+                  {{cell.year | appNumber}}
+                } @else {
+                  <span class="muted">—</span>
+                }
+              </td>
+              <td>
+                <span
+                  class="split-badge"
+                  [class.split-matched]="cell.state === 'MATCHED'"
+                  [class.split-mismatch]="cell.state === 'MISMATCH'"
+                  [class.split-not-split]="cell.state === 'NOT_ELIGIBLE'"
+                >
+                  @switch (cell.state) {
+                    @case ('MATCHED') {
+                      {{bm.heatmapLegendMatched}}
+                    }
+                    @case ('MISMATCH') {
+                      {{bm.heatmapLegendMismatch}}
+                    }
+                    @default {
+                      {{bm.heatmapLegendNotEligible}}
+                    }
+                  }
+                </span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+    @if (reminderState() === 'ERROR' && reminderError(); as message) {
+      <p class="publish-error" role="alert">{{message}}</p>
+    }
+    @if (reminderState() === 'SENT') {
+      <p class="muted" role="status">{{bm.drawerRemindSent}}</p>
+    }
+    <div drawerFooter class="drawer-footer-actions">
+      <button type="button" class="button button-secondary" (click)="viewDepartmentPerformance()">
+        {{bm.drawerViewPerformance}}
+      </button>
+      <button
+        type="button"
+        class="button button-primary"
+        [disabled]="reminderState() === 'SENDING'"
+        (click)="remindDepartmentManager()"
+      >
+        {{reminderState() === 'SENDING' ? bm.drawerRemindSending : bm.drawerRemindManager}}
+      </button>
+    </div>
+  </app-right-drawer>
 }

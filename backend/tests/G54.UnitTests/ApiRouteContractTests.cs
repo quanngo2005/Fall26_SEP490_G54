@@ -31,6 +31,8 @@ public sealed class ApiRouteContractTests
     [InlineData(typeof(HelloController), "hello")]
     [InlineData(typeof(AuditLogsController), "audit-logs")]
     [InlineData(typeof(DataImportsController), "data-imports")]
+    [InlineData(typeof(CampaignCustomersController), "campaigns/{campaignId:guid}/customers")]
+    [InlineData(typeof(MyCampaignsController), "my-campaigns")]
     [InlineData(typeof(TransactionImportsController), "transaction-imports")]
     [InlineData(typeof(ServiceRatingImportsController), "service-rating-imports")]
     [InlineData(typeof(MyDashboardController), "my-dashboard")]
@@ -50,6 +52,18 @@ public sealed class ApiRouteContractTests
         var patch = action.GetCustomAttribute<HttpPatchAttribute>();
         Assert.NotNull(patch);
         Assert.Equal("{id:guid}/status", patch.Template);
+    }
+
+    [Fact]
+    public void CampaignController_ExposesCompleteAndCancelSubresources()
+    {
+        var complete = typeof(CampaignController).GetMethod(nameof(CampaignController.Complete));
+        Assert.NotNull(complete);
+        Assert.Equal("{id:guid}/complete", complete.GetCustomAttribute<HttpPostAttribute>()?.Template);
+
+        var cancel = typeof(CampaignController).GetMethod(nameof(CampaignController.Cancel));
+        Assert.NotNull(cancel);
+        Assert.Equal("{id:guid}/cancel", cancel.GetCustomAttribute<HttpPostAttribute>()?.Template);
     }
 
     [Fact]

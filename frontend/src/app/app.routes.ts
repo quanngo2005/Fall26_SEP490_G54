@@ -8,6 +8,7 @@ import { qaQueueGuard } from './core/qa-queue.guard';
 import { riskEventGuard } from './core/risk-event.guard';
 import { appealQueueGuard, appealsHomeRedirect, ownAppealsGuard } from './core/appeal-queue.guard';
 import { departmentEvaluationGuard } from './core/department-evaluation.guard';
+import { myCampaignsGuard } from './core/my-campaigns.guard';
 import { personalEvaluationGuard } from './core/personal-evaluation.guard';
 import { reconciliationGuard } from './core/reconciliation.guard';
 import { transactionImportGuard } from './core/transaction-import.guard';
@@ -106,6 +107,7 @@ export const routes: Routes = [
         (m) => m.TargetSetupWizardComponent,
       ),
   },
+  { path: 'target-allocation/overview', redirectTo: 'target-overview', pathMatch: 'full' },
   {
     path: 'target-allocation',
     canActivate: [authGuard, permissionGuard('TARGET_MANAGE')],
@@ -190,10 +192,10 @@ export const routes: Routes = [
   {
     path: 'branch-performance/evaluations',
     canActivate: [authGuard, branchEvaluationGuard],
-    title: 'Kỳ đánh giá chi nhánh',
+    title: 'Đánh giá Chi nhánh',
     loadComponent: () =>
-      import('./features/evaluations/branch-evaluation-list.component').then(
-        (m) => m.BranchEvaluationListComponent,
+      import('./features/evaluations/branch-evaluations.component').then(
+        (m) => m.BranchEvaluationsComponent,
       ),
   },
   {
@@ -204,6 +206,10 @@ export const routes: Routes = [
       import('./features/evaluations/department-ranking-approval/department-ranking-approval.component').then(
         (m) => m.DepartmentRankingApprovalComponent,
       ),
+  },
+  {
+    path: 'branch-performance/evaluations/:periodId/approval',
+    redirectTo: 'branch-performance/evaluations/approval',
   },
   {
     path: 'employees',
@@ -443,6 +449,22 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/campaigns/campaign-approval.component').then(
         (m) => m.CampaignApprovalComponent,
+      ),
+  },
+  {
+    path: 'my-campaigns',
+    canActivate: [authGuard, myCampaignsGuard],
+    title: 'Chiến dịch của tôi',
+    loadComponent: () =>
+      import('./features/my-campaigns/my-campaigns.component').then((m) => m.MyCampaignsComponent),
+  },
+  {
+    path: 'my-campaigns/:id',
+    canActivate: [authGuard, myCampaignsGuard],
+    title: 'Khách hàng của tôi',
+    loadComponent: () =>
+      import('./features/my-campaigns/my-campaign-customers.component').then(
+        (m) => m.MyCampaignCustomersComponent,
       ),
   },
   {

@@ -61,36 +61,36 @@ export interface OverdueAlertRow {
 const MONITOR_PAGE_SIZE = 100;
 const MS_PER_DAY = 86_400_000;
 const IN_PROGRESS_GROUP: ReadonlySet<WorkStatus> = new Set([
-  'New',
-  'InProgress',
-  'HandedOver',
-  'Rejected',
-  'Submitted',
+  'NEW',
+  'IN_PROGRESS',
+  'HANDED_OVER',
+  'REJECTED',
+  'SUBMITTED',
 ]);
-const COMPLETED_GROUP: ReadonlySet<WorkStatus> = new Set(['Verified', 'Done']);
+const COMPLETED_GROUP: ReadonlySet<WorkStatus> = new Set(['VERIFIED', 'DONE']);
 const OPEN_GROUP: ReadonlySet<WorkStatus> = new Set([
-  'New',
-  'InProgress',
-  'HandedOver',
-  'Rejected',
-  'Submitted',
-  'Overdue',
+  'NEW',
+  'IN_PROGRESS',
+  'HANDED_OVER',
+  'REJECTED',
+  'SUBMITTED',
+  'OVERDUE',
 ]);
 const FUNNEL_STARTED_GROUP: ReadonlySet<WorkStatus> = new Set([
-  'InProgress',
-  'HandedOver',
-  'Rejected',
-  'Overdue',
-  'Submitted',
-  'Verified',
-  'Done',
+  'IN_PROGRESS',
+  'HANDED_OVER',
+  'REJECTED',
+  'OVERDUE',
+  'SUBMITTED',
+  'VERIFIED',
+  'DONE',
 ]);
-const FUNNEL_SUBMITTED_GROUP: ReadonlySet<WorkStatus> = new Set(['Submitted', 'Verified', 'Done']);
+const FUNNEL_SUBMITTED_GROUP: ReadonlySet<WorkStatus> = new Set(['SUBMITTED', 'VERIFIED', 'DONE']);
 const DEADLINE_EXEMPT_GROUP: ReadonlySet<WorkStatus> = new Set([
-  'Submitted',
-  'Verified',
-  'Done',
-  'Cancelled',
+  'SUBMITTED',
+  'VERIFIED',
+  'DONE',
+  'CANCELLED',
 ]);
 
 function dayNumber(date: string): number {
@@ -126,7 +126,7 @@ export function isMonitorWorkOverdue(
   item: Pick<WorkListItem, 'status' | 'plannedEndDate'>,
   today: string,
 ): boolean {
-  if (item.status === 'Overdue') return true;
+  if (item.status === 'OVERDUE') return true;
   if (DEADLINE_EXEMPT_GROUP.has(item.status)) return false;
   return daysOverdue(item.plannedEndDate, today) > 0;
 }
@@ -199,7 +199,7 @@ export class WorkWorkloadMonitorComponent extends LocalizedComponent {
     const today = this.today();
     const period = this.period();
     return this.workItems().filter(
-      (item) => item.status !== 'Cancelled' && isWorkInMonitorPeriod(item, period, today),
+      (item) => item.status !== 'CANCELLED' && isWorkInMonitorPeriod(item, period, today),
     );
   });
 

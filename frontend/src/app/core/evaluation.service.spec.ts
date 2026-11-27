@@ -329,4 +329,82 @@ describe('EvaluationService', () => {
     expect(exportReq.request.responseType).toBe('blob');
     exportReq.flush(expectedBlob);
   });
+
+  it('loads and exports branch evaluation dashboard with departmentId parameter', () => {
+    service.branchDashboard('p11', 'p10', 'dept-1').subscribe((res) => {
+      expect(res.department.code).toBe('KHCN');
+    });
+
+    const dashReq = http.expectOne((r) => r.url === `${url}/branch-dashboard`);
+    expect(dashReq.request.method).toBe('GET');
+    expect(dashReq.request.params.get('periodId')).toBe('p11');
+    expect(dashReq.request.params.get('comparePeriodId')).toBe('p10');
+    expect(dashReq.request.params.get('departmentId')).toBe('dept-1');
+    dashReq.flush({
+      success: true,
+      data: {
+        department: {
+          id: 'dept-1',
+          code: 'KHCN',
+          name: 'Khoa học Công nghệ',
+          managerName: 'Nguyễn Văn A',
+        },
+        period: {
+          id: 'p11',
+          code: '2026-M11',
+          name: 'Tháng 11/2026',
+          periodType: 'MONTH',
+          startDate: '2026-11-01',
+          endDate: '2026-11-30',
+        },
+        comparePeriod: {
+          id: 'p10',
+          code: '2026-M10',
+          name: 'Tháng 10/2026',
+          periodType: 'MONTH',
+          startDate: '2026-10-01',
+          endDate: '2026-10-31',
+        },
+        availablePeriods: [],
+        compareOptions: [],
+        performance: {
+          average: 90,
+          previousAverage: 88,
+          change: 2,
+          evaluatedEmployeeCount: 10,
+          totalEmployeeCount: 12,
+          unscoredCount: 2,
+          pipCount: 0,
+          appealCount: 1,
+          kpiGroups: [],
+          trend: [],
+        },
+        operations: {
+          onTimeCompletedCount: 140,
+          inProgressCount: 12,
+          overdueCount: 8,
+          onTimeRatePercent: 94.5,
+          loadPerStaff: 13.3,
+        },
+        tierDistribution: { tierACapPercent: 20, tiers: [], actionAlerts: [] },
+        profileGroups: [],
+        staffRows: [],
+        calculatedAt: '2026-11-20T10:00:00Z',
+        availableDepartments: [{ id: 'dept-1', code: 'KHCN', name: 'Khoa học Công nghệ' }],
+      },
+    });
+
+    const expectedBlob = new Blob(['branch-xlsx']);
+    service.exportBranchDashboard('p11', 'p10', 'dept-1').subscribe((blob) => {
+      expect(blob).toBe(expectedBlob);
+    });
+
+    const exportReq = http.expectOne((r) => r.url === `${url}/branch-dashboard/export`);
+    expect(exportReq.request.method).toBe('GET');
+    expect(exportReq.request.params.get('periodId')).toBe('p11');
+    expect(exportReq.request.params.get('comparePeriodId')).toBe('p10');
+    expect(exportReq.request.params.get('departmentId')).toBe('dept-1');
+    expect(exportReq.request.responseType).toBe('blob');
+    exportReq.flush(expectedBlob);
+  });
 });

@@ -45,7 +45,7 @@ describe('DepartmentRankingApprovalComponent', () => {
       periodType: 'QUARTER',
       status: 'IN_REVIEW',
       startDate: '2026-07-01',
-      endDate: '2026-09-30',
+      endDate: '2099-12-31',
     },
     totalEmployees: 20,
     totalEvaluated: 20,
@@ -109,7 +109,7 @@ describe('DepartmentRankingApprovalComponent', () => {
       periodType: 'QUARTER',
       status: 'IN_REVIEW',
       startDate: '2026-07-01',
-      endDate: '2026-09-30',
+      endDate: '2099-12-31',
     },
     quota: {
       totalEmployees: 12,
@@ -189,11 +189,37 @@ describe('DepartmentRankingApprovalComponent', () => {
       'rejectDepartment',
       'finalize',
       'getPreCloseCheck',
+      'periods',
+      'getDepartmentSlotQuotas',
+      'updateDepartmentSlotQuotas',
+      'getBranchPeriodQuota',
+      'updateBranchPeriodQuota',
     ]);
 
-    i18nServiceSpy = jasmine.createSpyObj('I18nService', [], {
+    i18nServiceSpy = jasmine.createSpyObj('I18nService', ['formatNumber'], {
       localization: {
         evaluations: {
+          departmentRanking: {
+            colId: 'MÃ NV',
+            colName: 'HỌ VÀ TÊN',
+            colStatus: 'TRẠNG THÁI',
+            colPenalty: 'ĐIỂM PHẠT',
+            periodTypeAria: 'Loại kỳ',
+            periodAria: 'Kỳ',
+            comparePeriodAria: 'So sánh kỳ',
+            periodTypeMonth: 'Kỳ tháng',
+            periodTypeQuarter: 'Kỳ quý',
+            periodTypeYear: 'Kỳ năm',
+            comparePeriodNone: 'Không so sánh',
+            comparePeriodWith: 'So với: {period}',
+          },
+          evaluationForm: {
+            statusDraft: 'Bản nháp',
+            statusCalculated: 'Đã tính',
+            statusSubmitted: 'Đã gửi',
+            statusDisputed: 'Khiếu nại',
+            statusFinal: 'Hoàn thành',
+          },
           departmentApproval: {
             pageTitle: 'Phê duyệt xếp hạng chi nhánh',
             breadcrumbHome: 'Trang chủ',
@@ -226,7 +252,7 @@ describe('DepartmentRankingApprovalComponent', () => {
             tabHiddenSuffix: 'ẩn',
             colIndex: '#',
             colEmployee: 'NHÂN VIÊN',
-            colTotalPe: 'TỔNG PE',
+            colTotalPe: 'ĐIỂM PE',
             colProposed: 'ĐỀ XUẤT',
             colFinalized: 'TP CHỐT',
             colManagerReason: 'LÝ DO TRƯỞNG PHÒNG',
@@ -260,13 +286,67 @@ describe('DepartmentRankingApprovalComponent', () => {
         periodCode: '2026-Q3',
         periodName: 'Quý 3/2026',
         startDate: '2026-07-01',
-        endDate: '2026-09-30',
-        preCloseDeadline: '2026-10-12T17:00:00Z',
+        endDate: '2099-12-31',
+        preCloseDeadline: '2099-10-12T17:00:00Z',
         canPublish: false,
         totalUnresolvedCount: 0,
         items: [],
       }),
     );
+
+    evaluationServiceSpy.periods.and.returnValue(
+      of([
+        {
+          id: 'p-1',
+          code: 'Q3-2026',
+          name: 'Quý 3/2026',
+          startDate: '2026-07-01',
+          endDate: '2099-12-31',
+          periodType: 'QUARTER',
+          status: 'IN_REVIEW',
+          isActive: true,
+        },
+      ]),
+    );
+    evaluationServiceSpy.getDepartmentSlotQuotas.and.returnValue(
+      of({
+        departmentId: 'd-1',
+        slots: [
+          { tierCode: 'A1', headcount: 1 },
+          { tierCode: 'A2', headcount: 2 },
+          { tierCode: 'A3', headcount: 3 },
+          { tierCode: 'B', headcount: 4 },
+          { tierCode: 'C', headcount: 5 },
+        ],
+      }),
+    );
+    evaluationServiceSpy.getBranchPeriodQuota.and.returnValue(
+      of({
+        departmentId: 'b-1',
+        periodId: 'p-1',
+        slots: [
+          { tierCode: 'A1', headcount: 2 },
+          { tierCode: 'A2', headcount: 3 },
+          { tierCode: 'A3', headcount: 4 },
+          { tierCode: 'B', headcount: 8 },
+          { tierCode: 'C', headcount: 3 },
+        ],
+      }),
+    );
+    evaluationServiceSpy.updateBranchPeriodQuota.and.returnValue(
+      of({
+        departmentId: 'b-1',
+        periodId: 'p-1',
+        slots: [
+          { tierCode: 'A1', headcount: 5 },
+          { tierCode: 'A2', headcount: 5 },
+          { tierCode: 'A3', headcount: 5 },
+          { tierCode: 'B', headcount: 5 },
+          { tierCode: 'C', headcount: 5 },
+        ],
+      }),
+    );
+    i18nServiceSpy.formatNumber.and.callFake((val: number) => String(val));
 
     await TestBed.configureTestingModule({
       imports: [DepartmentRankingApprovalComponent],
@@ -303,9 +383,9 @@ describe('DepartmentRankingApprovalComponent', () => {
   });
 
   it('should auto-load calibration for first department', () => {
-    expect(evaluationServiceSpy.getCalibration).toHaveBeenCalledWith('p-1', 'd-1');
+    expect(evaluationServiceSpy.getCalibration).toHaveBeenCalledWith('p-1', 'd-1', undefined, true);
     expect(component.calibrationData()).toEqual(mockCalibration);
-    expect(component.positionTabs().length).toBe(2);
+    expect(component.positionTabs().length).toBe(3);
   });
 
   it('should filter roster by selected position tab', () => {
@@ -318,6 +398,44 @@ describe('DepartmentRankingApprovalComponent', () => {
     fixture.detectChanges();
     expect(component.filteredRoster().length).toBe(1);
     expect(component.filteredRoster()[0].employeeCode).toBe('NV002');
+  });
+
+  it('should show TP CHOT and reason columns only when department is submitted', () => {
+    // d-1 is IN_REVIEW (submitted)
+    expect(component.isDepartmentSubmitted()).toBeTrue();
+    fixture.detectChanges();
+    const headers = fixture.nativeElement.querySelectorAll(
+      '.ranking-table th',
+    ) as NodeListOf<HTMLTableCellElement>;
+    const headerTexts = Array.from(headers).map((h) => h.textContent?.trim());
+    const finalizedLabel =
+      component.localization.evaluations.departmentApproval.colFinalized || 'TP CHỐT';
+    const reasonLabel =
+      component.localization.evaluations.departmentApproval.colManagerReason ||
+      'LÝ DO TRƯỞNG PHÒNG';
+    expect(headerTexts).toContain(finalizedLabel);
+    expect(headerTexts).toContain(reasonLabel);
+
+    // Switch to a department that is not submitted
+    const unsubmittedDept = {
+      ...mockOverview.departments[0],
+      departmentId: 'd-unsubmitted',
+      status: 'NOT_SUBMITTED' as const,
+    };
+    component.branchOverview.set({
+      ...mockOverview,
+      departments: [unsubmittedDept],
+    });
+    component.selectedDepartmentId.set('d-unsubmitted');
+    fixture.detectChanges();
+
+    expect(component.isDepartmentSubmitted()).toBeFalse();
+    const updatedHeaders = fixture.nativeElement.querySelectorAll(
+      '.ranking-table th',
+    ) as NodeListOf<HTMLTableCellElement>;
+    const updatedHeaderTexts = Array.from(updatedHeaders).map((h) => h.textContent?.trim());
+    expect(updatedHeaderTexts).not.toContain(finalizedLabel);
+    expect(updatedHeaderTexts).not.toContain(reasonLabel);
   });
 
   it('should open and submit approve modal successfully', () => {
@@ -410,5 +528,247 @@ describe('DepartmentRankingApprovalComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/performance-traceability'], {
       state: { employeeId: 'emp-1', periodId: 'p-1' },
     });
+  });
+
+  it('should update department quota when BM edits and submits', () => {
+    evaluationServiceSpy.updateDepartmentSlotQuotas.and.returnValue(
+      of({
+        departmentId: 'd-1',
+        slots: [
+          { tierCode: 'A1', headcount: 2 },
+          { tierCode: 'A2', headcount: 2 },
+          { tierCode: 'A3', headcount: 3 },
+          { tierCode: 'B', headcount: 4 },
+          { tierCode: 'C', headcount: 5 },
+        ],
+      }),
+    );
+
+    component.departmentQuotas.set([
+      { tierCode: 'A1', headcount: 1 },
+      { tierCode: 'A2', headcount: 2 },
+      { tierCode: 'A3', headcount: 2 },
+      { tierCode: 'B', headcount: 5 },
+      { tierCode: 'C', headcount: 2 },
+    ]);
+    component.onQuotaHeadcountChange({ tier: 'A1', headcount: 2 });
+    component.onQuotaHeadcountChange({ tier: 'B', headcount: 4 });
+    component.submitDepartmentQuota();
+
+    expect(evaluationServiceSpy.updateDepartmentSlotQuotas).toHaveBeenCalled();
+    expect(component.toastMessage()).toContain('thành công');
+  });
+
+  it('should not allow updating quota when period is locked or closed', () => {
+    evaluationServiceSpy.updateDepartmentSlotQuotas.calls.reset();
+    component.periods.set([
+      {
+        id: 'p-1',
+        code: 'PER-LOCKED',
+        name: 'Kỳ đã chốt',
+        startDate: '2026-09-01',
+        endDate: '2026-09-30',
+        periodType: 'MONTH',
+        status: 'LOCKED',
+        isActive: false,
+      },
+    ]);
+    component.periodId.set('p-1');
+
+    expect(component.isPeriodLocked()).toBeTrue();
+
+    const oldHeadcount = component.departmentQuotas().find((s) => s.tierCode === 'A1')?.headcount;
+    component.onQuotaHeadcountChange({ tier: 'A1', headcount: 99 });
+    expect(component.departmentQuotas().find((s) => s.tierCode === 'A1')?.headcount).toBe(
+      oldHeadcount,
+    );
+
+    component.submitDepartmentQuota();
+    expect(evaluationServiceSpy.updateDepartmentSlotQuotas).not.toHaveBeenCalled();
+  });
+
+  it('should switch viewMode between single and all', () => {
+    expect(component.viewMode()).toBe('single');
+    component.setViewMode('all');
+    expect(component.viewMode()).toBe('all');
+    component.setViewMode('single');
+    expect(component.viewMode()).toBe('single');
+  });
+
+  it('should toggle department expansion and load calibration in all view', () => {
+    expect(component.isDepartmentExpanded('d-1')).toBeFalse();
+    component.toggleExpandDepartment('d-1');
+    expect(component.isDepartmentExpanded('d-1')).toBeTrue();
+    expect(evaluationServiceSpy.getCalibration).toHaveBeenCalledWith('p-1', 'd-1', undefined, true);
+
+    component.toggleExpandDepartment('d-1');
+    expect(component.isDepartmentExpanded('d-1')).toBeFalse();
+  });
+
+  it('should manage and save branch period total quota', () => {
+    expect(component.isEditingPeriodQuota()).toBeFalse();
+    component.startEditPeriodQuota();
+    expect(component.isEditingPeriodQuota()).toBeTrue();
+
+    component.onPeriodQuotaInputChange('A1', '4');
+    component.onPeriodQuotaInputChange('B', '6');
+    expect(component.periodQuotaDraft()['A1']).toBe(4);
+
+    component.savePeriodQuota();
+    expect(evaluationServiceSpy.updateBranchPeriodQuota).toHaveBeenCalled();
+    expect(component.isEditingPeriodQuota()).toBeFalse();
+    expect(component.toastMessage()).toContain('thành công');
+  });
+
+  it('should not allow starting edit of period quota when period is locked', () => {
+    component.periods.set([
+      {
+        id: 'p-1',
+        code: 'PER-LOCKED',
+        name: 'Kỳ đã chốt',
+        startDate: '2026-09-01',
+        endDate: '2026-09-30',
+        periodType: 'MONTH',
+        status: 'LOCKED',
+        isActive: false,
+      },
+    ]);
+    component.startEditPeriodQuota();
+    expect(component.isEditingPeriodQuota()).toBeFalse();
+  });
+
+  it('should consider past period with status OPEN as locked', () => {
+    component.periods.set([
+      {
+        id: 'p-past',
+        code: 'PER-PAST',
+        name: 'Tháng 10/2026',
+        startDate: '2026-10-01',
+        endDate: '2026-10-31',
+        periodType: 'MONTH',
+        status: 'OPEN',
+        isActive: true,
+      },
+    ]);
+    component.periodId.set('p-past');
+    expect(component.isPeriodLocked()).toBeTrue();
+  });
+
+  it('should calculate totalBranchTierASlots in real time during draft edit and allow saving', () => {
+    component.branchOverview.set({
+      ...mockOverview,
+      period: {
+        ...mockOverview.period,
+        id: 'p-1',
+        name: 'Kỳ test',
+        periodType: 'MONTH',
+        status: 'OPEN',
+        startDate: '2099-01-01',
+        endDate: '2099-01-31',
+      },
+      departments: [],
+      canFinalize: false,
+      totalEmployees: 5,
+    });
+    component.periods.set([
+      {
+        id: 'p-1',
+        code: 'PER-1',
+        name: 'Kỳ test',
+        startDate: '2099-01-01',
+        endDate: '2099-01-31',
+        periodType: 'MONTH',
+        status: 'OPEN',
+        isActive: true,
+      },
+    ]);
+    component.periodId.set('p-1');
+    component.periodQuota.set([
+      { tierCode: 'A1', headcount: 1 },
+      { tierCode: 'A2', headcount: 1 },
+      { tierCode: 'A3', headcount: 1 },
+      { tierCode: 'B', headcount: 1 },
+      { tierCode: 'C', headcount: 1 },
+    ]);
+
+    expect(component.totalBranchTierASlots()).toBe(3);
+
+    // Start editing
+    component.startEditPeriodQuota();
+    expect(component.isEditingPeriodQuota()).toBeTrue();
+
+    // Type headcount for A1 = 5 (total Tier A = 7)
+    component.onPeriodQuotaInputChange('A1', '5');
+    expect(component.totalBranchTierASlots()).toBe(7);
+
+    // Saving should succeed even when total exceeds employee headcount (independent quota)
+    evaluationServiceSpy.updateBranchPeriodQuota.and.returnValue(
+      of({
+        departmentId: '00000000-0000-0000-0000-000000000000',
+        periodId: 'p-1',
+        slots: [
+          { tierCode: 'A1', headcount: 5 },
+          { tierCode: 'A2', headcount: 1 },
+          { tierCode: 'A3', headcount: 1 },
+          { tierCode: 'B', headcount: 0 },
+          { tierCode: 'C', headcount: 0 },
+        ],
+      }),
+    );
+    component.savePeriodQuota();
+    expect(evaluationServiceSpy.updateBranchPeriodQuota).toHaveBeenCalled();
+  });
+
+  it('should validate department slot quota against period quota max and department headcount', () => {
+    component.periodQuota.set([
+      { tierCode: 'A1', headcount: 1 },
+      { tierCode: 'A2', headcount: 2 },
+      { tierCode: 'A3', headcount: 2 },
+      { tierCode: 'B', headcount: 5 },
+      { tierCode: 'C', headcount: 5 },
+    ]);
+    component.selectedDepartmentId.set('d-1');
+    component.branchOverview.set({
+      ...mockOverview,
+      period: {
+        ...mockOverview.period,
+        id: 'p-1',
+        name: 'Kỳ test',
+        periodType: 'MONTH',
+        status: 'OPEN',
+        startDate: '2099-01-01',
+        endDate: '2099-01-31',
+      },
+      departments: [
+        {
+          ...mockOverview.departments[0],
+          departmentId: 'd-1',
+          departmentCode: 'KD',
+          departmentName: 'Kinh doanh',
+          totalEmployees: 2,
+          status: 'NOT_SUBMITTED',
+          managerName: 'TP',
+        },
+      ],
+      canFinalize: false,
+      totalEmployees: 15,
+    });
+
+    // Set department quota A1 = 2 (exceeds branch A1=1)
+    component.departmentQuotas.set([
+      { tierCode: 'A1', headcount: 2 },
+      { tierCode: 'A2', headcount: 0 },
+      { tierCode: 'A3', headcount: 0 },
+      { tierCode: 'B', headcount: 0 },
+      { tierCode: 'C', headcount: 0 },
+    ]);
+
+    expect(component.isDeptQuotaExceeded()).toBeTrue();
+    expect(component.deptQuotaTierExceededErrors().length).toBeGreaterThan(0);
+    expect(component.deptQuotaTierExceededErrors()[0]).toContain('vượt trần Quota tổng');
+
+    // Submit should be blocked
+    component.submitDepartmentQuota();
+    expect(evaluationServiceSpy.updateDepartmentSlotQuotas).not.toHaveBeenCalled();
   });
 });

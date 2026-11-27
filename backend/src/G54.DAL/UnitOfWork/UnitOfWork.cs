@@ -47,6 +47,12 @@ public sealed class UnitOfWork(AppDbContext dbContext) : IUnitOfWork
     public IRepository<ImportBatch> ImportBatches => Repository<ImportBatch>();
     public IRepository<WorkTransaction> WorkTransactions => Repository<WorkTransaction>();
     public IRepository<ImportedTransaction> ImportedTransactions => Repository<ImportedTransaction>();
+    public IRepository<AuditLog> AuditLogs => Repository<AuditLog>();
+    public IRepository<EmployeeTargetAck> EmployeeTargetAcks => Repository<EmployeeTargetAck>();
+    public IRepository<TargetAssignmentFeedback> TargetAssignmentFeedbacks => Repository<TargetAssignmentFeedback>();
+    public IRepository<EvaluationProfile> EvaluationProfiles => Repository<EvaluationProfile>();
+    public IRepository<JobPositionWorkType> JobPositionWorkTypes => Repository<JobPositionWorkType>();
+    public IRepository<WorkResultItem> WorkResultItems => Repository<WorkResultItem>();
 
     public IRepository<TEntity> Repository<TEntity>() where TEntity : class
     {

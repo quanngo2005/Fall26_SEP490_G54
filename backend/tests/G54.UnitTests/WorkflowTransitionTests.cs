@@ -39,7 +39,7 @@ public sealed class WorkflowTransitionTests
 
         var detail = await rig.Works().ChangeStatusAsync(rig.Work.Id, rig.Assignee.Id, new WorkStatusDto { Status = "InProgress" });
 
-        Assert.Equal("InProgress", detail.Status);
+        Assert.Equal("IN_PROGRESS", detail.Status);
         Assert.Equal(WorkStatus.InProgress, await rig.WorkStatusAsync());
     }
 
@@ -76,7 +76,7 @@ public sealed class WorkflowTransitionTests
         var detail = await rig.Works().ChangeStatusAsync(
             rig.Work.Id, rig.Manager.Id, new WorkStatusDto { Status = "Cancelled", Reason = "Khách hàng rút yêu cầu" });
 
-        Assert.Equal("Cancelled", detail.Status);
+        Assert.Equal("CANCELLED", detail.Status);
         Assert.Equal(WorkStatus.Cancelled, await rig.WorkStatusAsync());
     }
 

@@ -7,7 +7,7 @@ import { By } from '@angular/platform-browser';
 import { EvaluationsComponent } from './evaluations.component';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
-import { UiSelectComponent } from '../../shared/ui';
+import { CompareSliderComponent } from '../../shared/ui';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { DepartmentEvaluationDashboard } from '../../core/evaluation.models';
 import { environment } from '../../../environments/environment';
@@ -385,11 +385,8 @@ describe('EvaluationsComponent', () => {
   });
 
   it('reloads dashboard when compare period changes', () => {
-    const compareLabel = i18n.translate('evaluations.dashboard.periodCompareAria');
-    const compareSelect = fixture.debugElement
-      .queryAll(By.directive(UiSelectComponent))
-      .find((el) => el.componentInstance.ariaLabel() === compareLabel);
-    compareSelect!.componentInstance.valueChange.emit('period-10');
+    const compareSlider = fixture.debugElement.query(By.directive(CompareSliderComponent));
+    compareSlider.componentInstance.modeChange.emit('PREVIOUS');
 
     const req = httpMock.expectOne(
       `${environment.apiUrl}/evaluations/department-dashboard?periodId=period-11&comparePeriodId=period-10`,
@@ -460,19 +457,19 @@ describe('EvaluationsComponent', () => {
     const metricCells = firstRow.querySelectorAll('.cell-metric');
     expect(metricCells.length).toBeGreaterThanOrEqual(5); // 3 groups + SLA + Total
 
-    // Total score delta for Lê Minh Châu is +5.5 => tone 'up', text '▲ 5,5'
+    // Total score delta for Lê Minh Châu is +5.5 => tone 'up', text '+5,5'
     const deltas = Array.from(firstRow.querySelectorAll('.cell-delta')) as HTMLElement[];
     const deltaTexts = deltas.map((d) => d.textContent?.trim());
-    expect(deltaTexts).toContain('▲ 5,5');
+    expect(deltaTexts).toContain('+5,5');
     expect(deltas.some((d) => d.classList.contains('up'))).toBeTrue();
 
-    // Second row for Ngô Thanh Mai has negative delta -6.5 => tone 'down', text '▼ 6,5'
+    // Second row for Ngô Thanh Mai has negative delta -6.5 => tone 'down', text '−6,5'
     const secondRow = fixture.nativeElement.querySelectorAll(
       '.staff-table tbody tr',
     )[1] as HTMLElement;
     const secondDeltas = Array.from(secondRow.querySelectorAll('.cell-delta')) as HTMLElement[];
     const secondDeltaTexts = secondDeltas.map((d) => d.textContent?.trim());
-    expect(secondDeltaTexts).toContain('▼ 6,5');
+    expect(secondDeltaTexts).toContain('−6,5');
     expect(secondDeltas.some((d) => d.classList.contains('down'))).toBeTrue();
   });
 
@@ -492,20 +489,20 @@ describe('EvaluationsComponent', () => {
       expect(td.classList.contains('down')).toBeFalse();
     }
 
-    // First KPI item has delta -2.8 => text '▼ 2,8' in down tone
+    // First KPI item has delta -2.8 => text '−2,8' in down tone
     const firstDelta = scoreCells[0].querySelector('.cell-delta');
-    expect(firstDelta?.textContent?.trim()).toBe('▼ 2,8');
+    expect(firstDelta?.textContent?.trim()).toBe('−2,8');
     expect(firstDelta?.classList.contains('down')).toBeTrue();
 
-    // Second KPI item has delta +1.7 => text '▲ 1,7' in up tone
+    // Second KPI item has delta +1.7 => text '+1,7' in up tone
     const secondDelta = scoreCells[1].querySelector('.cell-delta');
-    expect(secondDelta?.textContent?.trim()).toBe('▲ 1,7');
+    expect(secondDelta?.textContent?.trim()).toBe('+1,7');
     expect(secondDelta?.classList.contains('up')).toBeTrue();
 
     // Total row should also show delta
     const totalRow = fixture.nativeElement.querySelector('.total-row');
     const totalDelta = totalRow?.querySelector('.cell-delta');
-    expect(totalDelta?.textContent?.trim()).toBe('▼ 1,1');
+    expect(totalDelta?.textContent?.trim()).toBe('−1,1');
     expect(totalDelta?.classList.contains('down')).toBeTrue();
   });
 
@@ -548,5 +545,41 @@ describe('EvaluationsComponent', () => {
       `${environment.apiUrl}/evaluations/department-dashboard?periodId=curr-month`,
     );
     req.flush({ success: true, data: MOCK_DASHBOARD });
+  });
+
+  it('renders department select in branch mode when multiple departments are available and switches department', () => {
+    fixture.componentRef.setInput('isBranchMode', true);
+    component.dashboard.set({
+      ...MOCK_DASHBOARD,
+      availableDepartments: [
+        { id: 'dept-1', code: 'KHCN', name: 'Phòng Khách hàng Cá nhân' },
+        { id: 'dept-2', code: 'KHDN', name: 'Phòng Khách hàng Doanh nghiệp' },
+      ],
+    });
+    fixture.detectChanges();
+
+    expect(component.departmentOptions().length).toBe(2);
+    expect(fixture.nativeElement.textContent).toContain('KHCN · Phòng Khách hàng Cá nhân');
+
+    component.onDepartmentSelected('dept-2');
+    expect(component.selectedDepartmentId()).toBe('dept-2');
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/evaluations/branch-dashboard?periodId=period-11&comparePeriodId=period-10&departmentId=dept-2`,
+    );
+    req.flush({
+      success: true,
+      data: {
+        ...MOCK_DASHBOARD,
+        department: {
+          id: 'dept-2',
+          code: 'KHDN',
+          name: 'Phòng Khách hàng Doanh nghiệp',
+          managerName: 'Nguyễn Văn B',
+        },
+      },
+    });
+    fixture.detectChanges();
+    expect(component.departmentName()).toBe('Phòng Khách hàng Doanh nghiệp');
   });
 });

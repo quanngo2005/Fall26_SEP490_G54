@@ -1,10 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, Input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from '../../core/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { BranchTargetOverviewComponent } from './branch-target-overview.component';
-import { DepartmentTargetOverviewComponent } from './department-target-overview.component';
 import { TargetCellComponent } from './target-cell.component';
 import { TargetOverviewComponent } from './target-overview.component';
 
@@ -13,9 +12,9 @@ class HeaderStub {}
 @Component({ selector: 'app-sidebar', template: '' })
 class SidebarStub {}
 @Component({ selector: 'app-branch-target-overview', template: 'branch' })
-class BranchStub {}
-@Component({ selector: 'app-department-target-overview', template: 'department' })
-class DepartmentStub {}
+class BranchStub {
+  @Input() departmentScope = false;
+}
 
 describe('TargetOverviewComponent', () => {
   const render = (roles: string[]) => {
@@ -23,14 +22,9 @@ describe('TargetOverviewComponent', () => {
       providers: [{ provide: AuthService, useValue: { currentUser: () => ({ roles }) } }],
     }).overrideComponent(TargetOverviewComponent, {
       remove: {
-        imports: [
-          HeaderComponent,
-          SidebarComponent,
-          BranchTargetOverviewComponent,
-          DepartmentTargetOverviewComponent,
-        ],
+        imports: [HeaderComponent, SidebarComponent, BranchTargetOverviewComponent],
       },
-      add: { imports: [HeaderStub, SidebarStub, BranchStub, DepartmentStub] },
+      add: { imports: [HeaderStub, SidebarStub, BranchStub] },
     });
     const fixture = TestBed.createComponent(TargetOverviewComponent);
     fixture.detectChanges();
@@ -41,8 +35,8 @@ describe('TargetOverviewComponent', () => {
     expect(render(['BRANCH_MANAGER']).querySelector('main')?.textContent).toContain('branch');
   });
 
-  it('shows the department screen to department managers', () => {
-    expect(render(['DEPT_MANAGER']).querySelector('main')?.textContent).toContain('department');
+  it('shows the same screen to department managers, limited to their department', () => {
+    expect(render(['DEPT_MANAGER']).querySelector('main')?.textContent).toContain('branch');
   });
 });
 

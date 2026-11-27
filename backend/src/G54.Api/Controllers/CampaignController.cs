@@ -140,4 +140,34 @@ public sealed class CampaignController(ICampaignService campaignService) : Contr
         var result = await campaignService.BatchGenerateWorkAsync(id, request, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, result.Message, HttpContext.TraceIdentifier));
     }
+
+    /// <summary>Completes a RUNNING campaign (CAMPAIGN_CONTRACT.md §5.7).</summary>
+    [HttpPost("{id:guid}/complete")]
+    [ProducesResponseType<ApiResponse<CampaignDecisionResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("campaign", "manage", "Dept")]
+    public async Task<ActionResult<ApiResponse<CampaignDecisionResultDto>>> Complete(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await campaignService.CompleteAsync(id, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, result.Message, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>Cancels a PLANNED or RUNNING campaign (CAMPAIGN_CONTRACT.md §5.7); a reason is required.</summary>
+    [HttpPost("{id:guid}/cancel")]
+    [ProducesResponseType<ApiResponse<CampaignDecisionResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("campaign", "manage", "Dept")]
+    public async Task<ActionResult<ApiResponse<CampaignDecisionResultDto>>> Cancel(
+        Guid id,
+        [FromBody] CancelCampaignRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await campaignService.CancelAsync(id, request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, result.Message, HttpContext.TraceIdentifier));
+    }
 }

@@ -20,4 +20,11 @@ import { TargetCell } from './target-overview.utils';
 })
 export class TargetCellComponent extends LocalizedComponent {
   readonly value = input.required<TargetCell>();
+  /** The number is shown divided by this (1e9 for tỷ VND, 0.01 for a fraction shown as %). */
+  readonly divisor = input(1);
+
+  /** The value in the column's unit, rounded to 2 decimals (also clears float noise such as 0.4 / 0.01). */
+  protected shown(value: number): number {
+    return Math.round((value / this.divisor()) * 100) / 100;
+  }
 }

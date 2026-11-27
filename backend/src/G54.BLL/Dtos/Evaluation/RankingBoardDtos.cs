@@ -63,7 +63,8 @@ public sealed record RankingBoardOverviewDto(
     IReadOnlyList<string> SendBlockers,
     IReadOnlyList<RankingBoardTierDto> Tiers,
     IReadOnlyList<RankingBoardStaffRowDto> StaffRows,
-    DateTimeOffset GeneratedAt);
+    DateTimeOffset GeneratedAt,
+    bool IsTeam = false);
 
 public sealed record RankingBoardAdjustmentItemDto(
     Guid EmployeeId,
