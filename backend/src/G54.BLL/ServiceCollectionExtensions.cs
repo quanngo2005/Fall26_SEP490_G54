@@ -29,6 +29,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAdminAccountService, AdminAccountService>();
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<IWorkService, WorkService>();
+        services.AddHttpClient("G54Queue", client => client.Timeout = TimeSpan.FromSeconds(5))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        services.AddScoped<QueueConnection>();
+        services.AddScoped(sp => new QueueCounterService(sp.GetRequiredService<G54.DAL.Uow.IUnitOfWork>(), sp.GetRequiredService<QueueConnection>(), sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()));
+        services.AddScoped(sp => new QueueLobbyService(sp.GetRequiredService<G54.DAL.Uow.IUnitOfWork>(), sp.GetRequiredService<IPermissionService>(), sp.GetRequiredService<QueueConnection>(), sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()));
+        services.AddScoped<QueueWorkProjection>();
+        services.AddHostedService<QueueWorkSync>();
         services.AddScoped<IKpiDefinitionService, KpiDefinitionService>();
         services.AddScoped<IKpiMappingService, KpiMappingService>();
         services.AddScoped<IBusinessObjectiveService, BusinessObjectiveService>();

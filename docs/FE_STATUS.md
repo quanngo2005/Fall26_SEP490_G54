@@ -1,4 +1,6 @@
-# BPMS – Frontend Status (as of 25/11/2026)
+# BPMS – Frontend Status (as of 26/11/2026)
+
+✅ G54 Queue (26/11/2026). The employee counter and the separate department/branch lobby pages run against the live APIs. Browser checks covered both SLA alerts, desk settings, daily metrics, ticket issue/call, Work creation, rating and kiosk VI/EN. Supervisor layout checked at 390, 820 and 1440 px.
 
 Counterpart of [`BE_STATUS.md`](BE_STATUS.md). Legend: ✅ done · 🟡 partial · ❌ missing. "Wired" means the screen calls the real API; a route listed here is lazy-loaded in `frontend/src/app/app.routes.ts`.
 

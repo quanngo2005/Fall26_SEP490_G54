@@ -1,4 +1,6 @@
-# BPMS – Backend Status (as of 24/11/2026)
+# BPMS – Backend Status (as of 26/11/2026)
+
+✅ G54 Queue (26/11/2026). Employee counter commands, scoped supervisor desk configuration, daily wait/service/rating metrics and replay-safe Work activity were verified against both APIs and PostgreSQL. Rating XLSX export and its permission check were exercised. Membership uses synthetic data.
 
 Compared against [`BPMS_AI_Agent_Context.md`](BPMS_AI_Agent_Context.md) (25/10, BR decisions). Legend: ✅ done · 🟡 partial · ❌ missing · ⚠ built but conflicts with the 25/10 decisions.
 

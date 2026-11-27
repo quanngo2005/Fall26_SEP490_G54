@@ -1,0 +1,151 @@
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="queue-page">
+      <h1>{{localization.queue.lobby}}</h1>
+      @if (offline()) {
+        <p class="notice" role="alert">{{localization.queue.failed}}</p>
+      }
+      @if (notice(); as key) {
+        <p role="status">{{localization.queue[key]}}</p>
+      }
+      @if (lobby(); as l) {
+        <p>
+          {{localization.queue.updated}} {{l.serverTime | date: 'HH:mm:ss'}} ·
+          {{localization.queue.thresholds}} {{l.waitLimitMinutes}} / {{l.serviceLimitMinutes}}
+          {{localization.queue.minutes}}
+        </p>
+        <h2>{{localization.queue.desks}}</h2>
+        <div class="desk-grid">
+          @for (d of l.desks; track d.counter) {
+            <section
+              class="panel"
+              [class.late]="d.calledAt && minutes(d.calledAt) >= l.serviceLimitMinutes"
+            >
+              <div class="row">
+                <h3>{{localization.queue.desk}} {{d.counter}}</h3>
+                <span class="status">{{localization.queue.states[d.state]}}</span>
+              </div>
+              <p>{{staffName(d.employee)}}</p>
+              @if (d.number && d.service) {
+                <strong>{{d.number}} · {{localization.queue.services[d.service]}}</strong>
+              }
+              @if (d.calledAt) {
+                <p>
+                  {{minutes(d.calledAt)}} {{localization.queue.minutes}}
+                  @if (minutes(d.calledAt) >= l.serviceLimitMinutes) {
+                    <b>{{localization.queue.sla}}</b>
+                  }
+                </p>
+              }
+              <div class="chips">
+                @for (code of d.services; track code) {
+                  <span>{{localization.queue.services[code]}}</span>
+                }
+              </div>
+              <button [disabled]="!!d.number || saving()" (click)="configure(d)">
+                {{localization.queue.configure}}
+              </button>
+            </section>
+          }
+        </div>
+        @if (edit; as d) {
+          <section class="panel">
+            <h2>
+              {{localization.queue.configure}} · {{localization.queue.desk}} {{d.counter}}
+            </h2>
+            <label
+              >{{localization.queue.staff}}<select [(ngModel)]="d.employee">
+                <option [ngValue]="null">{{localization.queue.unassigned}}</option>
+                @for (person of l.staff; track person.id) {
+                  @if (person.position === d.position) {
+                    <option [value]="person.id">{{person.name}}</option>
+                  }
+                }
+              </select></label
+            >
+            <fieldset>
+              <legend>{{localization.queue.service}}</legend>
+              @for (code of choices(d.position); track code) {
+                <label
+                  ><input
+                    type="checkbox"
+                    [checked]="d.services.includes(code)"
+                    (change)="toggle(d, code)"
+                  />{{localization.queue.services[code]}}</label
+                >
+              }
+            </fieldset>
+            <label
+              ><input type="checkbox" [(ngModel)]="d.locked" />{{localization.queue.lock}}</label
+            ><button [disabled]="saving() || !d.services.length" (click)="save(d)">
+              {{localization.queue.save}}</button
+            ><button (click)="edit = null">{{localization.queue.cancel}}</button>
+          </section>
+        }
+        <section class="panel">
+          <h2>{{localization.queue.waiting}} ({{l.waiting.length}})</h2>
+          @for (w of l.waiting; track w.number) {
+            <p class="row" [class.late]="minutes(w.issuedAt) >= l.waitLimitMinutes">
+              <b>{{w.number}}</b> {{localization.queue.services[w.service]}}
+              <span
+                >{{minutes(w.issuedAt)}} {{localization.queue.minutes}}
+                @if (minutes(w.issuedAt) >= l.waitLimitMinutes) {
+                  · {{localization.queue.sla}}
+                }
+              </span>
+            </p>
+          } @empty {
+            <p>{{localization.queue.noWait}}</p>
+          }
+        </section>
+        <section class="panel">
+          <h2>{{localization.queue.report}}</h2>
+          <p>
+            {{localization.queue.issuedToday}} <b>{{l.issuedToday}}</b> ·
+            {{localization.queue.total}} <b>{{total}}</b>
+          </p>
+          @if (l.daily.length) {
+            <div class="scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{{localization.queue.assigned}}</th>
+                    <th>{{localization.queue.count}}</th>
+                    <th>{{localization.queue.waitAvg}}</th>
+                    <th>{{localization.queue.serveAvg}}</th>
+                    <th>{{localization.queue.stars}}</th>
+                    <th>{{localization.queue.feedbackCount}}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of l.daily; track item.employee) {
+                    <tr>
+                      <td>{{staffName(item.employee)}}</td>
+                      <td>{{item.count}}</td>
+                      <td>
+                        {{item.waitSeconds / 60 | number: '1.0-1'}}
+                        {{localization.queue.minutes}}
+                      </td>
+                      <td>
+                        {{item.serviceSeconds / 60 | number: '1.0-1'}}
+                        {{localization.queue.minutes}}
+                      </td>
+                      <td>{{item.score === null ? '—' : (item.score | number: '1.0-1')}}</td>
+                      <td>{{item.ratings}}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <p>{{localization.queue.none}}</p>
+          }
+        </section>
+      } @else if (!offline()) {
+        <p>{{localization.queue.loading}}</p>
+      }
+    </main>
+  </div>
+</div>

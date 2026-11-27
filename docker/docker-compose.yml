@@ -62,6 +62,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-bpms_db};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
       ConnectionStrings__Redis: redis:6379,abortConnect=false
+      Queue__Origin: ${QUEUE_ORIGIN:-}
+      Queue__BranchCode: ${QUEUE_BRANCH_CODE:-}
+      Queue__ServiceKey: ${QUEUE_SERVICE_KEY:-}
       Jwt__Key: ${JWT_KEY:?Set JWT_KEY in docker/.env (see docker/.env.example)}
       Cors__Origins__0: ${FRONTEND_ORIGIN:-http://localhost:8080}
       Cors__Origins__1: http://localhost:4200
