@@ -1,0 +1,517 @@
+@let t = localization.work.announcement;
+<div class="workspace-layout">
+  <app-sidebar />
+  <div class="workspace-main">
+    <app-header />
+    <main class="workspace-content" [attr.aria-busy]="recipientsLoading() || sending()">
+      <header class="ui-page-header">
+        <div class="ui-page-heading">
+          <p class="ui-breadcrumb">{{t.breadcrumb}}</p>
+          <div class="ui-title-row">
+            <h1 class="ui-page-title">{{t.title}}</h1>
+            <span class="screen-badge">SCR-WRK-07</span>
+          </div>
+          <p class="ui-page-subtitle">{{t.subtitle}}</p>
+        </div>
+        <div class="ui-page-actions">
+          <a routerLink="/notifications" class="button button-secondary">
+            {{t.inboxLink}}
+          </a>
+          <button type="button" class="button button-secondary" (click)="cancel()">
+            {{t.backToMonitor}}
+          </button>
+        </div>
+      </header>
+
+      <div class="composer-grid">
+        <form
+          class="panel composer-card"
+          (submit)="onFormSubmit($event)"
+          (keydown)="onFormKeydown($event)"
+          novalidate
+        >
+          <fieldset class="field-group">
+            <legend class="field-label">
+              {{t.targetLabel}} <span class="req" aria-hidden="true">*</span>
+            </legend>
+
+            <div class="target-modes" role="radiogroup" [attr.aria-label]="t.targetLabel">
+              <button
+                type="button"
+                id="announcement-target-all"
+                class="mode-btn"
+                role="radio"
+                [attr.aria-checked]="targetMode() === 'all'"
+                [class.is-active]="targetMode() === 'all'"
+                (click)="chooseTargetMode('all')"
+              >
+                <span class="radio-dot" aria-hidden="true"></span>
+                <span>
+                  {{i18n.translate('work.announcement.targetAll', { count: recipients().length })}}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                id="announcement-target-position"
+                class="mode-btn"
+                role="radio"
+                [attr.aria-checked]="targetMode() === 'position'"
+                [class.is-active]="targetMode() === 'position'"
+                (click)="chooseTargetMode('position')"
+              >
+                <span class="radio-dot" aria-hidden="true"></span>
+                <span>{{t.targetPosition}}</span>
+              </button>
+
+              <button
+                type="button"
+                id="announcement-target-employees"
+                class="mode-btn"
+                role="radio"
+                [attr.aria-checked]="targetMode() === 'employees'"
+                [class.is-active]="targetMode() === 'employees'"
+                (click)="chooseTargetMode('employees')"
+              >
+                <span class="radio-dot" aria-hidden="true"></span>
+                <span>{{t.targetEmployees}}</span>
+              </button>
+            </div>
+
+            @if (recipientsLoading()) {
+              <div class="inline-state" role="status">
+                <span class="spinner" aria-hidden="true"></span>
+                <span>{{t.recipientsLoading}}</span>
+              </div>
+            } @else if (recipientsFailed()) {
+              <div class="inline-state inline-error" role="alert">
+                <span>{{t.recipientsError}}</span>
+                <button
+                  type="button"
+                  id="announcement-recipients-retry"
+                  class="link-btn"
+                  (click)="loadRecipients()"
+                >
+                  {{t.retry}}
+                </button>
+              </div>
+            } @else if (recipients().length === 0) {
+              <p class="inline-state">{{t.recipientsEmpty}}</p>
+            } @else if (targetMode() === 'position') {
+              <div class="picker-box">
+                <div class="picker-head">
+                  <span class="picker-title">{{t.positionsHeading}}</span>
+                  <span class="picker-summary">
+                    {{i18n.translate('work.announcement.positionsSelectedSummary', {
+                        positions: selectedPositions().size,
+                        employees: effectiveRecipientCount(),
+                      })}}
+                  </span>
+                </div>
+
+                @if (selectedPositionsList().length > 0) {
+                  <div class="chip-row">
+                    @for (pos of selectedPositionsList(); track pos) {
+                      <span class="sel-chip">
+                        <span>{{pos}}</span>
+                        <button
+                          type="button"
+                          class="chip-remove"
+                          [attr.aria-label]="
+                            i18n.translate('work.announcement.removeChip', { label: pos })
+                          "
+                          (click)="togglePosition(pos)"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    }
+                    <button type="button" class="link-btn" (click)="clearPositions()">
+                      {{t.clearSelection}}
+                    </button>
+                  </div>
+                }
+
+                <input
+                  type="search"
+                  id="announcement-position-search"
+                  name="positionSearch"
+                  class="input"
+                  [value]="positionSearch()"
+                  (input)="onPositionSearchInput($event)"
+                  [placeholder]="t.positionsSearchPlaceholder"
+                  [attr.aria-label]="t.positionsSearchPlaceholder"
+                />
+
+                <div class="picker-list">
+                  @for (group of visiblePositions(); track group.title) {
+                    <label class="picker-item">
+                      <input
+                        type="checkbox"
+                        [checked]="selectedPositions().has(group.title)"
+                        (change)="togglePosition(group.title)"
+                      />
+                      <span class="item-main">{{group.title}}</span>
+                      <span class="item-meta">
+                        {{i18n.translate('work.announcement.positionMemberCount', {
+                            count: group.count,
+                          })}}
+                      </span>
+                    </label>
+                  } @empty {
+                    <p class="picker-empty">{{t.positionsEmpty}}</p>
+                  }
+                </div>
+              </div>
+            } @else if (targetMode() === 'employees') {
+              <div class="picker-box">
+                <div class="picker-head">
+                  <span class="picker-title">{{t.employeesHeading}}</span>
+                  <span class="picker-summary">
+                    {{i18n.translate('work.announcement.employeesSelectedSummary', {
+                        count: selectedEmployeeIds().size,
+                      })}}
+                  </span>
+                </div>
+
+                @if (selectedEmployeesList().length > 0) {
+                  <div class="chip-row">
+                    @for (emp of selectedEmployeesList(); track emp.id) {
+                      <span class="sel-chip">
+                        <span>{{emp.fullName}} ({{emp.employeeCode}})</span>
+                        <button
+                          type="button"
+                          class="chip-remove"
+                          [attr.aria-label]="
+                            i18n.translate('work.announcement.removeChip', { label: emp.fullName })
+                          "
+                          (click)="toggleEmployee(emp.id)"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    }
+                  </div>
+                }
+
+                <div class="picker-search-row">
+                  <input
+                    type="search"
+                    id="announcement-employee-search"
+                    name="employeeSearch"
+                    class="input"
+                    [value]="employeeSearch()"
+                    (input)="onEmployeeSearchInput($event)"
+                    [placeholder]="t.employeesSearchPlaceholder"
+                    [attr.aria-label]="t.employeesSearchPlaceholder"
+                  />
+                  <button
+                    type="button"
+                    class="link-btn"
+                    [disabled]="visibleEmployees().length === 0"
+                    (click)="pickAllVisibleEmployees()"
+                  >
+                    {{t.pickAllVisible}}
+                  </button>
+                  <button
+                    type="button"
+                    class="link-btn"
+                    [disabled]="selectedEmployeeIds().size === 0"
+                    (click)="clearEmployees()"
+                  >
+                    {{t.clearSelection}}
+                  </button>
+                </div>
+
+                <div class="picker-list">
+                  @for (emp of visibleEmployees(); track emp.id) {
+                    <label class="picker-item">
+                      <input
+                        type="checkbox"
+                        [checked]="selectedEmployeeIds().has(emp.id)"
+                        (change)="toggleEmployee(emp.id)"
+                      />
+                      <span class="item-main">
+                        <strong>{{emp.fullName}}</strong>
+                        <span class="mono">({{emp.employeeCode}})</span>
+                      </span>
+                      <span class="item-meta">
+                        {{emp.jobPositionTitle}} · {{emp.departmentName}}
+                      </span>
+                    </label>
+                  } @empty {
+                    <p class="picker-empty">{{t.employeesEmpty}}</p>
+                  }
+                </div>
+              </div>
+            }
+          </fieldset>
+
+          <div class="field-group">
+            <div class="label-row">
+              <label for="announcement-title" class="field-label">
+                {{t.titleLabel}} <span class="req" aria-hidden="true">*</span>
+              </label>
+              <span class="counter" [class.is-over]="titleTooLong()">
+                {{i18n.translate('work.announcement.charCount', {
+                    current: trimmedTitle().length,
+                    max: titleMax,
+                  })}}
+              </span>
+            </div>
+            <input
+              id="announcement-title"
+              name="title"
+              type="text"
+              class="input"
+              [attr.maxlength]="titleMax"
+              [value]="title()"
+              (input)="onTitleInput($event)"
+              (blur)="titleTouched.set(true)"
+              [placeholder]="t.titlePlaceholder"
+              [attr.aria-invalid]="(titleTouched() && titleMissing()) || titleTooLong()"
+            />
+            @if (titleTouched() && titleMissing()) {
+              <p class="field-error" role="alert">{{t.titleRequired}}</p>
+            } @else if (titleTooLong()) {
+              <p class="field-error" role="alert">
+                {{i18n.translate('work.announcement.titleTooLong', { max: titleMax })}}
+              </p>
+            }
+          </div>
+
+          <div class="field-group">
+            <div class="label-row">
+              <label for="announcement-body" class="field-label">{{t.bodyLabel}}</label>
+              <span class="counter" [class.is-over]="bodyTooLong()">
+                {{i18n.translate('work.announcement.charCount', {
+                    current: body().length,
+                    max: bodyMax,
+                  })}}
+              </span>
+            </div>
+            <textarea
+              id="announcement-body"
+              name="body"
+              rows="6"
+              class="input textarea"
+              [attr.maxlength]="bodyMax"
+              [value]="body()"
+              (input)="onBodyInput($event)"
+              [placeholder]="t.bodyPlaceholder"
+              [attr.aria-invalid]="bodyTooLong()"
+            ></textarea>
+            <p class="field-hint">{{t.bodyHint}}</p>
+            @if (bodyTooLong()) {
+              <p class="field-error" role="alert">
+                {{i18n.translate('work.announcement.bodyTooLong', { max: bodyMax })}}
+              </p>
+            }
+          </div>
+
+          <div class="two-col">
+            <div class="field-group">
+              <label for="announcement-severity" class="field-label">{{t.severityLabel}}</label>
+              <select
+                id="announcement-severity"
+                name="severity"
+                class="select"
+                [value]="severity()"
+                (change)="onSeverityChange($event)"
+              >
+                <option value="NORMAL">{{t.severityNormal}}</option>
+                <option value="IMPORTANT">{{t.severityImportant}}</option>
+              </select>
+              @if (severity() === 'IMPORTANT') {
+                <p class="field-hint is-important">{{t.severityImportantHint}}</p>
+              }
+            </div>
+
+            <div class="field-group">
+              <label for="announcement-related-type" class="field-label">
+                {{t.relatedTypeLabel}}
+              </label>
+              <select
+                id="announcement-related-type"
+                name="relatedType"
+                class="select"
+                [value]="relatedType()"
+                (change)="onRelatedTypeSelect($event)"
+              >
+                <option value="NONE">{{t.relatedNone}}</option>
+                <option value="WORK">{{t.relatedWork}}</option>
+                <option value="CAMPAIGN">{{t.relatedCampaign}}</option>
+              </select>
+            </div>
+          </div>
+
+          @if (relatedType() !== 'NONE') {
+            <div class="field-group">
+              <label for="announcement-related-id" class="field-label">
+                {{t.relatedRecordLabel}} <span class="req" aria-hidden="true">*</span>
+              </label>
+              @if (relatedLoading()) {
+                <div class="inline-state" role="status">
+                  <span class="spinner" aria-hidden="true"></span>
+                  <span>{{t.relatedLoading}}</span>
+                </div>
+              } @else if (relatedFailed()) {
+                <div class="inline-state inline-error" role="alert">
+                  <span>{{t.relatedError}}</span>
+                  <button
+                    type="button"
+                    id="announcement-related-retry"
+                    class="link-btn"
+                    (click)="loadRelatedOptions(relatedType() === 'WORK' ? 'WORK' : 'CAMPAIGN')"
+                  >
+                    {{t.retry}}
+                  </button>
+                </div>
+              } @else {
+                <select
+                  id="announcement-related-id"
+                  name="relatedId"
+                  class="select"
+                  [value]="relatedId()"
+                  (change)="onRelatedIdChange($event)"
+                >
+                  <option value="">
+                    {{relatedType() === 'WORK'
+                        ? t.relatedWorkPlaceholder
+                        : t.relatedCampaignPlaceholder}}
+                  </option>
+                  @for (opt of relatedOptions(); track opt.id) {
+                    <option [value]="opt.id">{{opt.code}} · {{opt.label}}</option>
+                  }
+                </select>
+                @if (relatedOptions().length === 0) {
+                  <p class="field-hint">{{t.relatedEmpty}}</p>
+                } @else if (titleTouched() && relatedIncomplete()) {
+                  <p class="field-error" role="alert">{{t.relatedRequired}}</p>
+                }
+              }
+            </div>
+          }
+
+          @if (sendError()) {
+            <div id="announcement-error" class="banner banner-error" role="alert">
+              {{sendError()}}
+            </div>
+          }
+          @let sentTotal = sentCount();
+          @if (sentTotal !== null) {
+            <div id="announcement-success" class="banner banner-success" role="status">
+              {{i18n.translate('work.announcement.sendSuccess', { count: sentTotal })}}
+            </div>
+          }
+
+          <div class="form-footer">
+            <button
+              type="button"
+              id="announcement-cancel"
+              class="button button-secondary"
+              [disabled]="sending()"
+              (click)="cancel()"
+            >
+              {{t.cancel}}
+            </button>
+            <button
+              type="submit"
+              id="announcement-submit"
+              class="button button-primary"
+              [disabled]="sendBlocked()"
+            >
+              <span>{{sending() ? t.submitting : t.submit}}</span>
+              @if (!sending()) {
+                <kbd class="kbd-hint">{{t.shortcutHint}}</kbd>
+              }
+            </button>
+          </div>
+        </form>
+
+        <aside class="composer-aside">
+          <section class="panel preview-card" [attr.aria-label]="t.previewHeading">
+            <div class="aside-head">
+              <h2 class="aside-title">{{t.previewHeading}}</h2>
+              <span class="mono aside-code">{{t.previewCode}}</span>
+            </div>
+
+            <div class="preview-box" [class.is-important]="severity() === 'IMPORTANT'">
+              <div class="preview-top">
+                <span class="preview-dot" aria-hidden="true"></span>
+                <div class="preview-titles">
+                  <strong class="preview-title">
+                    {{trimmedTitle() || t.previewTitlePlaceholder}}
+                  </strong>
+                  <span class="preview-meta">
+                    {{i18n.translate('work.announcement.previewMeta', {
+                        sender: senderDisplayName(),
+                      })}}
+                  </span>
+                </div>
+                <span class="sev-badge" [class.is-important]="severity() === 'IMPORTANT'">
+                  {{severity() === 'IMPORTANT' ? t.severityImportant : t.severityNormal}}
+                </span>
+              </div>
+
+              <p class="preview-body">{{body().trim() || t.previewBodyPlaceholder}}</p>
+
+              @if (selectedRelatedLabel()) {
+                <p class="preview-link-tag">{{selectedRelatedLabel()}}</p>
+              }
+            </div>
+
+            <p class="preview-note">
+              @if (effectiveRecipientCount() > 0) {
+                {{i18n.translate('work.announcement.previewLiveNote', {
+                    count: effectiveRecipientCount(),
+                  })}}
+              } @else {
+                {{t.previewNoRecipients}}
+              }
+            </p>
+          </section>
+
+          <section class="panel recent-card" [attr.aria-label]="t.recentHeading">
+            <div class="aside-head">
+              <h2 class="aside-title">{{t.recentHeading}}</h2>
+              <span class="recent-badge">
+                {{i18n.translate('work.announcement.recentBadge', { count: sentHistory().length })}}
+              </span>
+            </div>
+
+            @if (sentHistory().length === 0) {
+              <p class="recent-empty">{{t.recentEmpty}}</p>
+            } @else {
+              <ul class="recent-list">
+                @for (item of sentHistory(); track $index) {
+                  <li class="recent-item">
+                    <div class="recent-row">
+                      <strong class="recent-title">{{item.title}}</strong>
+                      <span class="sev-badge" [class.is-important]="item.severity === 'IMPORTANT'">
+                        {{item.severity === 'IMPORTANT' ? t.severityImportant : t.severityNormal}}
+                      </span>
+                    </div>
+                    <p class="recent-meta">{{item.sentAt}} · {{item.targetSummary}}</p>
+                    <p class="recent-count">
+                      {{i18n.translate('work.announcement.recentRecipients', {
+                          count: item.recipientCount,
+                        })}}
+                    </p>
+                    @if (item.relatedLabel) {
+                      <p class="recent-related">{{item.relatedLabel}}</p>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+
+            <div class="recent-footer">
+              <a routerLink="/notifications" class="link-btn">{{t.recentViewInbox}} →</a>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>

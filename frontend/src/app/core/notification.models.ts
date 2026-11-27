@@ -73,12 +73,16 @@ export interface NotificationQuery {
   pageSize?: number;
 }
 
+export type AnnouncementRelatedType = 'WORK' | 'CAMPAIGN';
+
 export interface SendNotificationRequest {
   title: string;
   body?: string;
   severity?: NotificationSeverity;
   /** Omitted or empty = every active employee inside the sender's scope. */
   recipientEmployeeIds?: string[];
+  relatedType?: AnnouncementRelatedType;
+  relatedId?: string;
 }
 
 export interface NotificationRecipientOption {
