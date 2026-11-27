@@ -143,10 +143,10 @@ describe('DepartmentRankingComponent', () => {
     expect(component.totalActual()).toBe(1);
   });
 
-  it('should disable sending to director while the board has blockers', () => {
+  it('should keep sending to director enabled even while the board has blockers', () => {
     expect(component.canSend()).toBeFalse();
     const sendButton = findButton(fixture, 'Gửi giám đốc chi nhánh');
-    expect(sendButton?.disabled).toBeTrue();
+    expect(sendButton?.disabled).toBeFalse();
   });
 
   it('should enable sending to director when the board allows it', () => {
@@ -165,14 +165,15 @@ describe('DepartmentRankingComponent', () => {
     expect(saveButton).toBeDefined();
   });
 
-  it('should not open the send confirmation when the board cannot be sent', () => {
+  it('should open the send confirmation even when canSendToDirector is false', () => {
     component.openConfirmSend();
-    expect(component.confirmSendOpen()).toBeFalse();
+    expect(component.confirmSendOpen()).toBeTrue();
   });
 
   it('should keep adjusting disabled until the ranking lock day is reached', () => {
     expect(component.lockReached()).toBeFalse();
     expect(component.canAdjustRow(row)).toBeTrue();
+    expect(component.canAdjustRow({ ...row, evaluationStatus: 'DRAFT' })).toBeTrue();
     expect(component.canAdjustRow({ ...row, evaluationStatus: 'FINAL' })).toBeFalse();
   });
 

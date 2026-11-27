@@ -3274,4 +3274,86 @@ public sealed class EvaluationServiceTests
         Assert.NotNull(draftBoard);
         Assert.True(draftBoard.IsTeam);
     }
+
+    [Fact]
+    public async Task FocusKpiGate_UnmetFocusKpis_CapsToA3AndBlocksA1A2_UntilAllFocusKpisMet()
+    {
+        var (context, _) = CreateTestEnvironment();
+        var (dept, _, period, manager, staff) = await SeedBaseScenarioAsync(context);
+        var kpiHdv = await context.KpiDefinitions.FirstAsync(k => k.Code == "HDV");
+        var kpiCsat = await context.KpiDefinitions.FirstAsync(k => k.Code == "CSAT");
+        period.FocusKpiIds = System.Text.Json.JsonSerializer.Serialize(new[] { kpiHdv.Id, kpiCsat.Id });
+
+        var now = DateTimeOffset.UtcNow;
+        var targetCsat = new TargetAssignment
+        {
+            Id = Guid.NewGuid(),
+            EvaluationPeriodId = period.Id,
+            EmployeeId = staff.Id,
+            KpiDefinitionId = kpiCsat.Id,
+            TargetValue = 100m,
+            Version = 1,
+            Status = TargetAssignmentStatus.Active,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        await context.TargetAssignments.AddAsync(targetCsat);
+
+        var apCsat = new ActualProgress
+        {
+            Id = Guid.NewGuid(),
+            TargetAssignmentId = targetCsat.Id,
+            ProgressDate = period.EndDate,
+            Value = 50m,
+            Status = ActualProgressStatus.Valid,
+            UpdatedAt = now,
+        };
+        await context.ActualProgresses.AddAsync(apCsat);
+
+        await context.PerformanceEvaluations.AddAsync(new PerformanceEvaluation
+        {
+            Id = Guid.NewGuid(),
+            EmployeeId = staff.Id,
+            EvaluationPeriodId = period.Id,
+            Status = PerformanceEvaluationStatus.Calculated,
+            TotalScore = 97m,
+            CalculatedAt = now,
+            UpdatedAt = now,
+        });
+        await context.SaveChangesAsync();
+
+        var service = CreateServiceAt(context, new DateTimeOffset(2026, 10, 20, 9, 0, 0, TimeSpan.FromHours(7)));
+
+        var board1 = await service.GetRankingBoardAsync(period.Id, dept.Id, null, manager.Id);
+        Assert.Equal(2, board1.FocusKpis!.Count);
+        var row1 = board1.StaffRows.Single(r => r.EmployeeId == staff.Id);
+        Assert.Equal(1, row1.FocusKpisMet);
+        Assert.Equal(2, row1.FocusKpisTotal);
+        Assert.Equal("A3", row1.MaxAllowedTier);
+        Assert.Equal("A3", row1.SystemTier);
+
+        // Both A1 and A2 are blocked when only 1/2 focus KPIs are met
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            service.SaveRankingBoardDraftAsync(
+                new SaveRankingBoardRequestDto(dept.Id, period.Id, [new(staff.Id, "A2", "Try A2")]),
+                manager.Id));
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            service.SaveRankingBoardDraftAsync(
+                new SaveRankingBoardRequestDto(dept.Id, period.Id, [new(staff.Id, "A1", "Try A1")]),
+                manager.Id));
+
+        // Now meet the second focus KPI as well (2/2)
+        apCsat.Value = 100m;
+        await context.SaveChangesAsync();
+
+        var board2 = await service.GetRankingBoardAsync(period.Id, dept.Id, null, manager.Id);
+        var row2 = board2.StaffRows.Single(r => r.EmployeeId == staff.Id);
+        Assert.Equal(2, row2.FocusKpisMet);
+        Assert.Equal("A1", row2.MaxAllowedTier);
+
+        var saved = await service.SaveRankingBoardDraftAsync(
+            new SaveRankingBoardRequestDto(dept.Id, period.Id, [new(staff.Id, "A1", "Met all focus KPIs")]),
+            manager.Id);
+        Assert.Equal("A1", saved.StaffRows.Single(r => r.EmployeeId == staff.Id).FinalTier);
+    }
 }

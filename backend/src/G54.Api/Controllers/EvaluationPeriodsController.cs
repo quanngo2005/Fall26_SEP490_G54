@@ -106,4 +106,29 @@ public sealed class EvaluationPeriodsController(IEvaluationPeriodService service
         var result = await service.CloseAsync(id, cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("{id:guid}/focus-kpis")]
+    [HasPermission("evaluation", "read", PermissionScopes.Branch)]
+    [ProducesResponseType<ApiResponse<PeriodFocusKpisDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<PeriodFocusKpisDto>>> GetFocusKpis(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await service.GetFocusKpisAsync(id, cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:guid}/focus-kpis")]
+    [HasPermission("evaluation", "finalize", PermissionScopes.Branch)]
+    [ProducesResponseType<ApiResponse<PeriodFocusKpisDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<PeriodFocusKpisDto>>> UpdateFocusKpis(
+        Guid id,
+        [FromBody] UpdatePeriodFocusKpisRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.UpdateFocusKpisAsync(id, request, cancellationToken);
+        return Ok(ApiResponse.Ok(result, "Cập nhật KPI trọng tâm cho kỳ đánh giá thành công.", traceId: HttpContext.TraceIdentifier));
+    }
 }

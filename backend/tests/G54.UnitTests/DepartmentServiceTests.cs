@@ -512,6 +512,23 @@ public sealed class DepartmentServiceTests
     }
 
     [Fact]
+    public async Task YearlyTrendCoversAll12MonthsForCurrentAndPreviousYear()
+    {
+        var world = await World.CreateAsync();
+        var service = world.ServiceFor(world.AdminAccount, "All");
+
+        var yearly = (await service.GetOverviewAsync(world.AdminAccount, world.Department.Id, null)).Performance.YearlyTrend;
+        Assert.NotNull(yearly);
+        Assert.Equal(2026, yearly.CurrentYear);
+        Assert.Equal(2025, yearly.PreviousYear);
+        Assert.Equal(12, yearly.Months.Count);
+        Assert.Equal(75m, yearly.Months.Single(m => m.Month == 9).CurrentYearAverage);
+        Assert.Equal(80m, yearly.Months.Single(m => m.Month == 10).CurrentYearAverage);
+        Assert.Null(yearly.Months.Single(m => m.Month == 1).CurrentYearAverage);
+        Assert.Null(yearly.Months.Single(m => m.Month == 10).PreviousYearAverage);
+    }
+
+    [Fact]
     public async Task KpiGroupsFollowTheProfileRootsWithWeightsPreviousAchievementAndCampaignPart()
     {
         var world = await World.CreateAsync();

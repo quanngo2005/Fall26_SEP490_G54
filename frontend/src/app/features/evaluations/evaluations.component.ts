@@ -27,6 +27,7 @@ import {
 } from '../../core/evaluation.models';
 import { EvaluationService } from '../../core/evaluation.service';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
+import { RouteStateService } from '../../core/route-state.service';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { LayoutIconComponent } from '../../shared/layout/layout-icon.component';
 import { AppNumberPipe } from '../../shared/pipes';
@@ -181,6 +182,7 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
   protected readonly formTarget = inject(EvaluationFormTargetService);
   protected readonly router = inject(Router);
   protected readonly route = inject(ActivatedRoute);
+  private readonly routeState = inject(RouteStateService);
   protected readonly destroyRef = inject(DestroyRef);
 
   readonly isBranchMode = input<boolean>(false);
@@ -352,6 +354,18 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
 
   readonly cardScorePillText = computed(() => {
     const delta = this.departmentScoreDelta();
+    const compare = this.comparePeriod()?.code ?? this.comparePeriod()?.name;
+    if (delta === null || !compare) {
+      return '—';
+    }
+    return this.i18n.translate('evaluations.dashboard.cardScorePill', {
+      delta: this.signedText(delta),
+      compare,
+    });
+  });
+
+  readonly cardDeptPePillText = computed(() => {
+    const delta = this.totalScoreChange();
     const compare = this.comparePeriod()?.code ?? this.comparePeriod()?.name;
     if (delta === null || !compare) {
       return '—';
@@ -861,7 +875,8 @@ export class EvaluationsComponent extends LocalizedComponent implements OnInit {
 
   ngOnInit(): void {
     const q = this.route.snapshot.queryParamMap;
-    const initialDeptId = q.get('departmentId') ?? q.get('department');
+    const initialDeptId =
+      this.routeState.value('departmentId') ?? q.get('departmentId') ?? q.get('department');
     if (initialDeptId) {
       this.selectedDepartmentId.set(initialDeptId);
     }

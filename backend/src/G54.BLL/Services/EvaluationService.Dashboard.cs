@@ -878,7 +878,7 @@ public sealed partial class EvaluationService
                 .ToList();
             var fallbackWeight = groupKpisRaw.Count > 0 && g.WeightPercent > 0m
                 ? g.WeightPercent / groupKpisRaw.Count
-                : 100m;
+                : 0m;
 
             var groupKpis = groupKpisRaw
                 .Select(r =>

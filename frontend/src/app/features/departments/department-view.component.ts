@@ -4,6 +4,8 @@ import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { AuthService } from '../../core/auth.service';
+import { canViewBranchEvaluations } from '../../core/branch-evaluation.guard';
 import { catchError, EMPTY, finalize, forkJoin, Subject, switchMap } from 'rxjs';
 import { HeaderComponent, SidebarComponent } from '../../shared/layout';
 import { RouteStateService } from '../../core/route-state.service';
@@ -60,7 +62,11 @@ import { kpiOnPlan, saveFile } from '../performance-dashboard/performance-page';
 })
 export class DepartmentViewComponent extends LocalizedComponent {
   private readonly api = inject(DepartmentService);
+  private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  protected readonly canOpenBranchRanking = computed(() =>
+    canViewBranchEvaluations(this.auth.currentUser()?.permissions),
+  );
   private readonly route = inject(ActivatedRoute);
   private readonly routeState = inject(RouteStateService);
   private readonly router = inject(Router);
@@ -305,5 +311,15 @@ export class DepartmentViewComponent extends LocalizedComponent {
       params.toString(),
       data.period ? { periodId: data.period.id } : {},
     );
+  }
+
+  protected openBranchRankingApproval(): void {
+    void this.router.navigate(['/branch-performance/evaluations/approval'], {
+      queryParams: {
+        viewMode: 'single',
+        departmentId: this.departmentId || undefined,
+        periodId: this.periodId || undefined,
+      },
+    });
   }
 }

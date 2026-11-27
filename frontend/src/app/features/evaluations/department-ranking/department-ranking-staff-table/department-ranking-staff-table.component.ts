@@ -97,4 +97,22 @@ export class DepartmentRankingStaffTableComponent extends LocalizedComponent {
   tierClass(tier: RankingTierCode | null): string {
     return tier ? TIER_CLASS[tier] : '';
   }
+
+  isTierLocked(row: RankingBoardStaffRow, tier: RankingTierCode): boolean {
+    if (!row.maxAllowedTier) return false;
+    const rankOrder: Record<RankingTierCode, number> = {
+      A1: 1,
+      A2: 2,
+      A3: 3,
+      B: 4,
+      C: 5,
+    };
+    return rankOrder[tier] < rankOrder[row.maxAllowedTier];
+  }
+
+  focusGateTooltip(row: RankingBoardStaffRow): string {
+    const met = row.focusKpisMet ?? 0;
+    const total = row.focusKpisTotal ?? 0;
+    return `Chưa đạt đủ KPI trọng tâm kỳ (${met}/${total}), tối đa hạng ${row.maxAllowedTier ?? 'A3'}`;
+  }
 }

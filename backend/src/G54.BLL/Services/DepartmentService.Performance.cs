@@ -218,6 +218,44 @@ public sealed partial class DepartmentService
             .ToList();
     }
 
+    private async Task<DepartmentYearlyTrendDto> BuildYearlyTrendAsync(
+        EvaluationPeriod period,
+        List<EvaluationPeriod> selectable,
+        ScoreSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        var currentYear = period.StartDate.Year;
+        var previousYear = currentYear - 1;
+
+        var monthlyPeriods = selectable
+            .Where(p => p.PeriodType == PeriodType.Month
+                && (p.StartDate.Year == currentYear || p.StartDate.Year == previousYear))
+            .ToList();
+
+        var employeeIds = snapshot.Employees.Select(e => e.Id).ToList();
+        ILookup<Guid, decimal> byPeriod = Enumerable.Empty<decimal>().ToLookup(_ => Guid.Empty);
+        if (monthlyPeriods.Count > 0 && employeeIds.Count > 0)
+        {
+            var periodIds = monthlyPeriods.Select(p => p.Id).ToList();
+            var scores = await db.PerformanceEvaluations.AsNoTracking()
+                .Where(pe => periodIds.Contains(pe.EvaluationPeriodId) && employeeIds.Contains(pe.EmployeeId))
+                .Where(PerformanceEvaluationExtensions.HasRankableScore)
+                .Select(pe => new { pe.EvaluationPeriodId, Score = pe.TotalScore!.Value })
+                .ToListAsync(cancellationToken);
+            byPeriod = scores.ToLookup(s => s.EvaluationPeriodId, s => s.Score);
+        }
+
+        var byYearMonth = monthlyPeriods.ToLookup(p => (p.StartDate.Year, p.StartDate.Month));
+        var months = Enumerable.Range(1, 12)
+            .Select(month => new DepartmentYearlyTrendMonthDto(
+                month,
+                Mean(byYearMonth[(currentYear, month)].SelectMany(p => byPeriod[p.Id])),
+                Mean(byYearMonth[(previousYear, month)].SelectMany(p => byPeriod[p.Id]))))
+            .ToList();
+
+        return new DepartmentYearlyTrendDto(currentYear, previousYear, months);
+    }
+
     /// <summary>
     /// The KPI rows grouped by the root node of the effective profiles of the positions present. Roots of different
     /// profiles with the same name are one group; a KPI under no root goes to a last group without a name.

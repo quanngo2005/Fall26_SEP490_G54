@@ -278,7 +278,7 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
-    [HasPermission("evaluation", "finalize", "Branch")]
+    [HasPermission("evaluation", "calibrate", "Dept")]
     public async Task<ActionResult<ApiResponse<RankingBoardSendResultDto>>> SendRankingBoardToDirector(
         [FromBody] SaveRankingBoardRequestDto request,
         CancellationToken cancellationToken)
@@ -365,6 +365,24 @@ public sealed class EvaluationController(IEvaluationService service) : Controlle
     {
         RequireIds(("departmentId", request.DepartmentId), ("periodId", request.PeriodId));
         var result = await service.SubmitDepartmentCalibrationAsync(request, User.GetRequiredUserId(), cancellationToken);
+        return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// Saves Branch Manager ranking adjustments on Submitted evaluations without finalizing (SCR-EVL-03).
+    /// </summary>
+    [HttpPost("approvals/save-adjustments")]
+    [ProducesResponseType<ApiResponse<CalibrationSubmitResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse>(StatusCodes.Status409Conflict)]
+    [HasPermission("evaluation", "finalize", "Branch")]
+    public async Task<ActionResult<ApiResponse<CalibrationSubmitResultDto>>> SaveBranchCalibrationAdjustments(
+        [FromBody] SubmitCalibrationRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        RequireIds(("departmentId", request.DepartmentId), ("periodId", request.PeriodId));
+        var result = await service.SaveBranchCalibrationAdjustmentsAsync(request, User.GetRequiredUserId(), cancellationToken);
         return Ok(ApiResponse.Ok(result, traceId: HttpContext.TraceIdentifier));
     }
 

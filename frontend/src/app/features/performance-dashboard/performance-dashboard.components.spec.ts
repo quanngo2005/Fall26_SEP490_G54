@@ -14,6 +14,7 @@ import { PerfKpiGroupTableComponent } from './performance-kpi-group-table.compon
 import { PerfMemberTableComponent } from './performance-member-table.component';
 import { PerfMetricCardComponent } from './performance-metric-card.component';
 import { PerfProfileGroupsComponent } from './performance-profile-groups.component';
+import { PerfBranchLineChartComponent } from './performance-branch-line-chart.component';
 import { PerfTrendChartComponent } from './performance-trend-chart.component';
 import { PerfWorkProgressComponent } from './performance-work-progress.component';
 import { By } from '@angular/platform-browser';
@@ -99,6 +100,27 @@ describe('performance dashboard cards', () => {
     expect(root.querySelector('svg')).toBeNull();
   });
 
+  it('branch line chart draws 2 lines across 12 months for current and previous year', () => {
+    const data = overviewFixture();
+    const fixture = render(PerfBranchLineChartComponent, {
+      trend: data.performance.yearlyTrend,
+      title: 'Branch performance',
+    });
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.querySelector('path.line-current')).not.toBeNull();
+    expect(root.querySelector('path.line-previous')).not.toBeNull();
+    expect(root.querySelectorAll('rect.hit-target').length).toBe(12);
+    expect(text(fixture)).toContain('Branch performance · 12 months');
+    expect(text(fixture)).toContain('2026');
+    expect(text(fixture)).toContain('2025');
+    expect(text(fixture)).toContain('Jan');
+    expect(text(fixture)).toContain('Dec');
+
+    fixture.componentRef.setInput('trend', null);
+    fixture.detectChanges();
+    expect(root.querySelector('svg')).toBeNull();
+  });
+
   it('KPI group table shows weights, the campaign column and hides ± without a compare period', () => {
     const data = overviewFixture();
     const fixture = render(PerfKpiGroupTableComponent, {
@@ -111,6 +133,12 @@ describe('performance dashboard cards', () => {
     expect(text(fixture)).toContain('≤ 1.0 %');
     expect(text(fixture)).toContain('20.0 u');
     expect(text(fixture)).toContain('± Period Before');
+    expect(text(fixture)).toContain('70%');
+    expect(text(fixture)).toContain('Short 30.0 u');
+    expect(text(fixture)).toContain('111%');
+    expect(text(fixture)).toContain('Over 0.1 %');
+    expect(fixture.nativeElement.querySelectorAll('.achievement strong.down').length).toBe(1);
+    expect(fixture.nativeElement.querySelectorAll('.achievement strong.up').length).toBe(1);
 
     fixture.componentRef.setInput('compareName', null);
     fixture.componentRef.setInput('showCampaign', false);
@@ -214,7 +242,7 @@ describe('performance dashboard cards', () => {
     expect(text(fixture)).not.toContain('Change vs');
   });
 
-  it('child units link to the department screen with the same period and comparison', () => {
+  it('child units link to branch evaluations filtered by that department', () => {
     const fixture = render(PerfChildUnitsComponent, {
       units: [
         {
@@ -235,10 +263,9 @@ describe('performance dashboard cards', () => {
       compare: 'SAME_LAST_YEAR',
     });
     const href = fixture.nativeElement.querySelector('a.unit').getAttribute('href');
-    expect(href).toContain('/department-performance?department=U1');
-    expect(href).not.toContain('periodId');
-    expect(linkState(fixture, 'a.unit')).toEqual({ periodId: 'p-cur' });
-    expect(href).toContain('compare=SAME_LAST_YEAR');
+    expect(href).toBe('/branch-performance/evaluations');
+    expect(linkState(fixture, 'a.unit')).toEqual({ departmentId: 'u-1' });
+    expect(fixture.nativeElement.querySelector('a.card-link')).toBeNull();
     expect(text(fixture)).toContain('9/10 scored');
     expect(text(fixture)).toContain('−3.3');
   });
@@ -287,11 +314,14 @@ describe('performance dashboard cards', () => {
     expect(root.querySelector('[role="alert"]')).not.toBeNull();
   });
 
-  it('campaign card shows API progress, elapsed marker and pace', () => {
+  it('campaign card shows start date, status, progress bar, completed works, and deadline', () => {
     const campaign = {
       id: 'c-1',
       code: 'C1',
       name: 'Campaign One',
+      startDate: '2026-10-01',
+      endDate: '2026-12-31',
+      status: 'RUNNING',
       generatedWorksCount: 4,
       completedWorksCount: 1,
       progressPercent: 25,
@@ -305,9 +335,11 @@ describe('performance dashboard cards', () => {
     const fixture = render(PerfCampaignPaceComponent, { campaigns: [campaign] });
     const root: HTMLElement = fixture.nativeElement;
     expect(text(fixture)).toContain('Indicator One · 7.0 / 40.0 u');
+    expect(text(fixture)).toContain('01/10/2026');
+    expect(text(fixture)).toContain('31/12/2026');
     expect(text(fixture)).toContain('25%');
-    expect(text(fixture)).toContain('−35');
-    expect((root.querySelector('.marker') as HTMLElement).style.left).toBe('60%');
+    expect(text(fixture)).toContain('1/4');
+    expect((root.querySelector('.fill') as HTMLElement).style.width).toBe('25%');
 
     fixture.componentRef.setInput('campaigns', [{ ...campaign, kpiName: null, targetValue: null }]);
     fixture.detectChanges();

@@ -54,6 +54,13 @@
             >
               {{exporting() ? shared.exporting : shared.exportExcel}}
             </button>
+            <button
+              type="button"
+              class="button button-secondary"
+              (click)="openBranchRankingApproval()"
+            >
+              Xếp hạng chi nhánh
+            </button>
           }
         </div>
       </header>
@@ -117,33 +124,22 @@
             [compareName]="compareName()"
             [compare]="compare"
           />
-          <app-perf-evaluation-period
-            [periods]="periods()"
-            [failed]="periodsFailed()"
-            (retry)="loadPeriods()"
+          <app-perf-branch-line-chart
+            [trend]="data.performance.yearlyTrend"
+            [title]="text.trendTitle"
           />
           <app-perf-campaign-pace
+            class="full-row"
             [campaigns]="campaigns()?.campaigns?.items ?? []"
             [failed]="campaignsFailed()"
             (retry)="loadCampaigns()"
           />
-          <app-perf-kpi-below-plan
-            [groups]="data.performance.kpiGroups"
-            [compareName]="compareName()"
-            (viewAll)="scrollTo('kpi-groups')"
-          />
         </div>
-        <h2 class="divider">
-          <span>{{shared.detail}}</span>
-        </h2>
-        <div class="grid">
-          <app-perf-kpi-group-table
-            [groups]="data.performance.kpiGroups"
-            [compareName]="compareName()"
-            [showCampaign]="true"
-          />
-          <app-perf-trend-chart [points]="data.performance.trend" [title]="text.trendTitle" />
-        </div>
+        <app-perf-kpi-group-table
+          [groups]="data.performance.kpiGroups"
+          [compareName]="compareName()"
+          [showCampaign]="true"
+        />
       } @else {
         <div class="state-card">
           <p>{{text.noBranch}}</p>

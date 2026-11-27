@@ -278,6 +278,8 @@ export interface BranchApprovalOverview {
   canFinalize: boolean;
   departments: DepartmentApprovalSummary[];
   disputedPendingCount: number;
+  tierBTargetPercent?: number;
+  tierCTargetPercent?: number;
 }
 
 export type RankingTierCode = 'A1' | 'A2' | 'A3' | 'B' | 'C';
@@ -328,6 +330,22 @@ export interface RankingBoardStaffRow {
   finalTier: RankingTierCode | null;
   adjustmentReason: string | null;
   evaluationStatus: PerformanceEvaluationStatus;
+  focusKpisMet?: number;
+  focusKpisTotal?: number;
+  maxAllowedTier?: RankingTierCode | null;
+  focusKpiDetails?: RankingBoardCriterion[];
+}
+
+export interface FocusKpiSummary {
+  id: string;
+  code: string;
+  name: string;
+  unit: string;
+}
+
+export interface PeriodFocusKpis {
+  periodId: string;
+  focusKpis: FocusKpiSummary[];
 }
 
 export interface RankingBoardOverview {
@@ -348,6 +366,7 @@ export interface RankingBoardOverview {
   staffRows: RankingBoardStaffRow[];
   generatedAt: string;
   isTeam?: boolean;
+  focusKpis?: FocusKpiSummary[];
 }
 
 export interface RankingBoardAdjustmentItem {
@@ -360,6 +379,29 @@ export interface SaveRankingBoardRequest {
   departmentId: string;
   periodId: string;
   adjustments: RankingBoardAdjustmentItem[];
+}
+
+export interface SubmitCalibrationAdjustmentItem {
+  employeeId: string;
+  calibratedTier: string;
+  reason: string | null;
+  coachingFlag?: boolean;
+}
+
+export interface SubmitCalibrationRequest {
+  departmentId: string;
+  periodId: string;
+  adjustments: SubmitCalibrationAdjustmentItem[];
+  notes?: string | null;
+  isDraft?: boolean;
+}
+
+export interface CalibrationSubmitResult {
+  departmentId: string;
+  periodId: string;
+  status: string;
+  adjustedCount: number;
+  message: string;
 }
 
 export interface AutoAssignRankingBoardRequest {
@@ -447,6 +489,7 @@ export interface CalibrationOverview {
   canSubmit: boolean;
   overallStatus: string | null;
   disputedPendingCount: number;
+  departmentFocusKpis?: FocusKpiSummary[];
 }
 
 export interface ApproveDepartmentRankingRequest {
@@ -472,27 +515,6 @@ export interface CalibrationDecisionResult {
   periodId: string;
   status: string;
   message: string;
-}
-
-export interface PreCloseCheckItem {
-  code: string;
-  title: string;
-  remainingCount: number;
-  isPassed: boolean;
-  targetScreenCode?: string | null;
-  targetRoute?: string | null;
-}
-
-export interface PreCloseCheckOverview {
-  periodId: string;
-  periodCode: string;
-  periodName: string;
-  startDate: string;
-  endDate: string;
-  preCloseDeadline: string | null;
-  canPublish: boolean;
-  totalUnresolvedCount: number;
-  items: PreCloseCheckItem[];
 }
 
 export interface PersonalEvaluationCriteriaItem {

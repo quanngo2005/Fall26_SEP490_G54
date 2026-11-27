@@ -2837,3 +2837,42 @@ JOIN employee rec ON rec.employee_code = n.recipient_code
 LEFT JOIN employee snd ON snd.employee_code = n.sender_code
 ON CONFLICT DO NOTHING;
 
+-- ============================================================================
+-- Historical monthly performance evaluations (2025-01..2025-12 & 2026-01..2026-08)
+-- for the 12-month YoY branch performance line chart (2026-09/10 are seeded above).
+-- ============================================================================
+INSERT INTO performance_evaluation (id, employee_id, evaluation_period_id,
+    evaluation_profile_id, total_score, status, calculated_at, approved_at, comment)
+SELECT md5('evaluation-chart-seed-' || e.id::text || '-' || ep.id::text)::uuid,
+       e.id,
+       ep.id,
+       prof.id,
+       ROUND((m.base_score + emp.delta)::numeric, 2),
+       'FINAL'::performance_evaluation_status,
+       (ep.end_date + 1)::timestamp AT TIME ZONE 'UTC',
+       (ep.end_date + 2)::timestamp AT TIME ZONE 'UTC',
+       'Dữ liệu mẫu phục vụ biểu đồ hiệu suất theo tháng / ' || ep.code
+FROM (VALUES
+    ('NV002',  2.1::numeric), ('NV003',  0.8::numeric), ('NV004',  3.4::numeric), ('NV005', -1.2::numeric),
+    ('NV006',  1.5::numeric), ('NV007', -4.5::numeric), ('NV008',  2.8::numeric), ('NV009',  0.4::numeric),
+    ('NV010', -2.3::numeric), ('NV011',  1.9::numeric), ('NV012', -0.9::numeric)
+) emp(employee_code, delta)
+JOIN employee e ON e.employee_code = emp.employee_code
+CROSS JOIN (VALUES
+    ('2025-01', 74.2::numeric), ('2025-02', 75.0::numeric), ('2025-03', 76.4::numeric), ('2025-04', 75.8::numeric),
+    ('2025-05', 77.5::numeric), ('2025-06', 78.9::numeric), ('2025-07', 78.1::numeric), ('2025-08', 79.4::numeric),
+    ('2025-09', 80.2::numeric), ('2025-10', 81.0::numeric), ('2025-11', 80.5::numeric), ('2025-12', 82.3::numeric),
+    ('2026-01', 77.6::numeric), ('2026-02', 78.4::numeric), ('2026-03', 79.8::numeric), ('2026-04', 80.5::numeric),
+    ('2026-05', 81.2::numeric), ('2026-06', 82.6::numeric), ('2026-07', 81.9::numeric), ('2026-08', 83.4::numeric)
+) m(period_code, base_score)
+JOIN evaluation_period ep ON ep.code = m.period_code
+JOIN LATERAL (
+    SELECT p.id
+    FROM evaluation_profile p
+    WHERE p.job_position_id = e.job_position_id
+      AND p.status = 'ACTIVE'
+    ORDER BY p.effective_from ASC, p.version DESC
+    LIMIT 1
+) prof ON TRUE
+ON CONFLICT DO NOTHING;
+

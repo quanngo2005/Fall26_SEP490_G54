@@ -23,7 +23,6 @@ import {
   FinalizePeriodResult,
   PersonalCriteriaLedgerItem,
   PersonalEvaluationView,
-  PreCloseCheckOverview,
   RankingBoardOverview,
   RankingBoardSendResult,
   RejectDepartmentRequest,
@@ -33,6 +32,9 @@ import {
   RankingSlotQuotas,
   RankingSlotQuotaItem,
   UpdateRankingSlotQuotasRequest,
+  PeriodFocusKpis,
+  SubmitCalibrationRequest,
+  CalibrationSubmitResult,
 } from './evaluation.models';
 
 @Injectable({ providedIn: 'root' })
@@ -43,6 +45,23 @@ export class EvaluationService {
   periods(): Observable<EvaluationPeriodOption[]> {
     return this.http
       .get<ApiResponse<EvaluationPeriodOption[]>>(`${this.url}/periods`)
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  getPeriodFocusKpis(periodId: string): Observable<PeriodFocusKpis> {
+    return this.http
+      .get<ApiResponse<PeriodFocusKpis>>(
+        `${environment.apiUrl}/evaluation-periods/${periodId}/focus-kpis`,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
+  updatePeriodFocusKpis(periodId: string, kpiIds: string[]): Observable<PeriodFocusKpis> {
+    return this.http
+      .put<ApiResponse<PeriodFocusKpis>>(
+        `${environment.apiUrl}/evaluation-periods/${periodId}/focus-kpis`,
+        { kpiIds },
+      )
       .pipe(map((response) => this.unwrap(response)));
   }
 
@@ -115,6 +134,17 @@ export class EvaluationService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
+  saveBranchAdjustments(
+    request: SubmitCalibrationRequest,
+  ): Observable<CalibrationSubmitResult> {
+    return this.http
+      .post<ApiResponse<CalibrationSubmitResult>>(
+        `${this.url}/approvals/save-adjustments`,
+        request,
+      )
+      .pipe(map((response) => this.unwrap(response)));
+  }
+
   rejectDepartment(
     departmentId: string,
     request: RejectDepartmentRequest,
@@ -173,13 +203,6 @@ export class EvaluationService {
         { departmentId: '00000000-0000-0000-0000-000000000000', periodId, slots },
         { params },
       )
-      .pipe(map((response) => this.unwrap(response)));
-  }
-
-  getPreCloseCheck(periodId: string): Observable<PreCloseCheckOverview> {
-    const params = new HttpParams().set('periodId', periodId);
-    return this.http
-      .get<ApiResponse<PreCloseCheckOverview>>(`${this.url}/pre-close-check`, { params })
       .pipe(map((response) => this.unwrap(response)));
   }
 

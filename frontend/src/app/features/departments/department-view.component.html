@@ -61,6 +61,15 @@
             >
               {{exporting() ? text.exporting : text.exportExcel}}
             </button>
+            @if (canOpenBranchRanking()) {
+              <button
+                type="button"
+                class="button button-primary"
+                (click)="openBranchRankingApproval()"
+              >
+                Xếp hạng chi nhánh
+              </button>
+            }
           }
         </div>
       </div>

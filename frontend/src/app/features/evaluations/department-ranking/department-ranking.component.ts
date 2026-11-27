@@ -310,9 +310,13 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
     return period.startDate <= todayKey && todayKey <= period.endDate;
   });
 
-  /** Ranking adjustment is allowed only while the record is CALCULATED or SUBMITTED. */
+  /** Ranking adjustment is allowed while the record is DRAFT, CALCULATED, or SUBMITTED. */
   canAdjustRow(row: RankingBoardStaffRow): boolean {
-    return row.evaluationStatus === 'CALCULATED' || row.evaluationStatus === 'SUBMITTED';
+    return (
+      row.evaluationStatus === 'DRAFT' ||
+      row.evaluationStatus === 'CALCULATED' ||
+      row.evaluationStatus === 'SUBMITTED'
+    );
   }
 
   readonly staffTableRows = computed<StaffTableRow[]>(() =>
@@ -482,7 +486,7 @@ export class DepartmentRankingComponent extends LocalizedComponent implements On
   }
 
   openConfirmSend(): void {
-    if (this.canSend()) this.confirmSendOpen.set(true);
+    this.confirmSendOpen.set(true);
   }
 
   closeConfirmSend(): void {

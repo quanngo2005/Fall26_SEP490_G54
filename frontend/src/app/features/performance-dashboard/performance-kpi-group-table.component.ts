@@ -1,7 +1,7 @@
 import { Component, input } from '@angular/core';
 import { LocalizedComponent } from '../../core/i18n/localized.component';
 import { DepartmentGroupKpi, DepartmentKpiGroup } from '../../core/department.models';
-import { barWidth, formatSigned, formatValue, toneOf, TRACK_HEADROOM } from './performance-display';
+import { formatSigned, formatValue, NOT_AVAILABLE, toneOf } from './performance-display';
 
 /**
  * "KPI theo nhóm đánh giá": KPIs under the root groups of the evaluation profiles, with the weight of each group per
@@ -35,12 +35,15 @@ export class PerfKpiGroupTableComponent extends LocalizedComponent {
       : `${formatValue(this.i18n.currentLanguage(), value, 0)}%`;
   }
 
-  protected width(value: number | null): number {
-    return barWidth(value, 100 * TRACK_HEADROOM);
-  }
-
-  protected marker(): number {
-    return barWidth(100, 100 * TRACK_HEADROOM);
+  protected rateNote(kpi: DepartmentGroupKpi): string {
+    const dict = this.localization.evaluations.dashboard;
+    if (kpi.achievementPercent === null) return NOT_AVAILABLE;
+    if (kpi.achievementPercent === 100) return dict.rateMet;
+    const gap = Math.abs((kpi.actualValue ?? 0) - kpi.targetValue);
+    const value = this.value(gap, kpi.unit);
+    return kpi.achievementPercent < 100
+      ? this.i18n.translate('evaluations.dashboard.rateBelow', { value })
+      : this.i18n.translate('evaluations.dashboard.rateAbove', { value });
   }
 
   protected change(kpi: DepartmentGroupKpi): string {

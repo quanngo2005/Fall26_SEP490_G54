@@ -124,6 +124,16 @@ export interface DepartmentTrendPoint {
   periodName: string;
   average: number | null;
 }
+export interface DepartmentYearlyTrendMonth {
+  month: number;
+  currentYearAverage: number | null;
+  previousYearAverage: number | null;
+}
+export interface DepartmentYearlyTrend {
+  currentYear: number;
+  previousYear: number;
+  months: DepartmentYearlyTrendMonth[];
+}
 export interface DepartmentOverview {
   department: DepartmentDetail;
   period: DepartmentPeriod | null;
@@ -148,6 +158,7 @@ export interface DepartmentOverview {
     evaluatedEmployeeCount: number;
     kpis: DepartmentKpi[];
     trend: DepartmentTrendPoint[];
+    yearlyTrend?: DepartmentYearlyTrend | null;
     kpiGroups: DepartmentKpiGroup[];
     positions: DepartmentPosition[];
   };
