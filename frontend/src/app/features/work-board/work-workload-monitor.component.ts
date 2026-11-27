@@ -155,20 +155,12 @@ export class WorkWorkloadMonitorComponent extends LocalizedComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly canComposeNotice = computed(() => {
-    const user = this.auth.currentUser();
-    if (!user) return true;
-    const perms = user.permissions;
-    if (perms && perms.length > 0) {
-      return perms.some((code) => {
-        const normalized = normalizePermission(code);
-        return normalized === 'NOTIFICATION_SEND' || normalized === FULL_ACCESS_PERMISSION;
-      });
-    }
-    return (user.roles ?? []).some((role) =>
-      ['DEPT_MANAGER', 'BRANCH_MANAGER', 'SYSTEM_ADMIN'].includes(role.toUpperCase()),
-    );
-  });
+  protected readonly canComposeNotice = computed(() =>
+    (this.auth.currentUser()?.permissions ?? []).some((code) => {
+      const normalized = normalizePermission(code);
+      return normalized === 'NOTIFICATION_SEND' || normalized === FULL_ACCESS_PERMISSION;
+    }),
+  );
 
   readonly defaultDepartmentId = input.required<string>();
   readonly now = input<Date>(new Date());

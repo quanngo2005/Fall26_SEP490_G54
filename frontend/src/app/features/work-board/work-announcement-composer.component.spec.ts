@@ -62,7 +62,7 @@ const SAMPLE_WORKS: WorkListItem[] = [
     departmentCode: 'BL1',
     departmentName: 'Phòng Bán lẻ',
     priority: 'High',
-    status: 'InProgress',
+    status: 'IN_PROGRESS',
     plannedStartDate: '2026-11-01',
     plannedEndDate: '2026-11-30',
     updatedAt: '2026-11-20T08:00:00Z',

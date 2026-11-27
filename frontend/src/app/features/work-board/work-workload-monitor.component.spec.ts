@@ -185,6 +185,15 @@ describe('WorkWorkloadMonitorComponent', () => {
       providers: [
         { provide: WorkService, useValue: worksApi },
         { provide: DepartmentService, useValue: departmentsApi },
+        {
+          provide: AuthService,
+          useValue: {
+            currentUser: signal({
+              roles: ['DEPT_MANAGER'],
+              permissions: ['notification:send'],
+            }),
+          },
+        },
       ],
     }).compileComponents();
 
