@@ -307,7 +307,9 @@
                           @if (isDepartmentSubmitted()) {
                             <td class="tier-col text-center">
                               <span
-                                [class]="'tier-badge tier-' + (emp.calibratedTier || '').toLowerCase()"
+                                [class]="
+                                  'tier-badge tier-' + (emp.calibratedTier || '').toLowerCase()
+                                "
                               >
                                 {{emp.calibratedTier || '-'}}
                               </span>
@@ -551,7 +553,8 @@
                                             } @else {
                                               <span
                                                 [class]="
-                                                  'tier-badge tier-' + (emp.calibratedTier || '').toLowerCase()
+                                                  'tier-badge tier-' +
+                                                  (emp.calibratedTier || '').toLowerCase()
                                                 "
                                               >
                                                 {{emp.calibratedTier || '-'}}
@@ -622,122 +625,125 @@
             @if (viewMode() === 'all') {
               <!-- Period Total Quota Card -->
               <section class="period-quota-card">
-              <div class="period-quota-header">
-                <div class="period-quota-title-wrap">
-                  <div class="period-quota-title-row">
-                    <h3 class="period-quota-title">Quota Tổng của Kỳ</h3>
-                    <span
-                      class="quota-indicator-badge font-mono"
-                      [class.badge-balanced]="!isPeriodTierAOverCap()"
-                      [class.badge-over]="isPeriodTierAOverCap()"
-                    >
-                      <app-layout-icon
-                        [name]="isPeriodTierAOverCap() ? 'riskEvents' : 'check'"
-                        class="indicator-icon"
-                      />
-                      <span>
-                        Quota A: {{totalBranchTierASlots()}}
-                        @if (recommendedTierASlots() > 0) {
-                          / {{recommendedTierASlots()}}
-                        }
-                        slot
+                <div class="period-quota-header">
+                  <div class="period-quota-title-wrap">
+                    <div class="period-quota-title-row">
+                      <h3 class="period-quota-title">Quota Tổng của Kỳ</h3>
+                      <span
+                        class="quota-indicator-badge font-mono"
+                        [class.badge-balanced]="!isPeriodTierAOverCap()"
+                        [class.badge-over]="isPeriodTierAOverCap()"
+                      >
+                        <app-layout-icon
+                          [name]="isPeriodTierAOverCap() ? 'riskEvents' : 'check'"
+                          class="indicator-icon"
+                        />
+                        <span>
+                          Quota A: {{totalBranchTierASlots()}}
+                          @if (recommendedTierASlots() > 0) {
+                            / {{recommendedTierASlots()}}
+                          }
+                          slot
+                        </span>
                       </span>
-                    </span>
+                    </div>
+                    <div class="period-quota-meta">
+                      <span class="meta-item">
+                        <strong>Tổng số lượng nhân viên:</strong> {{totalBranchEmployees()}} NV
+                      </span>
+                      <span class="meta-separator">·</span>
+                      <span class="meta-item font-mono text-muted">
+                        <strong>Tỉ lệ A/B/C:</strong> {{tierAPercent()}}% / {{tierBPercent()}}%
+                        / {{tierCPercent()}}%
+                      </span>
+                    </div>
                   </div>
-                  <div class="period-quota-meta">
-                    <span class="meta-item">
-                      <strong>Tổng số lượng nhân viên:</strong> {{totalBranchEmployees()}} NV
-                    </span>
-                    <span class="meta-separator">·</span>
-                    <span class="meta-item font-mono text-muted">
-                      <strong>Tỉ lệ A/B/C:</strong> {{tierAPercent()}}% / {{tierBPercent()}}% / {{tierCPercent()}}%
-                    </span>
-                  </div>
-                </div>
-                <div class="period-quota-actions">
-                  @if (!isEditingPeriodQuota()) {
-                    <button
-                      type="button"
-                      class="button button-secondary button-sm"
-                      [disabled]="isPeriodLocked()"
-                      (click)="startEditPeriodQuota()"
-                      [title]="
-                        isPeriodLocked()
-                          ? 'Kỳ đánh giá đã qua hoặc đã khóa/chốt'
-                          : 'Điều chỉnh Quota tổng của kỳ'
-                      "
-                    >
-                      <span>Điều chỉnh</span>
-                    </button>
-                  } @else {
-                    <button
-                      type="button"
-                      class="button button-secondary button-sm"
-                      [disabled]="savingPeriodQuota() || totalBranchEmployees() <= 0"
-                      (click)="suggestPeriodQuotaFromRatios()"
-                      title="Tự tính số lượng slot theo tỉ lệ A/B/C trong tham số hệ thống"
-                    >
-                      <span>Gợi ý theo tỉ lệ</span>
-                    </button>
-                    <button
-                      type="button"
-                      class="button button-secondary button-sm"
-                      [disabled]="savingPeriodQuota()"
-                      (click)="cancelEditPeriodQuota()"
-                    >
-                      <span>Hủy</span>
-                    </button>
-                    <button
-                      type="button"
-                      class="button button-primary button-sm"
-                      [disabled]="savingPeriodQuota() || isPeriodLocked() || !!periodQuotaRatioError()"
-                      (click)="savePeriodQuota()"
-                    >
-                      <span>{{savingPeriodQuota() ? 'Đang lưu...' : 'Lưu'}}</span>
-                    </button>
-                  }
-                </div>
-              </div>
-
-              @if (periodQuotaRatioError(); as ratioErr) {
-                <p class="quota-ratio-error" role="alert">{{ratioErr}}</p>
-              }
-
-              <table class="period-quota-table">
-                <thead>
-                  <tr>
-                    <th class="tier-th">A1</th>
-                    <th class="tier-th">A2</th>
-                    <th class="tier-th">A3</th>
-                    <th class="tier-th">B</th>
-                    <th class="tier-th">C</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    @for (tier of ['A1', 'A2', 'A3', 'B', 'C']; track tier) {
-                      <td class="tier-td">
-                        @if (isEditingPeriodQuota()) {
-                          <input
-                            type="number"
-                            min="0"
-                            class="period-quota-input"
-                            [value]="periodQuotaDraft()[tier] ?? ''"
-                            (input)="onPeriodQuotaInputChange(tier, $any($event.target).value)"
-                          />
-                        } @else {
-                          <span class="period-quota-val font-mono">
-                            {{getPeriodQuotaHeadcount(tier) !== null
-                                ? getPeriodQuotaHeadcount(tier)
-                                : '-'}}
-                          </span>
-                        }
-                      </td>
+                  <div class="period-quota-actions">
+                    @if (!isEditingPeriodQuota()) {
+                      <button
+                        type="button"
+                        class="button button-secondary button-sm"
+                        [disabled]="isPeriodLocked()"
+                        (click)="startEditPeriodQuota()"
+                        [title]="
+                          isPeriodLocked()
+                            ? 'Kỳ đánh giá đã qua hoặc đã khóa/chốt'
+                            : 'Điều chỉnh Quota tổng của kỳ'
+                        "
+                      >
+                        <span>Điều chỉnh</span>
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="button button-secondary button-sm"
+                        [disabled]="savingPeriodQuota() || totalBranchEmployees() <= 0"
+                        (click)="suggestPeriodQuotaFromRatios()"
+                        title="Tự tính số lượng slot theo tỉ lệ A/B/C trong tham số hệ thống"
+                      >
+                        <span>Gợi ý theo tỉ lệ</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="button button-secondary button-sm"
+                        [disabled]="savingPeriodQuota()"
+                        (click)="cancelEditPeriodQuota()"
+                      >
+                        <span>Hủy</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="button button-primary button-sm"
+                        [disabled]="
+                          savingPeriodQuota() || isPeriodLocked() || !!periodQuotaRatioError()
+                        "
+                        (click)="savePeriodQuota()"
+                      >
+                        <span>{{savingPeriodQuota() ? 'Đang lưu...' : 'Lưu'}}</span>
+                      </button>
                     }
-                  </tr>
-                </tbody>
-              </table>
-            </section>
+                  </div>
+                </div>
+
+                @if (periodQuotaRatioError(); as ratioErr) {
+                  <p class="quota-ratio-error" role="alert">{{ratioErr}}</p>
+                }
+
+                <table class="period-quota-table">
+                  <thead>
+                    <tr>
+                      <th class="tier-th">A1</th>
+                      <th class="tier-th">A2</th>
+                      <th class="tier-th">A3</th>
+                      <th class="tier-th">B</th>
+                      <th class="tier-th">C</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      @for (tier of ['A1', 'A2', 'A3', 'B', 'C']; track tier) {
+                        <td class="tier-td">
+                          @if (isEditingPeriodQuota()) {
+                            <input
+                              type="number"
+                              min="0"
+                              class="period-quota-input"
+                              [value]="periodQuotaDraft()[tier] ?? ''"
+                              (input)="onPeriodQuotaInputChange(tier, $any($event.target).value)"
+                            />
+                          } @else {
+                            <span class="period-quota-val font-mono">
+                              {{getPeriodQuotaHeadcount(tier) !== null
+                                  ? getPeriodQuotaHeadcount(tier)
+                                  : '-'}}
+                            </span>
+                          }
+                        </td>
+                      }
+                    </tr>
+                  </tbody>
+                </table>
+              </section>
             }
 
             <!-- Focus KPIs Card -->
@@ -763,7 +769,11 @@
                         class="button button-secondary button-sm"
                         [disabled]="isPeriodLocked()"
                         (click)="startEditFocusKpis()"
-                        [title]="isPeriodLocked() ? 'Kỳ đánh giá đã qua hoặc đã khóa/chốt' : 'Chọn KPI trọng tâm của kỳ'"
+                        [title]="
+                          isPeriodLocked()
+                            ? 'Kỳ đánh giá đã qua hoặc đã khóa/chốt'
+                            : 'Chọn KPI trọng tâm của kỳ'
+                        "
                       >
                         <span>Chỉnh sửa</span>
                       </button>

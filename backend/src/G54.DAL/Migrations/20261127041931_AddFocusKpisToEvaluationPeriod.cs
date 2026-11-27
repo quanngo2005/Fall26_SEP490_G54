@@ -1,28 +1,27 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace G54.DAL.Migrations
+namespace G54.DAL.Migrations;
+
+/// <inheritdoc />
+public partial class AddFocusKpisToEvaluationPeriod : Migration
 {
     /// <inheritdoc />
-    public partial class AddFocusKpisToEvaluationPeriod : Migration
+    protected override void Up(MigrationBuilder migrationBuilder)
     {
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.AddColumn<string>(
-                name: "focus_kpi_ids",
-                table: "evaluation_period",
-                type: "jsonb",
-                nullable: true);
-        }
+        migrationBuilder.AddColumn<string>(
+            name: "focus_kpi_ids",
+            table: "evaluation_period",
+            type: "jsonb",
+            nullable: true);
+    }
 
-        /// <inheritdoc />
-        protected override void Down(MigrationBuilder migrationBuilder)
-        {
-            migrationBuilder.DropColumn(
-                name: "focus_kpi_ids",
-                table: "evaluation_period");
-        }
+    /// <inheritdoc />
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.DropColumn(
+            name: "focus_kpi_ids",
+            table: "evaluation_period");
     }
 }

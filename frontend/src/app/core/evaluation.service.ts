@@ -134,14 +134,9 @@ export class EvaluationService {
       .pipe(map((response) => this.unwrap(response)));
   }
 
-  saveBranchAdjustments(
-    request: SubmitCalibrationRequest,
-  ): Observable<CalibrationSubmitResult> {
+  saveBranchAdjustments(request: SubmitCalibrationRequest): Observable<CalibrationSubmitResult> {
     return this.http
-      .post<ApiResponse<CalibrationSubmitResult>>(
-        `${this.url}/approvals/save-adjustments`,
-        request,
-      )
+      .post<ApiResponse<CalibrationSubmitResult>>(`${this.url}/approvals/save-adjustments`, request)
       .pipe(map((response) => this.unwrap(response)));
   }
 

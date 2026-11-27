@@ -274,9 +274,7 @@ export class DepartmentRankingApprovalComponent implements OnInit {
     return tierCodes.map((tier) => {
       const slot = slots.find((s) => s.tierCode === tier);
       const headcount = slot ? slot.headcount : null;
-      const actualCount = isSubmitted
-        ? roster.filter((r) => r.calibratedTier === tier).length
-        : 0;
+      const actualCount = isSubmitted ? roster.filter((r) => r.calibratedTier === tier).length : 0;
       const share = headcount != null && total > 0 ? (headcount / total) * 100 : null;
 
       const isTierA = tier.startsWith('A');
@@ -466,9 +464,7 @@ export class DepartmentRankingApprovalComponent implements OnInit {
 
     const missingReasonCount = this.countBranchMissingReasons();
     if (missingReasonCount > 0) {
-      warnings.push(
-        `Có ${missingReasonCount} nhân sự đã điều chỉnh hạng nhưng chưa nhập lý do.`,
-      );
+      warnings.push(`Có ${missingReasonCount} nhân sự đã điều chỉnh hạng nhưng chưa nhập lý do.`);
     }
 
     if (warnings.length === 0 && !ov.canFinalize) {
@@ -961,9 +957,7 @@ export class DepartmentRankingApprovalComponent implements OnInit {
         adjustments: calib.rankedRoster.map((emp) => ({
           employeeId: emp.employeeId,
           calibratedTier: this.getEmpDraftTier(emp),
-          reason: this.isEmpTierChanged(emp)
-            ? this.getEmpDraftReason(emp).trim() || null
-            : null,
+          reason: this.isEmpTierChanged(emp) ? this.getEmpDraftReason(emp).trim() || null : null,
           coachingFlag: emp.coachingFlag,
         })),
       });
@@ -1032,37 +1026,35 @@ export class DepartmentRankingApprovalComponent implements OnInit {
         ? forkJoin(requests.map((req) => this.evaluationService.saveBranchAdjustments(req)))
         : of([]);
 
-    save$
-      .pipe(switchMap(() => this.evaluationService.finalize({ periodId: pid })))
-      .subscribe({
-        next: (res) => {
-          this.lockSubmitting.set(false);
-          this.approvePopoverOpen.set(false);
-          this.isAdjustingBranch.set(false);
-          this.branchDraftTier.set(new Map());
-          this.branchDraftReason.set(new Map());
-          this.deptCalibrations.set(new Map());
-          this.showToast(
-            res.message || 'Đã ghi nhận kết quả cuối cùng và khóa kỳ đánh giá.',
-            'success',
-          );
-          this.evaluationService.periods().subscribe({
-            next: (list) => this.periods.set(list ?? []),
-          });
-          this.loadBranchOverview();
-          for (const deptId of this.expandedDeptIds()) {
-            this.loadDepartmentCalibrationForExpand(deptId);
-          }
-        },
-        error: (err: { error?: { message?: string } }) => {
-          this.lockSubmitting.set(false);
-          this.approvePopoverOpen.set(false);
-          this.showToast(
-            err?.error?.message || 'Chưa thể ghi nhận kết quả cuối cùng. Vui lòng kiểm tra cảnh báo.',
-            'error',
-          );
-        },
-      });
+    save$.pipe(switchMap(() => this.evaluationService.finalize({ periodId: pid }))).subscribe({
+      next: (res) => {
+        this.lockSubmitting.set(false);
+        this.approvePopoverOpen.set(false);
+        this.isAdjustingBranch.set(false);
+        this.branchDraftTier.set(new Map());
+        this.branchDraftReason.set(new Map());
+        this.deptCalibrations.set(new Map());
+        this.showToast(
+          res.message || 'Đã ghi nhận kết quả cuối cùng và khóa kỳ đánh giá.',
+          'success',
+        );
+        this.evaluationService.periods().subscribe({
+          next: (list) => this.periods.set(list ?? []),
+        });
+        this.loadBranchOverview();
+        for (const deptId of this.expandedDeptIds()) {
+          this.loadDepartmentCalibrationForExpand(deptId);
+        }
+      },
+      error: (err: { error?: { message?: string } }) => {
+        this.lockSubmitting.set(false);
+        this.approvePopoverOpen.set(false);
+        this.showToast(
+          err?.error?.message || 'Chưa thể ghi nhận kết quả cuối cùng. Vui lòng kiểm tra cảnh báo.',
+          'error',
+        );
+      },
+    });
   }
 
   loadDepartmentCalibrationForExpand(deptId: string): void {
@@ -1147,7 +1139,10 @@ export class DepartmentRankingApprovalComponent implements OnInit {
       a3 = Math.max(0, totalA - a1 - a2);
     }
 
-    const b = Math.min(total - totalA, Math.max(0, Math.round((total * this.tierBPercent()) / 100)));
+    const b = Math.min(
+      total - totalA,
+      Math.max(0, Math.round((total * this.tierBPercent()) / 100)),
+    );
     const remaining = Math.max(0, total - totalA - b);
     const c = Math.min(remaining, Math.max(0, Math.round((total * this.tierCPercent()) / 100)));
 

@@ -335,16 +335,16 @@ describe('DepartmentRankingApprovalComponent', () => {
         ],
       }),
     );
-    evaluationServiceSpy.getPeriodFocusKpis.and.returnValue(
-      of({ periodId: 'p-1', focusKpis: [] }),
-    );
+    evaluationServiceSpy.getPeriodFocusKpis.and.returnValue(of({ periodId: 'p-1', focusKpis: [] }));
     evaluationServiceSpy.updatePeriodFocusKpis.and.returnValue(
       of({ periodId: 'p-1', focusKpis: [] }),
     );
     i18nServiceSpy.formatNumber.and.callFake((val: number) => String(val));
 
     const kpiDefinitionServiceSpy = jasmine.createSpyObj('KpiDefinitionService', ['list']);
-    kpiDefinitionServiceSpy.list.and.returnValue(of({ items: [], totalCount: 0, page: 1, pageSize: 100 }));
+    kpiDefinitionServiceSpy.list.and.returnValue(
+      of({ items: [], totalCount: 0, page: 1, pageSize: 100 }),
+    );
 
     await TestBed.configureTestingModule({
       imports: [DepartmentRankingApprovalComponent],
