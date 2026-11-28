@@ -5,6 +5,7 @@ namespace G54.DAL.Migrations;
 
 [DbContext(typeof(AppDbContext))]
 [Migration("20261126120000_AddQueueCounterPermission")]
+
 public sealed class AddQueueCounterAccess : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder) => migrationBuilder.Sql("""

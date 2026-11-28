@@ -6,6 +6,9 @@ namespace G54.BLL.Services;
 
 internal sealed class QueueConnection(IHttpClientFactory factory, IConfiguration config)
 {
+    /// <summary>Branch the connected queue serves. Missing configuration means the queue is not connected (503), not a permission problem.</summary>
+    internal string BranchCode => config["Queue:BranchCode"] is { Length: > 0 } code ? code : throw Unavailable();
+
     internal async Task<T> RequestAsync<T>(HttpMethod method, string path, object? body, CancellationToken ct)
     {
         if (!Uri.TryCreate(config["Queue:Origin"], UriKind.Absolute, out var origin) ||
