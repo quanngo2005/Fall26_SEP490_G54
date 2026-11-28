@@ -30,7 +30,7 @@ public sealed class QueueLobbyService
             e.Status == EmployeeStatus.Active).Select(e => (Guid?)e.DepartmentId).SingleOrDefaultAsync(ct);
         if (level < AccessScope.DeptLevel || department == null) throw new ForbiddenException();
         var tree = await DepartmentHierarchy.LoadAsync(unit.Departments.Query(), ct);
-        if (!string.Equals(config["Queue:BranchCode"], tree.Nodes[tree.BranchRoot(department.Value)].Code, StringComparison.Ordinal))
+        if (!string.Equals(queue.BranchCode, tree.Nodes[tree.BranchRoot(department.Value)].Code, StringComparison.Ordinal))
             throw new ForbiddenException();
         var departments = AccessScope.DepartmentsInScope(Math.Min(level, AccessScope.BranchLevel), department.Value, tree)!;
         var staff = await unit.Employees.Query().Where(e => departments.Contains(e.DepartmentId) && e.Status == EmployeeStatus.Active &&

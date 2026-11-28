@@ -4,7 +4,6 @@ using G54.BLL.Dtos.Queue;
 using G54.DAL.Entities;
 using G54.DAL.Uow;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 
 namespace G54.BLL.Services;
 
@@ -12,12 +11,10 @@ public sealed class QueueCounterService
 {
     private readonly IUnitOfWork unit;
     private readonly QueueConnection queue;
-    private readonly IConfiguration config;
 
-    internal QueueCounterService(IUnitOfWork unit, QueueConnection queue, IConfiguration config)
+    internal QueueCounterService(IUnitOfWork unit, QueueConnection queue)
     {
         this.unit = unit;
-        this.config = config;
         this.queue = queue;
     }
 
@@ -28,7 +25,7 @@ public sealed class QueueCounterService
             .Select(e => new { e.Id, e.DepartmentId, e.JobPositionId, e.JobPosition.Code }).SingleOrDefaultAsync(ct);
         if (staff == null || staff.Code is not ("TELLER" or "SALES")) throw new ForbiddenException();
         var tree = await DepartmentHierarchy.LoadAsync(unit.Departments.Query(), ct);
-        if (!string.Equals(config["Queue:BranchCode"], tree.Nodes[tree.BranchRoot(staff.DepartmentId)].Code, StringComparison.Ordinal))
+        if (!string.Equals(queue.BranchCode, tree.Nodes[tree.BranchRoot(staff.DepartmentId)].Code, StringComparison.Ordinal))
             throw new ForbiddenException();
         var options = await unit.Repository<JobPositionWorkType>().Query().Where(x => x.JobPositionId == staff.JobPositionId &&
             x.WorkType.Status == RecordStatus.Active).Select(x => x.WorkType.Code).ToArrayAsync(ct);
