@@ -101,3 +101,4 @@ docs/screen-descriptions/
 # Real business sample workbooks: keep local only (tests skip without them)
 backend/tests/G54.UnitTests/TestData/*.xlsx
 /design
+/db-design
