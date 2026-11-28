@@ -68,6 +68,9 @@ internal sealed class QueueWorkProjection(IUnitOfWork unit)
             };
             await unit.Works.AddAsync(work, ct);
         }
+        // Customer recognized at the kiosk: copy name and CIF, keeping anything already entered on the Work.
+        if (string.IsNullOrWhiteSpace(work.CustomerName) && Fit(visit.CustomerName, 200) is { } name) work.CustomerName = name;
+        if (string.IsNullOrWhiteSpace(work.CustomerCif) && Fit(visit.CustomerCif, 50) is { } cif) work.CustomerCif = cif;
         var ids = visit.Events.Select(e => e.Id).ToArray();
         var existing = await unit.Repository<WorkActivity>().Query().Where(a => a.WorkId == visit.Id && ids.Contains(a.Id))
             .Select(a => a.Id).ToArrayAsync(ct);
@@ -113,4 +116,7 @@ internal sealed class QueueWorkProjection(IUnitOfWork unit)
         // One SaveChanges transaction commits the Work and its missing events together. Primary keys make redelivery safe.
         await unit.SaveChangesAsync(ct);
     }
+
+    private static string? Fit(string? value, int length) =>
+        value?.Trim() is { Length: > 0 } text && text.Length <= length ? text : null;
 }
