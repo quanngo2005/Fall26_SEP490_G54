@@ -1459,7 +1459,9 @@ SELECT d.id, d.kpi_id, d.dept_id, d.evaluation_period_id, d.root_id, 'ORG'::targ
        'ACTIVE'::target_assignment_status,
        make_timestamp(d.year_no, 1, 1, 8, 0, 0), make_timestamp(d.year_no, 1, 15, 17, 0, 0), make_timestamp(d.year_no, 1, 1, 8, 0, 0), d.effective_from
 FROM seed_hist_dept d
-ON CONFLICT DO NOTHING;
+ON CONFLICT (id) DO UPDATE
+SET target_value = EXCLUDED.target_value,
+    status = EXCLUDED.status;
 
 CREATE TEMP TABLE seed_hist_emp ON COMMIT DROP AS
 WITH w AS (
@@ -1488,7 +1490,9 @@ SELECT e.id, e.kpi_id, e.emp_id, e.evaluation_period_id, e.dept_row_id, 'ORG'::t
        'ACTIVE'::target_assignment_status,
        make_timestamp(e.year_no, 1, 1, 8, 0, 0), make_timestamp(e.year_no, 1, 15, 17, 0, 0), make_timestamp(e.year_no, 1, 1, 8, 0, 0), e.effective_from
 FROM seed_hist_emp e
-ON CONFLICT DO NOTHING;
+ON CONFLICT (id) DO UPDATE
+SET target_value = EXCLUDED.target_value,
+    status = EXCLUDED.status;
 
 -- Quarters below the year rows. The branch quarters (20/23/25/32%) are the anchor: for Q1-Q3 each department takes
 -- its share of the branch quarter and the last department takes the rest, so the department quarters add up to the
