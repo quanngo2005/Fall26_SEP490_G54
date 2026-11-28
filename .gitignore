@@ -102,3 +102,4 @@ docs/screen-descriptions/
 backend/tests/G54.UnitTests/TestData/*.xlsx
 /design
 /db-design
+*.docx

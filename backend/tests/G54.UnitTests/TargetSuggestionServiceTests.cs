@@ -255,4 +255,63 @@ public sealed class TargetSuggestionServiceTests
 
         Assert.Equal(10m, result[0].Sum());
     }
+
+    [Fact]
+    public void DistributeByShare_OffGridTotal_DistributesWholeStepsByLargestRemainderBeforeSubStepResidual()
+    {
+        // total=1025 with step=10 and DOWN rounding gives base=[250,250,250,250], diff=25 (2 whole steps + 5).
+        // Whole steps go to the first two cells by Largest Remainder tie-break, and only the sub-step 5 goes to cell 0.
+        decimal[] weights = [1m, 1m, 1m, 1m];
+        var result = SuggestionMath.DistributeByShare(1025m, weights, 10m, SuggestionRoundingMode.Down, SuggestionRemainderMethod.LargestRemainder);
+
+        Assert.Equal(1025m, result.Sum());
+        Assert.Equal([265m, 260m, 250m, 250m], result);
+    }
+
+    [Fact]
+    public void DistributeByShare_BufferWithUpRounding_ClampsAtZeroAndShedsOvershoot()
+    {
+        // UP rounding gives [10, 10, 10] (sum 30, diff -20); buffer cell 2 only holds 10 so it clamps at 0
+        // and the remaining -10 overshoot is shed from cell 0 rather than pushing cell 2 to -10.
+        decimal[] weights = [10m, 10m, 1m];
+        var result = SuggestionMath.DistributeByShare(10m, weights, 10m, SuggestionRoundingMode.Up, SuggestionRemainderMethod.Buffer, bufferIndex: 2);
+
+        Assert.Equal(10m, result.Sum());
+        Assert.All(result, v => Assert.True(v >= 0m));
+        Assert.Equal(0m, result[2]);
+    }
+
+    [Fact]
+    public void DistributeByShare_LargestRemainderWithUpRounding_NeverGoesNegative()
+    {
+        // 5 cells summing to 11 with step=10 and UP rounding: ideal [2.2*5], base [10*5]=50, diff=-39.
+        decimal[] weights = [1m, 1m, 1m, 1m, 1m];
+        var result = SuggestionMath.DistributeByShare(11m, weights, 10m, SuggestionRoundingMode.Up, SuggestionRemainderMethod.LargestRemainder);
+
+        Assert.Equal(11m, result.Sum());
+        Assert.All(result, v => Assert.True(v >= 0m));
+    }
+
+    [Fact]
+    public void SplitIntoQuarters_RepairRotatesAcrossDonorsInStepsInsteadOfDrainingOneRow()
+    {
+        // 3 equal rows of 100 each split by [10,20,30,40] -> [10,20,30,40] each (col sums [30,60,90,120]).
+        // Parent actually needs [30,60,120,90], so Q4 is over by 30 and Q3 is under by 30.
+        // Rotating 10-step moves across the 3 donors reduces each row's Q4 from 40 -> 30 instead of draining row 0 to 10.
+        decimal[] rows = [100m, 100m, 100m];
+        decimal[] parent = [30m, 60m, 120m, 90m];
+
+        var result = SuggestionMath.SplitIntoQuarters(rows, [null, null, null], parent, 10m, SuggestionRoundingMode.Nearest);
+
+        Assert.All(result, r =>
+        {
+            Assert.Equal(100m, r.Sum());
+            Assert.All(r, v => Assert.Equal(0m, v % 10m));
+        });
+        Assert.Equal([30m, 30m, 30m], [result[0][3], result[1][3], result[2][3]]);
+        for (var q = 0; q < 4; q++)
+        {
+            Assert.Equal(parent[q], result[0][q] + result[1][q] + result[2][q]);
+        }
+    }
 }

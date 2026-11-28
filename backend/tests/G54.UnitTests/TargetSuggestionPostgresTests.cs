@@ -373,6 +373,250 @@ public sealed class TargetSuggestionPostgresTests : IAsyncLifetime
     public async Task Tier3_NeedsADepartmentYearAnchor() =>
         await Assert.ThrowsAsync<NotFoundException>(() => SuggestAsync(3, _branchYearId));
 
+    [PostgresFact]
+    public async Task Tier2_WithClosedQuarter_PreservesLockedQuarterAndSuggestsOpenQuarters()
+    {
+        await using (var scope = _provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var now = DateTimeOffset.UtcNow;
+            var quarters = await db.EvaluationPeriods
+                .Where(p => p.PeriodType == PeriodType.Quarter && p.StartDate.Year == Year)
+                .OrderBy(p => p.StartDate)
+                .ToListAsync();
+            quarters[0].Status = PeriodStatus.Closed;
+
+            // Branch quarters: [200, 200, 300, 300] = 1000.
+            decimal[] branchQ = [200m, 200m, 300m, 300m];
+            for (var i = 0; i < 4; i++)
+            {
+                db.TargetAssignments.Add(Row(_branchId, _kpiId, quarters[i].Id, branchQ[i], _branchYearId, TargetSplitDimension.Period, now));
+            }
+
+            // Dept A already has stored Q1=150; Dept B has stored Q1=50 (deptYearB created here).
+            var deptYearA = await db.TargetAssignments.SingleAsync(t => t.Id == _deptYearAId);
+            var yearPeriod = await db.EvaluationPeriods.SingleAsync(p => p.PeriodType == PeriodType.Year && p.StartDate.Year == Year);
+            var deptYearB = Row(_deptB, _kpiId, yearPeriod.Id, 400m, _branchYearId, TargetSplitDimension.Org, now);
+            db.TargetAssignments.Add(deptYearB);
+            await db.SaveChangesAsync();
+
+            db.TargetAssignments.Add(Row(_deptA, _kpiId, quarters[0].Id, 150m, deptYearA.Id, TargetSplitDimension.Period, now));
+            db.TargetAssignments.Add(Row(_deptB, _kpiId, quarters[0].Id, 50m, deptYearB.Id, TargetSplitDimension.Period, now));
+            await db.SaveChangesAsync();
+        }
+
+        var result = await SuggestAsync(2, _branchYearId, kpiIds: [_kpiId]);
+        var kpi = Assert.Single(result.Kpis);
+        var byDept = kpi.Cells.ToDictionary(c => c.UnitId);
+
+        Assert.Equal(150m, byDept[_deptA].Q1);
+        Assert.Equal(50m, byDept[_deptB].Q1);
+        Assert.True(kpi.SumMatches);
+        Assert.All(kpi.Cells, c => Assert.Equal(c.Year, c.Q1 + c.Q2 + c.Q3 + c.Q4));
+        Assert.Equal(200m, byDept[_deptA].Q2 + byDept[_deptB].Q2);
+        Assert.Equal(300m, byDept[_deptA].Q3 + byDept[_deptB].Q3);
+        Assert.Equal(300m, byDept[_deptA].Q4 + byDept[_deptB].Q4);
+    }
+
+    [PostgresFact]
+    public async Task Tier3_WithClosedQuarter_PreservesLockedQuarterAndSetsYearFromQuarters()
+    {
+        await using (var scope = _provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var now = DateTimeOffset.UtcNow;
+            var quarters = await db.EvaluationPeriods
+                .Where(p => p.PeriodType == PeriodType.Quarter && p.StartDate.Year == Year)
+                .OrderBy(p => p.StartDate)
+                .ToListAsync();
+            quarters[0].Status = PeriodStatus.Closed;
+
+            // Dept A target = 600 -> quarters [100, 150, 150, 200].
+            decimal[] deptQ = [100m, 150m, 150m, 200m];
+            for (var i = 0; i < 4; i++)
+            {
+                db.TargetAssignments.Add(Row(_deptA, _kpiId, quarters[i].Id, deptQ[i], _deptYearAId, TargetSplitDimension.Period, now));
+            }
+
+            var yearPeriod = await db.EvaluationPeriods.SingleAsync(p => p.PeriodType == PeriodType.Year && p.StartDate.Year == Year);
+            var emp1Year = new TargetAssignment
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = _employeeA1,
+                KpiDefinitionId = _kpiId,
+                EvaluationPeriodId = yearPeriod.Id,
+                ParentAssignmentId = _deptYearAId,
+                SplitDimension = TargetSplitDimension.Org,
+                TargetValue = 300m,
+                Version = 1,
+                Status = TargetAssignmentStatus.Draft,
+                CreatedAt = now,
+                AssignedAt = now,
+            };
+            db.TargetAssignments.Add(emp1Year);
+            await db.SaveChangesAsync();
+            db.TargetAssignments.Add(new TargetAssignment
+            {
+                Id = Guid.NewGuid(),
+                EmployeeId = _employeeA1,
+                KpiDefinitionId = _kpiId,
+                EvaluationPeriodId = quarters[0].Id,
+                ParentAssignmentId = emp1Year.Id,
+                SplitDimension = TargetSplitDimension.Period,
+                TargetValue = 100m,
+                Version = 1,
+                Status = TargetAssignmentStatus.Draft,
+                CreatedAt = now,
+                AssignedAt = now,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var result = await SuggestAsync(3, _deptYearAId);
+        var kpi = Assert.Single(result.Kpis);
+        var byEmp = kpi.Cells.ToDictionary(c => c.UnitId);
+
+        Assert.Equal(100m, byEmp[_employeeA1].Q1);
+        Assert.Equal(0m, byEmp[_employeeA2].Q1);
+        Assert.True(kpi.SumMatches);
+        Assert.All(kpi.Cells, c => Assert.Equal(c.Year, c.Q1 + c.Q2 + c.Q3 + c.Q4));
+    }
+
+    [PostgresFact]
+    public async Task Tier3_NonSumAggregation_ReturnsUnsupportedDisabledReason()
+    {
+        await using (var scope = _provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.KpiDefinitions.SingleAsync(k => k.Id == _kpiId)).AggregationType = KpiAggregationType.Avg;
+            await db.SaveChangesAsync();
+        }
+
+        var result = await SuggestAsync(3, _deptYearAId);
+        var kpi = Assert.Single(result.Kpis);
+
+        Assert.Equal("unsupported_aggregation", kpi.DisabledReason);
+        Assert.Empty(kpi.Cells);
+    }
+
+    [PostgresFact]
+    public async Task Tier2_PartialHistory_UsesPreviousYearPositionPerHeadForNewDepartment()
+    {
+        await using (var scope = _provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var now = DateTimeOffset.UtcNow;
+            var prevYear = await AddYearAsync(db, Year - 1, now);
+
+            // Second job position ("SG-JOB-2") with higher historical per-head output than SG-JOB.
+            var highJob = new JobPosition { Id = Guid.NewGuid(), Code = "SG-JOB-2", Title = "High", Status = RecordStatus.Active, LastSyncAt = now, UpdatedAt = now };
+            db.JobPositions.Add(highJob);
+            await db.SaveChangesAsync();
+            var wtId = await db.WorkTypes.Select(w => w.Id).FirstAsync();
+            db.JobPositionWorkTypes.Add(new JobPositionWorkType { Id = Guid.NewGuid(), JobPositionId = highJob.Id, WorkTypeId = wtId, UpdatedAt = now });
+
+            // Dept A had a high-job employee with 400 and two SG-JOB employees with 100 each -> total 600 in prev year.
+            var empHigh = Employee("SG-A3", _deptA, highJob.Id, now);
+            db.Employees.Add(empHigh);
+            await db.SaveChangesAsync();
+
+            var prevBranch = Row(_branchId, _kpiId, prevYear.Id, 600m, null, null, now, TargetAssignmentStatus.Active);
+            db.TargetAssignments.Add(prevBranch);
+            await db.SaveChangesAsync();
+            var prevDeptA = Row(_deptA, _kpiId, prevYear.Id, 600m, prevBranch.Id, TargetSplitDimension.Org, now, TargetAssignmentStatus.Active);
+            db.TargetAssignments.Add(prevDeptA);
+            await db.SaveChangesAsync();
+
+            db.TargetAssignments.AddRange(
+                new TargetAssignment { Id = Guid.NewGuid(), EmployeeId = _employeeA1, KpiDefinitionId = _kpiId, EvaluationPeriodId = prevYear.Id, ParentAssignmentId = prevDeptA.Id, SplitDimension = TargetSplitDimension.Org, TargetValue = 100m, Version = 1, Status = TargetAssignmentStatus.Active, CreatedAt = now, AssignedAt = now, ApprovedAt = now },
+                new TargetAssignment { Id = Guid.NewGuid(), EmployeeId = _employeeA2, KpiDefinitionId = _kpiId, EvaluationPeriodId = prevYear.Id, ParentAssignmentId = prevDeptA.Id, SplitDimension = TargetSplitDimension.Org, TargetValue = 100m, Version = 1, Status = TargetAssignmentStatus.Active, CreatedAt = now, AssignedAt = now, ApprovedAt = now },
+                new TargetAssignment { Id = Guid.NewGuid(), EmployeeId = empHigh.Id, KpiDefinitionId = _kpiId, EvaluationPeriodId = prevYear.Id, ParentAssignmentId = prevDeptA.Id, SplitDimension = TargetSplitDimension.Org, TargetValue = 400m, Version = 1, Status = TargetAssignmentStatus.Active, CreatedAt = now, AssignedAt = now, ApprovedAt = now });
+            await db.SaveChangesAsync();
+        }
+
+        // Dept A (history=600) vs Dept B (1 SG-JOB employee, no dept history -> uses SG-JOB avg=100, NOT branch avg=200).
+        // Weights: 600 vs 100 -> 1000 split 6/7 (~857) vs 1/7 (~143).
+        var result = await SuggestAsync(2, _branchYearId, kpiIds: [_kpiId]);
+        var byDept = Assert.Single(result.Kpis).Cells.ToDictionary(c => c.UnitId);
+
+        Assert.False(byDept[_deptA].UsedFallbackAverage);
+        Assert.True(byDept[_deptB].UsedFallbackAverage);
+        Assert.Equal(857m, byDept[_deptA].Year);
+        Assert.Equal(143m, byDept[_deptB].Year);
+    }
+
+    [PostgresFact]
+    public async Task Tier2_MultiKpiCurrentValuesScopedByKpiId_AppliesOnlyToMatchingKpi()
+    {
+        var secondKpiId = Guid.NewGuid();
+        await using (var scope = _provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var now = DateTimeOffset.UtcNow;
+            var groupId = await db.KpiGroups.Select(g => g.Id).FirstAsync();
+            var secondKpi = new KpiDefinition
+            {
+                Id = secondKpiId,
+                KpiGroupId = groupId,
+                Code = "SG-K3",
+                Name = "SG-K3",
+                Unit = "case",
+                AggregationType = KpiAggregationType.Sum,
+                Direction = KpiDirection.HigherBetter,
+                Status = KpiStatus.Active,
+                UpdatedAt = now,
+            };
+            db.KpiDefinitions.Add(secondKpi);
+            var wtId = await db.WorkTypes.Select(w => w.Id).FirstAsync();
+            db.WorkTypeKpis.Add(new WorkTypeKpi { Id = Guid.NewGuid(), WorkTypeId = wtId, KpiDefinitionId = secondKpiId, EffectiveFrom = new DateOnly(Year, 1, 1), UpdatedAt = now });
+            var yearPeriod = await db.EvaluationPeriods.SingleAsync(p => p.PeriodType == PeriodType.Year && p.StartDate.Year == Year);
+            db.TargetAssignments.Add(Row(_branchId, secondKpiId, yearPeriod.Id, 900m, null, null, now));
+            await db.SaveChangesAsync();
+        }
+
+        var result = await SuggestAsync(
+            2, _branchYearId, kpiIds: [_kpiId, secondKpiId],
+            current: [new SuggestionCurrentValueDto(_deptA, 500m, null, null, null, null, false, KpiId: _kpiId)]);
+
+        var kpi1 = result.Kpis.Single(k => k.KpiId == _kpiId).Cells.ToDictionary(c => c.UnitId);
+        var kpi2 = result.Kpis.Single(k => k.KpiId == secondKpiId).Cells.ToDictionary(c => c.UnitId);
+
+        Assert.Equal(500m, kpi1[_deptA].Year);
+        Assert.False(kpi1[_deptA].Overwritten);
+        Assert.Equal(600m, kpi2[_deptA].Year);
+        Assert.True(kpi2[_deptA].Overwritten);
+    }
+
+    [PostgresFact]
+    public async Task D9Warning_UniformHighGrowthDoesNotWarn_AndFixedExceedingTotalWarns()
+    {
+        await using (var scope = _provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var now = DateTimeOffset.UtcNow;
+            var prevYear = await AddYearAsync(db, Year - 1, now);
+            var prevBranch = Row(_branchId, _kpiId, prevYear.Id, 500m, null, null, now, TargetAssignmentStatus.Active);
+            db.TargetAssignments.Add(prevBranch);
+            await db.SaveChangesAsync();
+            db.TargetAssignments.AddRange(
+                Row(_deptA, _kpiId, prevYear.Id, 300m, prevBranch.Id, TargetSplitDimension.Org, now, TargetAssignmentStatus.Active),
+                Row(_deptB, _kpiId, prevYear.Id, 200m, prevBranch.Id, TargetSplitDimension.Org, now, TargetAssignmentStatus.Active));
+            await db.SaveChangesAsync();
+        }
+
+        // Branch doubled from 500 -> 1000 (+100%, well above 30% absolute, but exact same 60/40 share -> 0 warnings).
+        var uniform = await SuggestAsync(2, _branchYearId, kpiIds: [_kpiId]);
+        Assert.Empty(Assert.Single(uniform.Kpis).Warnings);
+
+        // Fixed cell exceeds total (1200 > 1000) -> warns clearly and sets free cell to 0.
+        var exceeded = await SuggestAsync(
+            2, _branchYearId, kpiIds: [_kpiId],
+            current: [new SuggestionCurrentValueDto(_deptA, 1200m, null, null, null, null, false)]);
+        var exceededKpi = Assert.Single(exceeded.Kpis);
+        Assert.Contains(exceededKpi.Warnings, w => w.Contains("vượt tổng cần phân bổ"));
+        Assert.Equal(0m, exceededKpi.Cells.Single(c => c.UnitId == _deptB).Year);
+    }
+
     private static KpiDefinition Kpi(string code, Guid groupId, DateTimeOffset now) => new()
     {
         Id = Guid.NewGuid(),
