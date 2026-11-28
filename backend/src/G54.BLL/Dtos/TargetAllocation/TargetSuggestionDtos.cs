@@ -65,7 +65,8 @@ public sealed record SuggestionRemainderDto(
 /// A cell's value already on the grid before suggestion, as the frontend has it in its (possibly unsaved) draft —
 /// the suggestion reads these instead of hitting the DB a second time so it suggests against what the user is
 /// actually looking at. <c>UnitId</c> is a KPI id (tier 1, one quarter row per KPI), a department id (tier 2), or an
-/// employee id (tier 3). Omit a unit here to let the suggestion treat it as empty.
+/// employee id (tier 3). Optional <c>KpiId</c> disambiguates rows when a multi-KPI tier 2 call passes drafts for
+/// multiple KPIs at once. Omit a unit here to let the suggestion treat it as empty.
 /// </summary>
 public sealed record SuggestionCurrentValueDto(
     Guid UnitId,
@@ -74,7 +75,8 @@ public sealed record SuggestionCurrentValueDto(
     decimal? Q2,
     decimal? Q3,
     decimal? Q4,
-    bool Locked);
+    bool Locked,
+    Guid? KpiId = null);
 
 /// <summary>
 /// Request body for <c>POST /target-suggestions/{year}</c>. <c>AnchorId</c> is the branch-year id (tier 1/2) or the

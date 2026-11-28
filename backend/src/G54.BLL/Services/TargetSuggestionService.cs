@@ -112,44 +112,153 @@ internal static class SuggestionMath
         if (remainderMethod == SuggestionRemainderMethod.Buffer)
         {
             var idx = bufferIndex is int b && b >= 0 && b < baseAmounts.Count ? b : baseAmounts.Count - 1;
-            baseAmounts[idx] += diff;
+            var candidate = baseAmounts[idx] + diff;
+            if (candidate >= 0m)
+            {
+                baseAmounts[idx] = candidate;
+                return baseAmounts;
+            }
+
+            // UP rounding can overshoot by more than the buffer cell holds; clamp the buffer cell at 0
+            // and shed the remaining overshoot across other positive cells so no suggested target goes negative.
+            baseAmounts[idx] = 0m;
+            ShedOvershoot(baseAmounts, ideal, weights, step, -candidate, excludeIndex: idx);
             return baseAmounts;
         }
 
-        // LARGEST_REMAINDER (default, D1). diff is a whole number of steps whenever total and the rounded cells
-        // line up on the step grid (the normal case). When total itself is not a multiple of step, the single
-        // largest-weight cell absorbs the leftover fraction so the sum is always exactly preserved.
-        var stepUnits = diff / step;
-        if (stepUnits != Math.Truncate(stepUnits))
-        {
-            var fallbackIndex = Enumerable.Range(0, weights.Count).OrderByDescending(i => weights[i]).First();
-            baseAmounts[fallbackIndex] += diff;
-            return baseAmounts;
-        }
+        // LARGEST_REMAINDER (default, D1). Distribute whole steps by largest remainder first so an off-grid total
+        // only assigns its sub-step fraction to a single cell instead of dumping whole steps there.
+        var wholeSteps = (long)Math.Truncate(diff / step);
+        var subStepResidual = diff - wholeSteps * step;
 
-        var units = (int)stepUnits;
-        var remainders = ideal
-            .Select((v, i) => (Index: i, Remainder: v - baseAmounts[i], Weight: weights[i]))
-            .ToList();
-
-        if (units > 0)
+        if (wholeSteps > 0)
         {
-            // Cells rounded down the most relative to their ideal share get the next step first; ties broken by
-            // larger weight, then lower index, for a stable and reproducible order.
-            foreach (var r in remainders.OrderByDescending(r => r.Remainder).ThenByDescending(r => r.Weight).ThenBy(r => r.Index).Take(units))
+            var order = Enumerable.Range(0, weights.Count)
+                .OrderByDescending(i => ideal[i] - baseAmounts[i])
+                .ThenByDescending(i => weights[i])
+                .ThenBy(i => i)
+                .ToList();
+            for (long k = 0; k < wholeSteps; k++)
             {
-                baseAmounts[r.Index] += step;
+                baseAmounts[order[(int)(k % order.Count)]] += step;
             }
         }
-        else
+        else if (wholeSteps < 0)
         {
-            foreach (var r in remainders.OrderBy(r => r.Remainder).ThenByDescending(r => r.Weight).ThenBy(r => r.Index).Take(-units))
+            var stepsToRemove = -wholeSteps;
+            var order = Enumerable.Range(0, weights.Count)
+                .OrderBy(i => ideal[i] - baseAmounts[i])
+                .ThenByDescending(i => weights[i])
+                .ThenBy(i => i)
+                .ToList();
+            while (stepsToRemove > 0)
             {
-                baseAmounts[r.Index] -= step;
+                var removedAny = false;
+                foreach (var i in order)
+                {
+                    if (baseAmounts[i] < step)
+                    {
+                        continue;
+                    }
+
+                    baseAmounts[i] -= step;
+                    stepsToRemove--;
+                    removedAny = true;
+                    if (stepsToRemove == 0)
+                    {
+                        break;
+                    }
+                }
+
+                if (!removedAny)
+                {
+                    subStepResidual -= stepsToRemove * step;
+                    break;
+                }
             }
+        }
+
+        if (subStepResidual > 0m)
+        {
+            var fallbackIndex = Enumerable.Range(0, weights.Count)
+                .OrderByDescending(i => weights[i])
+                .ThenBy(i => i)
+                .First();
+            baseAmounts[fallbackIndex] += subStepResidual;
+        }
+        else if (subStepResidual < 0m)
+        {
+            ShedOvershoot(baseAmounts, ideal, weights, step, -subStepResidual, excludeIndex: null);
         }
 
         return baseAmounts;
+    }
+
+    private static void ShedOvershoot(
+        List<decimal> baseAmounts,
+        List<decimal> ideal,
+        IReadOnlyList<decimal> weights,
+        decimal step,
+        decimal overshoot,
+        int? excludeIndex)
+    {
+        if (overshoot <= 0m)
+        {
+            return;
+        }
+
+        var candidates = Enumerable.Range(0, baseAmounts.Count)
+            .Where(i => i != excludeIndex && baseAmounts[i] > 0m)
+            .OrderBy(i => ideal[i] - baseAmounts[i])
+            .ThenByDescending(i => baseAmounts[i])
+            .ThenByDescending(i => weights[i])
+            .ThenBy(i => i)
+            .ToList();
+
+        if (step > 0m && overshoot >= step)
+        {
+            while (overshoot >= step)
+            {
+                var tookStep = false;
+                foreach (var i in candidates)
+                {
+                    if (baseAmounts[i] < step)
+                    {
+                        continue;
+                    }
+
+                    baseAmounts[i] -= step;
+                    overshoot -= step;
+                    tookStep = true;
+                    if (overshoot < step)
+                    {
+                        break;
+                    }
+                }
+
+                if (!tookStep)
+                {
+                    break;
+                }
+            }
+        }
+
+        foreach (var i in candidates)
+        {
+            if (overshoot <= 0m)
+            {
+                break;
+            }
+
+            if (baseAmounts[i] <= 0m)
+            {
+                continue;
+            }
+
+            var take = Math.Min(baseAmounts[i], overshoot);
+            baseAmounts[i] -= take;
+            overshoot -= take;
+        }
     }
 
     /// <summary>
@@ -195,8 +304,9 @@ internal static class SuggestionMath
             return rows;
         }
 
-        // Repair: move amounts between quarters inside a free row until each column hits its target. Each move
-        // keeps the row sum, never goes negative, and fully closes a column gap or empties a cell.
+        // Repair: move amounts between quarters inside free rows until each column hits its target.
+        // Moves rotate across the largest donors in step increments so no single row gets drained dry
+        // and the rounding grid is preserved whenever the column gaps are multiples of step.
         for (var guard = 0; guard < 10_000; guard++)
         {
             var gap = new decimal[4];
@@ -212,11 +322,25 @@ internal static class SuggestionMath
                 break;
             }
 
-            var donor = free.OrderByDescending(i => rows[i][over]).First();
-            var move = Math.Min(Math.Min(-gap[over], gap[under]), rows[donor][over]);
-            if (move <= 0)
+            var donor = free.OrderByDescending(i => rows[i][over]).ThenBy(i => i).First();
+            var maxTransfer = Math.Min(Math.Min(-gap[over], gap[under]), rows[donor][over]);
+            if (maxTransfer <= 0)
             {
                 break;
+            }
+
+            decimal move;
+            if (step > 0 && maxTransfer >= step)
+            {
+                var stepsAvailable = Math.Truncate(maxTransfer / step);
+                var stepsPerMove = stepsAvailable > 1_000m
+                    ? Math.Max(1m, Math.Truncate(stepsAvailable / Math.Max(1, free.Count)))
+                    : 1m;
+                move = stepsPerMove * step;
+            }
+            else
+            {
+                move = maxTransfer;
             }
 
             rows[donor][over] -= move;
@@ -370,6 +494,45 @@ public sealed class TargetSuggestionService(
         return null;
     }
 
+    private static Dictionary<Guid, SuggestionCurrentValueDto> IndexCurrentValues(
+        IEnumerable<SuggestionCurrentValueDto>? currentValues, Guid kpiId)
+    {
+        var map = new Dictionary<Guid, SuggestionCurrentValueDto>();
+        if (currentValues is null)
+        {
+            return map;
+        }
+
+        foreach (var entry in currentValues)
+        {
+            if (entry.KpiId is null)
+            {
+                map[entry.UnitId] = entry;
+            }
+        }
+
+        foreach (var entry in currentValues)
+        {
+            if (entry.KpiId == kpiId)
+            {
+                map[entry.UnitId] = entry;
+            }
+        }
+
+        return map;
+    }
+
+    private static bool[] GetLockedQuarterMask(List<EvaluationPeriod> quarterPeriods, DateOnly today)
+    {
+        var mask = new bool[4];
+        for (var i = 0; i < 4 && i < quarterPeriods.Count; i++)
+        {
+            mask[i] = quarterPeriods[i].Status != PeriodStatus.Open || quarterPeriods[i].EndDate < today;
+        }
+
+        return mask;
+    }
+
     /// <summary>
     /// Fills free (non-fixed) cells by weight and leaves fixed cells (locked, or already filled when
     /// <c>overwrite = EMPTY_ONLY</c>) untouched, so the final set of cells always sums to <paramref name="total"/>
@@ -387,7 +550,8 @@ public sealed class TargetSuggestionService(
         int? bufferIndex,
         List<string> warnings,
         List<string>? unitNames = null,
-        bool historyBasis = true)
+        IReadOnlyList<bool>? usedFallback = null,
+        bool emitD9 = true)
     {
         var n = weights.Count;
         var fixedMask = new bool[n];
@@ -466,30 +630,56 @@ public sealed class TargetSuggestionService(
             overwritten[freeIndexes[k]] = true;
         }
 
-        // D9: ceiling/floor warning — a newly-suggested (overwritten, non-locked) cell that deviates from its own
-        // basis value by more than the configured percent gets a non-blocking warning; it is never clamped.
-        // Skipped for a no-history fallback: its weights (1:2:3:4, headcount, equal) are not last year's values.
-        var ceiling = historyBasis ? CeilingPercent : 0m;
-        if (ceiling > 0)
+        if (emitD9)
         {
-            for (var i = 0; i < n; i++)
-            {
-                if (!overwritten[i] || weights[i] <= 0)
-                {
-                    continue;
-                }
-
-                var deviationPercent = Math.Abs(amounts[i] - weights[i]) / weights[i] * 100m;
-                if (deviationPercent > ceiling)
-                {
-                    var name = unitNames is not null && i < unitNames.Count ? unitNames[i] : $"#{i + 1}";
-                    warnings.Add(
-                        $"{name}: giá trị gợi ý ({Amount(amounts[i])}) lệch {deviationPercent:0.#}% so với mốc năm trước ({Amount(weights[i])}), vượt ngưỡng cảnh báo ±{ceiling:0.#}%.");
-                }
-            }
+            EmitD9Warnings(total, weights, amounts, overwritten, usedFallback, warnings, unitNames);
         }
 
         return (amounts, overwritten);
+    }
+
+    /// <summary>
+    /// D9 ceiling/floor warning: checks relative share deviation <c>|(a_i/w_i) / (T/Sum(w)) - 1| * 100</c>
+    /// against <see cref="CeilingPercent"/>, skipping fallback units without historical baselines.
+    /// </summary>
+    private void EmitD9Warnings(
+        decimal total,
+        IReadOnlyList<decimal> weights,
+        decimal[] amounts,
+        bool[] overwritten,
+        IReadOnlyList<bool>? usedFallback,
+        List<string> warnings,
+        List<string>? unitNames)
+    {
+        var ceiling = CeilingPercent;
+        if (ceiling <= 0m || total <= 0m)
+        {
+            return;
+        }
+
+        var weightSum = weights.Sum();
+        if (weightSum <= 0m)
+        {
+            return;
+        }
+
+        var parentRatio = total / weightSum;
+        for (var i = 0; i < amounts.Length; i++)
+        {
+            if (!overwritten[i] || weights[i] <= 0m || (usedFallback is not null && usedFallback[i]))
+            {
+                continue;
+            }
+
+            var unitRatio = amounts[i] / weights[i];
+            var deviationPercent = Math.Abs(unitRatio / parentRatio - 1m) * 100m;
+            if (deviationPercent > ceiling)
+            {
+                var name = unitNames is not null && i < unitNames.Count ? unitNames[i] : $"#{i + 1}";
+                warnings.Add(
+                    $"{name}: giá trị gợi ý ({Amount(amounts[i])}) lệch {deviationPercent:0.#}% so với tỷ trọng năm trước (mốc {Amount(weights[i])}), vượt ngưỡng cảnh báo ±{ceiling:0.#}%.");
+            }
+        }
     }
 
     // =========================================================================
@@ -619,10 +809,10 @@ public sealed class TargetSuggestionService(
         }
 
         var scopeKpiIds = request.KpiIds?.ToHashSet();
-        var currentByUnit = (request.CurrentValues ?? []).ToDictionary(c => c.UnitId);
         var mode = ParseMode(request.Rounding?.Mode);
         var remainderMethod = ParseRemainderMethod(request.Remainder);
         var bufferIndex = ResolveBufferIndex(quarterIds, request.Remainder?.BufferUnitId);
+        var quarterLockedMask = GetLockedQuarterMask(quarterPeriods, today);
 
         var kpiResults = new List<SuggestedKpiDto>();
 
@@ -676,19 +866,20 @@ public sealed class TargetSuggestionService(
 
             var warnings = new List<string>();
             var step = StepFor(kpi.Unit, request.Rounding);
+            var currentByUnit = IndexCurrentValues(request.CurrentValues, kpi.Id);
             currentByUnit.TryGetValue(kpi.Id, out var current);
 
             var locked = new bool[4];
             for (var i = 0; i < 4; i++)
             {
-                var periodLocked = quarterPeriods.Count > i && (quarterPeriods[i].Status != PeriodStatus.Open || quarterPeriods[i].EndDate < today);
-                locked[i] = periodLocked || (current?.Locked ?? false);
+                locked[i] = quarterLockedMask[i] || (current?.Locked ?? false);
             }
 
             var currentValues = new decimal?[] { current?.Q1, current?.Q2, current?.Q3, current?.Q4 };
+            var fallbackMask = Enumerable.Repeat(noHistory, 4).ToArray();
             var (amounts, overwritten) = ApplyPlan(
                 branchYearRow.TargetValue, quarterWeights, currentValues, locked, request.Overwrite, step, mode, remainderMethod, bufferIndex, warnings,
-                ["Quý 1", "Quý 2", "Quý 3", "Quý 4"], historyBasis: !noHistory);
+                ["Quý 1", "Quý 2", "Quý 3", "Quý 4"], fallbackMask);
 
             var sum = amounts.Sum();
             var cell = new SuggestedCellDto(
@@ -709,25 +900,74 @@ public sealed class TargetSuggestionService(
     // =========================================================================
 
     /// <summary>Same eligibility rule as TargetSetupService (active evaluation profile item for the KPI, falling back to the work-type link).</summary>
-    private async Task<Dictionary<Guid, int>> GetEligibleDepartmentHeadcountsAsync(Guid branchId, Guid kpiId, DateOnly asOf, CancellationToken cancellationToken)
+    private async Task<(Dictionary<Guid, int> Total, Dictionary<Guid, Dictionary<Guid, int>> ByPosition)> GetEligibleDepartmentHeadcountsAsync(
+        Guid branchId, Guid kpiId, DateOnly asOf, CancellationToken cancellationToken)
     {
         var departments = await db.Departments
             .AsNoTracking()
             .Where(d => d.ParentDepartmentId == branchId && d.LevelType == DepartmentLevelType.Department)
             .ToListAsync(cancellationToken);
 
-        // Department id -> number of employees eligible for the KPI (the no-history weight of tier 2).
-        var eligible = new Dictionary<Guid, int>();
+        // Department id -> number of employees eligible for the KPI (total & per JobPositionId).
+        var total = new Dictionary<Guid, int>();
+        var byPosition = new Dictionary<Guid, Dictionary<Guid, int>>();
         foreach (var dept in departments)
         {
             var (eligibleEmployees, _, _) = await GetEligibleEmployeesAsync(dept.Id, kpiId, asOf, cancellationToken);
             if (eligibleEmployees.Count > 0)
             {
-                eligible[dept.Id] = eligibleEmployees.Count;
+                total[dept.Id] = eligibleEmployees.Count;
+                byPosition[dept.Id] = eligibleEmployees
+                    .GroupBy(e => e.JobPositionId)
+                    .ToDictionary(g => g.Key, g => g.Count());
             }
         }
 
-        return eligible;
+        return (total, byPosition);
+    }
+
+    private async Task<Dictionary<Guid, decimal>> GetPreviousYearPositionPerHeadAsync(
+        List<Guid> branchDeptIds,
+        Guid kpiId,
+        EvaluationPeriod previousYearPeriod,
+        string basis,
+        CancellationToken cancellationToken)
+    {
+        var empRows = await db.TargetAssignments
+            .AsNoTracking()
+            .Where(t => t.EmployeeId != null
+                && t.SplitDimension == TargetSplitDimension.Org
+                && t.KpiDefinitionId == kpiId
+                && t.Status == TargetAssignmentStatus.Active
+                && t.EvaluationPeriodId == previousYearPeriod.Id
+                && branchDeptIds.Contains(t.DepartmentId ?? t.Employee!.DepartmentId))
+            .Select(t => new { t.Id, t.TargetValue, JobPositionId = t.Employee!.JobPositionId })
+            .ToListAsync(cancellationToken);
+
+        if (empRows.Count == 0)
+        {
+            return new Dictionary<Guid, decimal>();
+        }
+
+        var byPosition = new Dictionary<Guid, List<decimal>>();
+        foreach (var row in empRows)
+        {
+            var weight = basis == SuggestionBasis.TargetLastYear
+                ? row.TargetValue
+                : await SumActualYearAsync(row.Id, previousYearPeriod, cancellationToken);
+            if (weight > 0m)
+            {
+                if (!byPosition.TryGetValue(row.JobPositionId, out var list))
+                {
+                    list = [];
+                    byPosition[row.JobPositionId] = list;
+                }
+
+                list.Add(weight);
+            }
+        }
+
+        return byPosition.ToDictionary(kv => kv.Key, kv => kv.Value.Average());
     }
 
     /// <summary>Splits a department's active employees into those eligible for a KPI (active evaluation-profile item, falling back to the work-type link) and those who aren't (D7/BR rule).</summary>
@@ -798,16 +1038,229 @@ public sealed class TargetSuggestionService(
         return (eligible, ineligible, department);
     }
 
+    private static decimal? GetQuarterField(SuggestionCurrentValueDto dto, int quarterIndex) => quarterIndex switch
+    {
+        0 => dto.Q1,
+        1 => dto.Q2,
+        2 => dto.Q3,
+        3 => dto.Q4,
+        _ => null,
+    };
+
+    private async Task<Dictionary<Guid, decimal[]>> LoadStoredLockedQuartersAsync(
+        Guid parentAssignmentId,
+        Guid kpiId,
+        List<EvaluationPeriod> quarterPeriods,
+        bool isEmployeeTier,
+        CancellationToken cancellationToken)
+    {
+        var childYearRows = await db.TargetAssignments
+            .AsNoTracking()
+            .Where(t => t.ParentAssignmentId == parentAssignmentId
+                && t.SplitDimension == TargetSplitDimension.Org
+                && t.KpiDefinitionId == kpiId
+                && t.Status != TargetAssignmentStatus.Superseded
+                && (isEmployeeTier ? t.EmployeeId != null : t.DepartmentId != null && t.EmployeeId == null))
+            .Select(t => new { t.Id, UnitId = isEmployeeTier ? t.EmployeeId!.Value : t.DepartmentId!.Value })
+            .ToListAsync(cancellationToken);
+
+        if (childYearRows.Count == 0)
+        {
+            return new Dictionary<Guid, decimal[]>();
+        }
+
+        var unitByYearId = childYearRows.ToDictionary(r => r.Id, r => r.UnitId);
+        var yearIds = childYearRows.Select(r => r.Id).ToList();
+        var quarterRows = await db.TargetAssignments
+            .AsNoTracking()
+            .Where(t => t.SplitDimension == TargetSplitDimension.Period
+                && t.KpiDefinitionId == kpiId
+                && t.ParentAssignmentId != null
+                && yearIds.Contains(t.ParentAssignmentId.Value))
+            .Select(t => new { t.ParentAssignmentId, t.EvaluationPeriodId, t.TargetValue })
+            .ToListAsync(cancellationToken);
+
+        var periodIndex = new Dictionary<Guid, int>();
+        for (var q = 0; q < 4 && q < quarterPeriods.Count; q++)
+        {
+            periodIndex[quarterPeriods[q].Id] = q;
+        }
+
+        var result = new Dictionary<Guid, decimal[]>();
+        foreach (var qRow in quarterRows)
+        {
+            if (qRow.ParentAssignmentId is { } parentId
+                && unitByYearId.TryGetValue(parentId, out var unitId)
+                && periodIndex.TryGetValue(qRow.EvaluationPeriodId, out var qIdx))
+            {
+                if (!result.TryGetValue(unitId, out var arr))
+                {
+                    arr = new decimal[4];
+                    result[unitId] = arr;
+                }
+
+                arr[qIdx] = qRow.TargetValue;
+            }
+        }
+
+        return result;
+    }
+
+    private (List<SuggestedCellDto> Cells, decimal TotalYear) AllocateUnitsToCells(
+        List<Guid> orderedUnitIds,
+        List<decimal> weights,
+        List<bool> unitLocked,
+        List<string> unitLockReasons,
+        List<bool> usedFallbackMask,
+        List<string> unitNames,
+        decimal parentYear,
+        decimal[] parentQuarterValues,
+        bool[] quarterLockedMask,
+        Dictionary<Guid, SuggestionCurrentValueDto> currentByUnit,
+        Dictionary<Guid, decimal[]> storedQuarterByUnit,
+        string overwrite,
+        decimal step,
+        SuggestionRoundingMode mode,
+        SuggestionRemainderMethod remainderMethod,
+        int? bufferIndex,
+        List<string> warnings,
+        string unitKindLabel)
+    {
+        var n = orderedUnitIds.Count;
+        decimal[] yearAmounts;
+        bool[] overwritten;
+        decimal[][] quarterRows;
+
+        if (!quarterLockedMask.Any(l => l))
+        {
+            var currentYearValues = orderedUnitIds
+                .Select(id => currentByUnit.TryGetValue(id, out var c) ? c.Year : (decimal?)null)
+                .ToList();
+            (yearAmounts, overwritten) = ApplyPlan(
+                parentYear, weights, currentYearValues, unitLocked, overwrite, step, mode, remainderMethod, bufferIndex,
+                warnings, unitNames.ToList(), usedFallbackMask);
+
+            quarterRows = SuggestionMath.SplitIntoQuarters(
+                yearAmounts, FixedQuarterRows(orderedUnitIds, overwritten, currentByUnit), parentQuarterValues, step, mode);
+
+            var quarterTotals = new decimal[4];
+            for (var i = 0; i < n; i++)
+            {
+                for (var q = 0; q < 4; q++)
+                {
+                    quarterTotals[q] += quarterRows[i][q];
+                }
+            }
+
+            for (var q = 0; q < 4 && parentQuarterValues.Any(v => v > 0); q++)
+            {
+                if (quarterTotals[q] != parentQuarterValues[q])
+                {
+                    warnings.Add($"Quý {q + 1}: tổng gợi ý của các {unitKindLabel} = {Amount(quarterTotals[q])}, chỉ tiêu quý cấp trên = {Amount(parentQuarterValues[q])}. Vui lòng kiểm tra lại trước khi lưu.");
+                }
+            }
+        }
+        else
+        {
+            var targetQuarters = parentQuarterValues.Any(v => v > 0)
+                ? parentQuarterValues
+                : SuggestionMath.DistributeByShare(parentYear, SuggestionMath.ProgressiveQuarterWeights, step, mode, SuggestionRemainderMethod.LargestRemainder).ToArray();
+
+            quarterRows = new decimal[n][];
+            for (var i = 0; i < n; i++)
+            {
+                quarterRows[i] = new decimal[4];
+            }
+
+            overwritten = new bool[n];
+            for (var q = 0; q < 4; q++)
+            {
+                if (quarterLockedMask[q])
+                {
+                    var lockedColTotal = 0m;
+                    for (var i = 0; i < n; i++)
+                    {
+                        var unitId = orderedUnitIds[i];
+                        var lockedVal = (currentByUnit.TryGetValue(unitId, out var c) ? GetQuarterField(c, q) : null)
+                            ?? (storedQuarterByUnit.TryGetValue(unitId, out var stored) ? stored[q] : 0m);
+                        quarterRows[i][q] = lockedVal;
+                        lockedColTotal += lockedVal;
+                    }
+
+                    if (lockedColTotal != targetQuarters[q])
+                    {
+                        warnings.Add($"Quý {q + 1} (đã khóa): tổng hiện tại của các {unitKindLabel} = {Amount(lockedColTotal)}, chỉ tiêu quý cấp trên = {Amount(targetQuarters[q])}.");
+                    }
+                }
+                else
+                {
+                    var openCurrentValues = orderedUnitIds
+                        .Select(id => currentByUnit.TryGetValue(id, out var c) ? GetQuarterField(c, q) : (decimal?)null)
+                        .ToList();
+                    var (qAmounts, qOverwritten) = ApplyPlan(
+                        targetQuarters[q], weights, openCurrentValues, unitLocked, overwrite, step, mode, remainderMethod, bufferIndex,
+                        warnings, unitNames.ToList(), usedFallbackMask, emitD9: false);
+
+                    var openColTotal = 0m;
+                    for (var i = 0; i < n; i++)
+                    {
+                        quarterRows[i][q] = qAmounts[i];
+                        overwritten[i] |= qOverwritten[i];
+                        openColTotal += qAmounts[i];
+                    }
+
+                    if (openColTotal != targetQuarters[q])
+                    {
+                        warnings.Add($"Quý {q + 1}: tổng gợi ý của các {unitKindLabel} = {Amount(openColTotal)}, chỉ tiêu quý cấp trên = {Amount(targetQuarters[q])}. Vui lòng kiểm tra lại trước khi lưu.");
+                    }
+                }
+            }
+
+            yearAmounts = new decimal[n];
+            for (var i = 0; i < n; i++)
+            {
+                yearAmounts[i] = quarterRows[i][0] + quarterRows[i][1] + quarterRows[i][2] + quarterRows[i][3];
+            }
+
+            EmitD9Warnings(parentYear, weights, yearAmounts, overwritten, usedFallbackMask, warnings, unitNames);
+        }
+
+        var allQuartersLocked = quarterLockedMask.All(l => l);
+        var cells = new List<SuggestedCellDto>(n);
+        for (var i = 0; i < n; i++)
+        {
+            var isLocked = unitLocked[i] || allQuartersLocked;
+            var lockReason = unitLocked[i]
+                ? unitLockReasons[i]
+                : allQuartersLocked ? "period_locked" : null;
+            cells.Add(new SuggestedCellDto(
+                orderedUnitIds[i], unitNames[i], yearAmounts[i],
+                quarterRows[i][0], quarterRows[i][1], quarterRows[i][2], quarterRows[i][3],
+                UsedFallbackAverage: usedFallbackMask[i], Overwritten: overwritten[i], Locked: isLocked,
+                LockReason: lockReason));
+        }
+
+        return (cells, yearAmounts.Sum());
+    }
+
     private async Task<SuggestTargetsResponseDto> SuggestTier2Async(int year, SuggestTargetsRequest request, Guid userId, CancellationToken cancellationToken)
     {
         var (branchId, branchYearRows, yearPeriod) = await LoadBranchYearAsync(request.AnchorId, year, userId, cancellationToken);
         var quarterPeriods = (await uow.EvaluationPeriods.GetInRangeAsync(PeriodType.Quarter, yearPeriod.StartDate, yearPeriod.EndDate, cancellationToken)).ToList();
+        var quarterLockedMask = GetLockedQuarterMask(quarterPeriods, DateOnly.FromDateTime(DateTime.UtcNow));
         var previousYearPeriod = await uow.EvaluationPeriods.GetYearAsync(year - 1, cancellationToken);
 
         var scopeKpiIds = request.KpiIds?.ToHashSet();
-        var currentByUnit = (request.CurrentValues ?? []).ToDictionary(c => c.UnitId);
         var mode = ParseMode(request.Rounding?.Mode);
         var remainderMethod = ParseRemainderMethod(request.Remainder);
+
+        var allDepts = await db.Departments
+            .AsNoTracking()
+            .Where(d => d.ParentDepartmentId == branchId && d.LevelType == DepartmentLevelType.Department)
+            .OrderBy(d => d.Code)
+            .ToListAsync(cancellationToken);
+        var nameById = allDepts.ToDictionary(d => d.Id, d => d.Name);
+        var allDeptIds = allDepts.Select(d => d.Id).ToList();
 
         var kpiResults = new List<SuggestedKpiDto>();
 
@@ -820,14 +1273,9 @@ public sealed class TargetSuggestionService(
             }
 
             var warnings = new List<string>();
-            var headcountByDept = await GetEligibleDepartmentHeadcountsAsync(branchId, kpi.Id, yearPeriod.StartDate, cancellationToken);
+            var currentByUnit = IndexCurrentValues(request.CurrentValues, kpi.Id);
+            var (headcountByDept, headcountByDeptAndPosition) = await GetEligibleDepartmentHeadcountsAsync(branchId, kpi.Id, yearPeriod.StartDate, cancellationToken);
             var eligibleDeptIds = headcountByDept.Keys.ToList();
-            var allDepts = await db.Departments
-                .AsNoTracking()
-                .Where(d => d.ParentDepartmentId == branchId && d.LevelType == DepartmentLevelType.Department)
-                .OrderBy(d => d.Code)
-                .ToListAsync(cancellationToken);
-            var nameById = allDepts.ToDictionary(d => d.Id, d => d.Name);
 
             var lockedUnits = allDepts
                 .Where(d => !eligibleDeptIds.Contains(d.Id))
@@ -879,8 +1327,9 @@ public sealed class TargetSuggestionService(
                 }
             }
 
-            // No history for the KPI in any department: split the year by headcount. Otherwise only departments with
-            // their own history are suggested (the rest are named in a warning and left untouched).
+            // No history for the KPI in any department: split by eligible headcount. Otherwise, missing departments
+            // derive their weight from previous-year employee per-head averages grouped by JobPositionId (falling back
+            // to the branch-wide per-head average when a position has no prior employee-level history).
             var noHistory = weightByDept.Count == 0;
             if (noHistory)
             {
@@ -892,77 +1341,56 @@ public sealed class TargetSuggestionService(
             }
             else
             {
-                // A department without its own history (e.g. newly created) gets the per-head average of the
-                // departments that have one, times its headcount, so it is suggested instead of left at 0.
-                var perHead = weightByDept.Sum(kv => kv.Value) / weightByDept.Sum(kv => headcountByDept.GetValueOrDefault(kv.Key, 1));
-                foreach (var deptId in eligibleDeptIds.Where(id => !weightByDept.ContainsKey(id)))
+                var missingDeptIds = eligibleDeptIds.Where(id => !weightByDept.ContainsKey(id)).ToList();
+                if (missingDeptIds.Count > 0)
                 {
-                    weightByDept[deptId] = perHead * headcountByDept[deptId];
-                    usedFallback.Add(deptId);
+                    var overallPerHead = weightByDept.Sum(kv => kv.Value)
+                        / Math.Max(1, weightByDept.Sum(kv => headcountByDept.GetValueOrDefault(kv.Key, 1)));
+                    var perHeadByPosition = previousYearPeriod is not null
+                        ? await GetPreviousYearPositionPerHeadAsync(allDeptIds, kpi.Id, previousYearPeriod, request.Basis, cancellationToken)
+                        : new Dictionary<Guid, decimal>();
+
+                    foreach (var deptId in missingDeptIds)
+                    {
+                        var posCounts = headcountByDeptAndPosition.GetValueOrDefault(deptId);
+                        var weighted = posCounts is { Count: > 0 }
+                            ? posCounts.Sum(kv => (perHeadByPosition.TryGetValue(kv.Key, out var posAvg) ? posAvg : overallPerHead) * kv.Value)
+                            : overallPerHead * headcountByDept[deptId];
+                        weightByDept[deptId] = weighted;
+                        usedFallback.Add(deptId);
+                    }
                 }
             }
 
             var orderedDeptIds = eligibleDeptIds.Where(weightByDept.ContainsKey).ToList();
             var weights = orderedDeptIds.Select(id => weightByDept[id]).ToList();
-            var currentValues = orderedDeptIds.Select(id => currentByUnit.TryGetValue(id, out var c) ? c.Year : (decimal?)null).ToList();
             var locked = orderedDeptIds.Select(id => currentByUnit.TryGetValue(id, out var c) && c.Locked).ToList();
+            var lockReasons = orderedDeptIds.Select(_ => "period_locked").ToList();
+            var usedFallbackMask = orderedDeptIds.Select(id => usedFallback.Contains(id)).ToList();
             var bufferIndex = ResolveBufferIndex(orderedDeptIds, request.Remainder?.BufferUnitId);
             var step = StepFor(kpi.Unit, request.Rounding);
-
             var deptUnitNames = orderedDeptIds.Select(id => nameById.GetValueOrDefault(id, id.ToString())).ToList();
-            var (yearAmounts, overwritten) = ApplyPlan(
-                branchYearRow.TargetValue, weights, currentValues, locked, request.Overwrite, step, mode, remainderMethod, bufferIndex, warnings,
-                deptUnitNames, !noHistory);
 
-            // Branch's own quarter shape (ratios), used to split each department's suggested year value into
-            // quarters so that department's own quarters always sum to its year value exactly; progressive 1:2:3:4
-            // when the branch has no quarter split yet.
             var branchQuarterValues = new decimal[4];
-            if (kpi.AggregationType == KpiAggregationType.Sum)
+            var branchQuarterRows = await db.TargetAssignments
+                .AsNoTracking()
+                .Where(t => t.ParentAssignmentId == branchYearRow.Id && t.SplitDimension == TargetSplitDimension.Period)
+                .ToListAsync(cancellationToken);
+            var byPeriod = branchQuarterRows.ToDictionary(r => r.EvaluationPeriodId, r => r.TargetValue);
+            for (var i = 0; i < 4 && i < quarterPeriods.Count; i++)
             {
-                var branchQuarterRows = await db.TargetAssignments
-                    .AsNoTracking()
-                    .Where(t => t.ParentAssignmentId == branchYearRow.Id && t.SplitDimension == TargetSplitDimension.Period)
-                    .ToListAsync(cancellationToken);
-                var byPeriod = branchQuarterRows.ToDictionary(r => r.EvaluationPeriodId, r => r.TargetValue);
-                for (var i = 0; i < 4 && i < quarterPeriods.Count; i++)
-                {
-                    branchQuarterValues[i] = byPeriod.TryGetValue(quarterPeriods[i].Id, out var v) ? v : 0m;
-                }
+                branchQuarterValues[i] = byPeriod.TryGetValue(quarterPeriods[i].Id, out var v) ? v : 0m;
             }
 
-            var quarterRows = SuggestionMath.SplitIntoQuarters(
-                yearAmounts, FixedQuarterRows(orderedDeptIds, overwritten, currentByUnit), branchQuarterValues, step, mode);
-            var cells = new List<SuggestedCellDto>();
-            for (var i = 0; i < orderedDeptIds.Count; i++)
-            {
-                var deptId = orderedDeptIds[i];
-                var deptQuarters = quarterRows[i];
+            var storedQuarters = quarterLockedMask.Any(l => l)
+                ? await LoadStoredLockedQuartersAsync(branchYearRow.Id, kpi.Id, quarterPeriods, isEmployeeTier: false, cancellationToken)
+                : new Dictionary<Guid, decimal[]>();
 
-                cells.Add(new SuggestedCellDto(
-                    deptId, nameById.GetValueOrDefault(deptId, deptId.ToString()), yearAmounts[i],
-                    deptQuarters[0], deptQuarters[1], deptQuarters[2], deptQuarters[3],
-                    UsedFallbackAverage: usedFallback.Contains(deptId), Overwritten: overwritten[i], Locked: locked[i],
-                    LockReason: locked[i] ? "period_locked" : null));
-            }
-
-            var total = yearAmounts.Sum();
-            var deptQuarterTotals = new decimal[4];
-            foreach (var cell in cells)
-            {
-                deptQuarterTotals[0] += cell.Q1;
-                deptQuarterTotals[1] += cell.Q2;
-                deptQuarterTotals[2] += cell.Q3;
-                deptQuarterTotals[3] += cell.Q4;
-            }
-
-            for (var i = 0; i < 4 && branchQuarterValues.Any(v => v > 0); i++)
-            {
-                if (deptQuarterTotals[i] != branchQuarterValues[i])
-                {
-                    warnings.Add($"Quý {i + 1}: tổng gợi ý của các phòng = {Amount(deptQuarterTotals[i])}, chỉ tiêu quý của chi nhánh = {Amount(branchQuarterValues[i])}. Vui lòng kiểm tra lại trước khi lưu.");
-                }
-            }
+            var (cells, total) = AllocateUnitsToCells(
+                orderedDeptIds, weights, locked, lockReasons, usedFallbackMask, deptUnitNames,
+                branchYearRow.TargetValue, branchQuarterValues, quarterLockedMask,
+                currentByUnit, storedQuarters, request.Overwrite, step, mode, remainderMethod, bufferIndex,
+                warnings, "phòng");
 
             kpiResults.Add(new SuggestedKpiDto(
                 kpi.Id, kpi.Code, kpi.Name, kpi.Unit, kpi.AggregationType.ToEnumString(), cells, lockedUnits,
@@ -1006,15 +1434,19 @@ public sealed class TargetSuggestionService(
     {
         var (deptYear, departmentId, _, yearPeriod) = await LoadDeptYearAsync(request.AnchorId, year, userId, cancellationToken);
         var kpi = deptYear.KpiDefinition;
-        var quarterPeriods = (await uow.EvaluationPeriods.GetInRangeAsync(PeriodType.Quarter, yearPeriod.StartDate, yearPeriod.EndDate, cancellationToken)).ToList();
-        var previousYearPeriod = await uow.EvaluationPeriods.GetYearAsync(year - 1, cancellationToken);
-
-        if (deptYear.Status != TargetAssignmentStatus.Active)
+        if (kpi.AggregationType != KpiAggregationType.Sum)
         {
-            // Not a hard block (this endpoint never writes), but the suggestion is only meaningful once tier 2 is published.
+            var unsupported = new SuggestedKpiDto(
+                kpi.Id, kpi.Code, kpi.Name, kpi.Unit, kpi.AggregationType.ToEnumString(), [], [], 0m, false,
+                "unsupported_aggregation", [$"KPI dạng {kpi.AggregationType.ToEnumString()} không hỗ trợ gợi ý chia cộng dồn."]);
+            return new SuggestTargetsResponseDto(3, request.Basis, request.Overwrite, [unsupported], []);
         }
 
-        var currentByUnit = (request.CurrentValues ?? []).ToDictionary(c => c.UnitId);
+        var quarterPeriods = (await uow.EvaluationPeriods.GetInRangeAsync(PeriodType.Quarter, yearPeriod.StartDate, yearPeriod.EndDate, cancellationToken)).ToList();
+        var quarterLockedMask = GetLockedQuarterMask(quarterPeriods, DateOnly.FromDateTime(DateTime.UtcNow));
+        var previousYearPeriod = await uow.EvaluationPeriods.GetYearAsync(year - 1, cancellationToken);
+
+        var currentByUnit = IndexCurrentValues(request.CurrentValues, kpi.Id);
         var mode = ParseMode(request.Rounding?.Mode);
         var remainderMethod = ParseRemainderMethod(request.Remainder);
         var warnings = new List<string>();
@@ -1131,51 +1563,40 @@ public sealed class TargetSuggestionService(
         }
 
         var weights = orderedEmployeeIds.Select(id => weightByEmployee.GetValueOrDefault(id, 0m)).ToList();
-        var currentValues = orderedEmployeeIds.Select(id => currentByUnit.TryGetValue(id, out var c) ? c.Year : (decimal?)null).ToList();
-        var locked = orderedEmployeeIds
-            .Select(id => (currentByUnit.TryGetValue(id, out var c) && c.Locked)
-                || (request.Employees == SuggestionEmployeeScope.NewOnly && !newEmployeeIds.Contains(id)))
+        var isNewOnlyNonNew = orderedEmployeeIds
+            .Select(id => request.Employees == SuggestionEmployeeScope.NewOnly && !newEmployeeIds.Contains(id))
             .ToList();
+        var locked = orderedEmployeeIds
+            .Select((id, idx) => (currentByUnit.TryGetValue(id, out var c) && c.Locked) || isNewOnlyNonNew[idx])
+            .ToList();
+        var lockReasons = isNewOnlyNonNew.Select(notNew => notNew ? "not_new" : "period_locked").ToList();
+        var usedFallbackMask = orderedEmployeeIds.Select(id => usedFallback.Contains(id)).ToList();
         var bufferIndex = ResolveBufferIndex(orderedEmployeeIds, request.Remainder?.BufferUnitId);
         var step = StepFor(kpi.Unit, request.Rounding);
         var employeeNameById = eligibleEmployees.ToDictionary(e => e.Id, e => e.FullName);
         var employeeUnitNames = orderedEmployeeIds.Select(id => employeeNameById.GetValueOrDefault(id, id.ToString())).ToList();
 
-        var (yearAmounts, overwritten) = ApplyPlan(
-            deptYear.TargetValue, weights, currentValues, locked, request.Overwrite, step, mode, remainderMethod, bufferIndex, warnings,
-            employeeUnitNames, !noHistory);
-
         var deptQuarterValues = new decimal[4];
-        if (kpi.AggregationType == KpiAggregationType.Sum)
+        var deptQuarterRows = await db.TargetAssignments
+            .AsNoTracking()
+            .Where(t => t.ParentAssignmentId == deptYear.Id && t.SplitDimension == TargetSplitDimension.Period && t.EmployeeId == null)
+            .ToListAsync(cancellationToken);
+        var byPeriod = deptQuarterRows.ToDictionary(r => r.EvaluationPeriodId, r => r.TargetValue);
+        for (var i = 0; i < 4 && i < quarterPeriods.Count; i++)
         {
-            var deptQuarterRows = await db.TargetAssignments
-                .AsNoTracking()
-                .Where(t => t.ParentAssignmentId == deptYear.Id && t.SplitDimension == TargetSplitDimension.Period && t.EmployeeId == null)
-                .ToListAsync(cancellationToken);
-            var byPeriod = deptQuarterRows.ToDictionary(r => r.EvaluationPeriodId, r => r.TargetValue);
-            for (var i = 0; i < 4 && i < quarterPeriods.Count; i++)
-            {
-                deptQuarterValues[i] = byPeriod.TryGetValue(quarterPeriods[i].Id, out var v) ? v : 0m;
-            }
+            deptQuarterValues[i] = byPeriod.TryGetValue(quarterPeriods[i].Id, out var v) ? v : 0m;
         }
 
-        var nameById = eligibleEmployees.ToDictionary(e => e.Id, e => e.FullName);
-        var quarterRows = SuggestionMath.SplitIntoQuarters(
-            yearAmounts, FixedQuarterRows(orderedEmployeeIds, overwritten, currentByUnit), deptQuarterValues, step, mode);
-        var cells = new List<SuggestedCellDto>();
-        for (var i = 0; i < orderedEmployeeIds.Count; i++)
-        {
-            var empId = orderedEmployeeIds[i];
-            var empQuarters = quarterRows[i];
+        var storedQuarters = quarterLockedMask.Any(l => l)
+            ? await LoadStoredLockedQuartersAsync(deptYear.Id, kpi.Id, quarterPeriods, isEmployeeTier: true, cancellationToken)
+            : new Dictionary<Guid, decimal[]>();
 
-            cells.Add(new SuggestedCellDto(
-                empId, nameById.GetValueOrDefault(empId, empId.ToString()), yearAmounts[i],
-                empQuarters[0], empQuarters[1], empQuarters[2], empQuarters[3],
-                UsedFallbackAverage: usedFallback.Contains(empId), Overwritten: overwritten[i], Locked: locked[i],
-                LockReason: locked[i] ? (request.Employees == SuggestionEmployeeScope.NewOnly ? "not_new" : "period_locked") : null));
-        }
+        var (cells, total) = AllocateUnitsToCells(
+            orderedEmployeeIds, weights, locked, lockReasons, usedFallbackMask, employeeUnitNames,
+            deptYear.TargetValue, deptQuarterValues, quarterLockedMask,
+            currentByUnit, storedQuarters, request.Overwrite, step, mode, remainderMethod, bufferIndex,
+            warnings, "nhân viên");
 
-        var total = yearAmounts.Sum();
         var result = new SuggestedKpiDto(
             kpi.Id, kpi.Code, kpi.Name, kpi.Unit, kpi.AggregationType.ToEnumString(), cells, lockedUnits,
             deptYear.TargetValue, total == deptYear.TargetValue, null, warnings);
